@@ -148,19 +148,53 @@ function closeSendDialog() {
     document.getElementById('send-amount').value = '';
 }
 
-function handleLoginConfirm() {
-    const password = document.getElementById('wallet-password').value.trim();
-    if (!password) {
+async function handleLoginConfirm() {
+    try {
+        const password = document.getElementById('wallet-password').value.trim();
+        if (!password) {
+            const errorMsg = document.getElementById('error-message');
+            errorMsg.textContent = 'Please enter your password';
+            errorMsg.style.display = 'block';
+            return;
+        }
+
+        // Get stored wallet data
+        const storedAddress = localStorage.getItem('lastWalletAddress');
+        if (!storedAddress) {
+            throw new Error('No wallet found');
+        }
+
+        const encryptedWallet = localStorage.getItem(`${WALLET_PREFIX}${storedAddress.toLowerCase()}`);
+        if (!encryptedWallet) {
+            throw new Error('Wallet data not found');
+        }
+
+        // Try to decrypt wallet data with password
+        const walletData = await decryptData(encryptedWallet, password);
+        if (!walletData || !walletData.address || !walletData.privateKey) {
+            throw new Error('Invalid wallet data');
+        }
+
+        // Store session data
+        const sessionData = {
+            password,
+            expires: Date.now() + (5 * 60 * 1000) // 5 minutes
+        };
+        const encryptedSession = await encryptData(sessionData, password);
+        sessionStorage.setItem(SESSION_KEY, encryptedSession);
+
+        hideDialog('login-dialog');
+        document.getElementById('wallet-password').value = '';
+
+        // Update UI
+        document.getElementById('no-wallet-section').style.display = 'none';
+        document.getElementById('account-section').style.display = 'block';
+        document.querySelector('.account-address').textContent = walletData.address;
+    } catch (error) {
         const errorMsg = document.getElementById('error-message');
-        errorMsg.textContent = 'Please enter your password';
+        errorMsg.textContent = 'Login failed: ' + error.message;
         errorMsg.style.display = 'block';
-        return;
     }
-    hideDialog('login-dialog');
-    // Show account section for UI demonstration
-    document.getElementById('no-wallet-section').style.display = 'none';
-    document.getElementById('account-section').style.display = 'block';
-    document.querySelector('.account-address').textContent = '0x742d35Cc6634C0532925a3b844Bc454e4438f44e';
 }
 
 function handleSendConfirm() {
@@ -311,9 +345,43 @@ function toggleDropdown(dropdownId) {
     dropdown.style.display = isVisible ? 'none' : 'block';
 }
 
-// Initialize UI
-document.addEventListener('DOMContentLoaded', () => {
-    // Close dropdowns when clicking outside
+// Initialize UI and check for existing session
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        // Check for existing wallet and session
+        const storedAddress = localStorage.getItem('lastWalletAddress');
+        if (storedAddress) {
+            const storedSession = sessionStorage.getItem(SESSION_KEY);
+            if (storedSession) {
+                try {
+                    // Try to decrypt session data
+                    const sessionData = await decryptData(storedSession, storedSession);
+                    if (sessionData.expires && sessionData.expires > Date.now()) {
+                        // Valid session exists, get wallet data
+                        const encryptedWallet = localStorage.getItem(`${WALLET_PREFIX}${storedAddress.toLowerCase()}`);
+                        if (encryptedWallet) {
+                            const walletData = await decryptData(encryptedWallet, sessionData.password);
+                            if (walletData && walletData.address) {
+                                // Update UI with wallet data
+                                document.getElementById('no-wallet-section').style.display = 'none';
+                                document.getElementById('account-section').style.display = 'block';
+                                document.querySelector('.account-address').textContent = walletData.address;
+                                return;
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Failed to restore session:', e);
+                }
+                // Invalid or expired session, clear it
+                sessionStorage.removeItem(SESSION_KEY);
+            }
+        }
+    } catch (error) {
+        console.error('Failed to initialize wallet:', error);
+    }
+
+    // Set up event listeners
     document.addEventListener('click', (event) => {
         if (!event.target.closest('.dropdown')) {
             document.querySelectorAll('.dropdown-content').forEach(dropdown => {
@@ -322,7 +390,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Close dialogs when clicking overlay
     document.querySelectorAll('.dialog-overlay').forEach(overlay => {
         overlay.addEventListener('click', () => {
             const dialog = overlay.closest('.dialog');
