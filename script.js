@@ -1,3 +1,38 @@
+// Crypto utilities
+async function deriveKey(password) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hash = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hash))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+}
+
+async function encryptData(data, password) {
+    const key = await deriveKey(password);
+    return btoa(JSON.stringify({
+        data: data,
+        key: key
+    }));
+}
+
+async function decryptData(encryptedData, password) {
+    try {
+        const key = await deriveKey(password);
+        const decoded = JSON.parse(atob(encryptedData));
+        if (decoded.key !== key) {
+            throw new Error('Invalid password');
+        }
+        return decoded.data;
+    } catch (error) {
+        throw new Error('Decryption failed: Invalid password or data');
+    }
+}
+
+// Storage utilities
+const WALLET_PREFIX = 'wallet_';
+const SESSION_KEY = 'tempWalletPassword';
+
 // Dialog Management
 function showDialog(dialogId) {
     const dialog = document.getElementById(dialogId);
