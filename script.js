@@ -90,6 +90,7 @@ async function handleCreateWallet() {
         // Encrypt and store wallet data
         const encrypted = await encryptData(walletData, password);
         localStorage.setItem(`${WALLET_PREFIX}${address.toLowerCase()}`, encrypted);
+        localStorage.setItem('lastWalletAddress', address);
 
         // Store temporary session
         const sessionData = {
@@ -98,6 +99,11 @@ async function handleCreateWallet() {
         };
         const encryptedSession = await encryptData(sessionData, password);
         sessionStorage.setItem(SESSION_KEY, encryptedSession);
+
+        // Update UI
+        document.getElementById('no-wallet-section').style.display = 'none';
+        document.getElementById('account-section').style.display = 'block';
+        document.querySelector('.account-address').textContent = address;
 
         // Generate sample mnemonic for demonstration
         const sampleMnemonic = 'abandon ability able about above absent absorb abstract absurd abuse access accident';
@@ -255,15 +261,33 @@ function confirmSignature() {
     }, 1000);
 }
 
-function handleRefreshBalance() {
-    // Visual feedback only
-    const button = event.target;
-    button.disabled = true;
-    button.innerHTML = '<span class="icon icon-refresh"></span>Refreshing...';
-    setTimeout(() => {
+async function handleRefreshBalance() {
+    try {
+        // Visual feedback
+        const button = event.target;
+        button.disabled = true;
+        button.innerHTML = '<span class="icon icon-refresh"></span>Refreshing...';
+
+        // Get stored wallet and session data
+        const storedAddress = localStorage.getItem('lastWalletAddress');
+        const storedSession = sessionStorage.getItem(SESSION_KEY);
+        
+        if (!storedAddress || !storedSession) {
+            throw new Error('Wallet not found or session expired');
+        }
+
+        // For now, just update with mock balance
+        document.querySelector('.balance-amount').textContent = '0 TURA';
+    } catch (error) {
+        const errorMsg = document.getElementById('error-message');
+        errorMsg.textContent = 'Failed to refresh balance: ' + error.message;
+        errorMsg.style.display = 'block';
+    } finally {
+        // Reset button state
+        const button = event.target;
         button.disabled = false;
         button.innerHTML = '<span class="icon icon-refresh"></span>Refresh Balance';
-    }, 1000);
+    }
 }
 
 // Dialog Event Handlers
@@ -276,10 +300,25 @@ function closeRestoreDialog() {
     document.getElementById('mnemonic-input').value = '';
 }
 
-function confirmMnemonicBackup() {
-    hideDialog('mnemonic-dialog');
-    // Show account section for UI demonstration
-    handleLogin();
+async function confirmMnemonicBackup() {
+    try {
+        hideDialog('mnemonic-dialog');
+        
+        // Store last wallet address
+        const address = document.querySelector('.account-address').textContent;
+        localStorage.setItem('lastWalletAddress', address);
+        
+        // Update UI
+        document.getElementById('no-wallet-section').style.display = 'none';
+        document.getElementById('account-section').style.display = 'block';
+        
+        // Show login dialog for password entry
+        handleLogin();
+    } catch (error) {
+        const errorMsg = document.getElementById('error-message');
+        errorMsg.textContent = 'Failed to save wallet: ' + error.message;
+        errorMsg.style.display = 'block';
+    }
 }
 
 async function handleRestoreConfirm() {
@@ -351,6 +390,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Check for existing wallet and session
         const storedAddress = localStorage.getItem('lastWalletAddress');
         if (storedAddress) {
+            // Update UI with stored address
+            document.querySelector('.account-address').textContent = storedAddress;
+            
             const storedSession = sessionStorage.getItem(SESSION_KEY);
             if (storedSession) {
                 try {
@@ -366,6 +408,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 document.getElementById('no-wallet-section').style.display = 'none';
                                 document.getElementById('account-section').style.display = 'block';
                                 document.querySelector('.account-address').textContent = walletData.address;
+                                
+                                // Show logged-in buttons
+                                document.getElementById('initial-buttons').style.display = 'none';
+                                document.getElementById('logged-out-buttons').style.display = 'none';
+                                document.getElementById('logged-in-buttons').style.display = 'block';
+                                
+                                // Update balance (mock for now)
+                                document.querySelector('.balance-amount').textContent = '0 TURA';
                                 return;
                             }
                         }
@@ -376,9 +426,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Invalid or expired session, clear it
                 sessionStorage.removeItem(SESSION_KEY);
             }
+            
+            // Show logged-out buttons if we have a wallet but no valid session
+            document.getElementById('initial-buttons').style.display = 'none';
+            document.getElementById('logged-out-buttons').style.display = 'block';
+            document.getElementById('logged-in-buttons').style.display = 'none';
         }
     } catch (error) {
         console.error('Failed to initialize wallet:', error);
+        const errorMsg = document.getElementById('error-message');
+        errorMsg.textContent = 'Failed to load wallet data: ' + error.message;
+        errorMsg.style.display = 'block';
     }
 
     // Set up event listeners
