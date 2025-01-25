@@ -67,26 +67,62 @@ function hideDialog(dialogId) {
 }
 
 // Button Event Handlers
-function handleCreateWallet() {
-    // Generate sample mnemonic for UI demonstration
-    const sampleMnemonic = 'abandon ability able about above absent absorb abstract absurd abuse access accident';
-    const words = sampleMnemonic.split(' ');
-    const grid = document.getElementById('mnemonic-grid');
-    
-    // Clear existing content
-    grid.innerHTML = '';
-    
-    // Create grid items
-    words.forEach((word, index) => {
-        const div = document.createElement('div');
-        div.innerHTML = `
-            <span class="word-number">${index + 1}.</span>
-            <span class="word">${word}</span>
-        `;
-        grid.appendChild(div);
-    });
-    
-    showDialog('mnemonic-dialog');
+async function handleCreateWallet() {
+    try {
+        const password = prompt('Enter a secure password for your new wallet:');
+        if (!password) return;
+
+        // Generate random private key and address
+        const entropy = await window.crypto.getRandomValues(new Uint8Array(32));
+        const entropyHex = Array.from(entropy)
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+        
+        // Create wallet data
+        const address = '0x742d35Cc6634C0532925a3b844Bc454e4438f44e'; // Example address
+        const privateKey = entropyHex;
+        const walletData = {
+            address,
+            privateKey,
+            createdAt: new Date().toISOString()
+        };
+
+        // Encrypt and store wallet data
+        const encrypted = await encryptData(walletData, password);
+        localStorage.setItem(`${WALLET_PREFIX}${address.toLowerCase()}`, encrypted);
+
+        // Store temporary session
+        const sessionData = {
+            password,
+            expires: Date.now() + (5 * 60 * 1000) // 5 minutes
+        };
+        const encryptedSession = await encryptData(sessionData, password);
+        sessionStorage.setItem(SESSION_KEY, encryptedSession);
+
+        // Generate sample mnemonic for demonstration
+        const sampleMnemonic = 'abandon ability able about above absent absorb abstract absurd abuse access accident';
+        const words = sampleMnemonic.split(' ');
+        const grid = document.getElementById('mnemonic-grid');
+        
+        // Clear existing content
+        grid.innerHTML = '';
+        
+        // Create grid items
+        words.forEach((word, index) => {
+            const div = document.createElement('div');
+            div.innerHTML = `
+                <span class="word-number">${index + 1}.</span>
+                <span class="word">${word}</span>
+            `;
+            grid.appendChild(div);
+        });
+        
+        showDialog('mnemonic-dialog');
+    } catch (error) {
+        const errorMsg = document.getElementById('error-message');
+        errorMsg.textContent = 'Failed to create wallet: ' + error.message;
+        errorMsg.style.display = 'block';
+    }
 }
 
 function handleRestoreWallet() {
@@ -212,17 +248,53 @@ function confirmMnemonicBackup() {
     handleLogin();
 }
 
-function handleRestoreConfirm() {
-    const mnemonic = document.getElementById('mnemonic-input').value.trim();
-    if (!mnemonic) {
+async function handleRestoreConfirm() {
+    try {
+        const mnemonic = document.getElementById('mnemonic-input').value.trim();
+        if (!mnemonic) {
+            const errorMsg = document.getElementById('error-message');
+            errorMsg.textContent = 'Please enter your mnemonic phrase';
+            errorMsg.style.display = 'block';
+            return;
+        }
+
+        const password = prompt('Enter a secure password for your restored wallet:');
+        if (!password) return;
+
+        // Example restored wallet data (in production, this would be derived from mnemonic)
+        const address = '0x742d35Cc6634C0532925a3b844Bc454e4438f44e';
+        const privateKey = '0x1234567890abcdef'; // Example key
+        
+        const walletData = {
+            address,
+            privateKey,
+            createdAt: new Date().toISOString()
+        };
+
+        // Encrypt and store wallet data
+        const encrypted = await encryptData(walletData, password);
+        localStorage.setItem(`${WALLET_PREFIX}${address.toLowerCase()}`, encrypted);
+
+        // Store temporary session
+        const sessionData = {
+            password,
+            expires: Date.now() + (5 * 60 * 1000) // 5 minutes
+        };
+        const encryptedSession = await encryptData(sessionData, password);
+        sessionStorage.setItem(SESSION_KEY, encryptedSession);
+
+        hideDialog('restore-dialog');
+        document.getElementById('mnemonic-input').value = '';
+        
+        // Update UI to show wallet
+        document.getElementById('no-wallet-section').style.display = 'none';
+        document.getElementById('account-section').style.display = 'block';
+        document.querySelector('.account-address').textContent = address;
+    } catch (error) {
         const errorMsg = document.getElementById('error-message');
-        errorMsg.textContent = 'Please enter your mnemonic phrase';
+        errorMsg.textContent = 'Failed to restore wallet: ' + error.message;
         errorMsg.style.display = 'block';
-        return;
     }
-    hideDialog('restore-dialog');
-    // Show account section for UI demonstration
-    handleLogin();
 }
 
 // Account Management UI
