@@ -29,6 +29,10 @@ function App() {
     onReject: () => void;
   } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
+  const [isCreatingWallet, setIsCreatingWallet] = useState(false);
+  const [isSendingTransaction, setIsSendingTransaction] = useState(false);
+  const [lastBalanceUpdate, setLastBalanceUpdate] = useState<Date | null>(null);
   const [walletManager] = useState(() => {
     const manager = new WalletManager();
     // Make wallet manager available globally for debugging
@@ -250,6 +254,23 @@ function App() {
                 <div className="p-4 bg-secondary rounded-lg">
                   <div className="text-sm text-muted-foreground">Balance</div>
                   <div className="text-2xl font-bold">{balance} TURA</div>
+                  <div className="flex justify-between items-center mt-1">
+                    {lastBalanceUpdate && (
+                      <div className="text-xs text-muted-foreground">
+                        Last updated: {lastBalanceUpdate.toLocaleTimeString()}
+                      </div>
+                    )}
+                    {isRefreshingBalance && (
+                      <div className="text-xs text-muted-foreground animate-pulse">
+                        Refreshing...
+                      </div>
+                    )}
+                  </div>
+                  {_error && _error.includes('balance') && (
+                    <div className="text-xs text-destructive mt-1">
+                      {_error}
+                    </div>
+                  )}
                 </div>
               </>
             ) : (
@@ -317,24 +338,31 @@ function App() {
                 className="w-full"
                 onClick={async () => {
                   try {
-                    setIsProcessing(true);
+                    setIsRefreshingBalance(true);
+                    setError(''); // Clear any previous errors
                     const newBalance = await walletManager.getBalance(address);
                     setBalance(newBalance);
+                    setLastBalanceUpdate(new Date());
+                    // Show success message briefly
+                    setError('Balance updated successfully');
+                    setTimeout(() => {
+                      setError('');
+                    }, 3000);
                   } catch (error) {
                     const walletError = error as WalletError;
                     setError('Failed to refresh balance: ' + walletError.message);
                   } finally {
-                    setIsProcessing(false);
+                    setIsRefreshingBalance(false);
                   }
                 }}
-                disabled={isProcessing}
+                disabled={isRefreshingBalance}
               >
-                {isProcessing ? (
+                {isRefreshingBalance ? (
                   <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <RefreshCw className="mr-2 h-4 w-4" />
                 )}
-                {isProcessing ? 'Refreshing...' : 'Refresh Balance'}
+                {isRefreshingBalance ? 'Refreshing...' : 'Refresh Balance'}
               </Button>
             </>
           )}
