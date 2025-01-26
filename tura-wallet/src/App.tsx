@@ -1,5 +1,6 @@
-import { MessageSquare, Code, Bot, Wallet } from "lucide-react";
+import { MessageSquare, Code2, Bot, Wallet } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
+import { Separator } from "./components/ui/separator";
 import ChatPage from "./components/pages/ChatPage";
 import WalletPage from "./components/pages/WalletPage";
 import WorkflowPage from "./components/pages/WorkflowPage";
@@ -19,7 +20,7 @@ function App() {
             Wallet
           </TabsTrigger>
           <TabsTrigger value="workflow" className="flex items-center gap-2">
-            <Code className="h-4 w-4" />
+            <Code2 className="h-4 w-4" />
             Workflow
           </TabsTrigger>
           <TabsTrigger value="agents" className="flex items-center gap-2">
@@ -28,6 +29,7 @@ function App() {
           </TabsTrigger>
         </TabsList>
 
+        <Separator className="my-4" />
         <TabsContent value="chat">
           <ChatPage />
         </TabsContent>
