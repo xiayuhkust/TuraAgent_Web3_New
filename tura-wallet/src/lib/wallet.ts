@@ -122,14 +122,21 @@ export class WalletService {
   }
 
   async getBalance(address: string) {
+    const TIMEOUT_MS = 10000; // 10 second timeout
     try {
       // Validate address format
       if (!this.web3.utils.isAddress(address)) {
         throw new Error('Invalid Ethereum address format');
       }
       
-      // Get and convert balance
-      const balance = await this.web3.eth.getBalance(address);
+      // Get balance with timeout
+      const balance = await Promise.race([
+        this.web3.eth.getBalance(address),
+        new Promise((_resolve, reject) =>
+          setTimeout(() => reject(new Error('RPC timeout')), TIMEOUT_MS)
+        )
+      ]);
+
       const balanceEth = this.web3.utils.fromWei(balance, 'ether');
       console.log('Balance for', address, ':', balanceEth, 'TURA');
       
@@ -137,6 +144,10 @@ export class WalletService {
     } catch (error) {
       console.error('Failed to get balance:', error);
       if (error instanceof Error) {
+        // Specific error for timeout
+        if (error.message === 'RPC timeout') {
+          throw new Error('Failed to get wallet balance: RPC request timed out after 10 seconds');
+        }
         throw new Error('Failed to get wallet balance: ' + error.message);
       }
       throw new Error('Failed to get wallet balance');
@@ -144,6 +155,8 @@ export class WalletService {
   }
 
   async sendTransaction(fromAddress: string, toAddress: string, amount: string, privateKey: string) {
+    const TIMEOUT_MS = 10000; // 10 second timeout
+    
     try {
       // Validate addresses
       if (!this.web3.utils.isAddress(fromAddress) || !this.web3.utils.isAddress(toAddress)) {
@@ -161,14 +174,25 @@ export class WalletService {
         throw new Error('Amount must be greater than 0');
       }
       
-      // Get latest nonce and gas price
-      const [nonce, gasPrice] = await Promise.all([
-        this.web3.eth.getTransactionCount(fromAddress, 'latest'),
-        this.web3.eth.getGasPrice()
+      // Get latest nonce and gas price with timeout
+      const [nonce, gasPrice] = await Promise.race([
+        Promise.all([
+          this.web3.eth.getTransactionCount(fromAddress, 'latest'),
+          this.web3.eth.getGasPrice()
+        ]),
+        new Promise((_resolve, reject) =>
+          setTimeout(() => reject(new Error('RPC timeout')), TIMEOUT_MS)
+        )
       ]);
       
-      // Check if account has sufficient balance
-      const balance = await this.web3.eth.getBalance(fromAddress);
+      // Check if account has sufficient balance with timeout
+      const balance = await Promise.race([
+        this.web3.eth.getBalance(fromAddress),
+        new Promise((_resolve, reject) =>
+          setTimeout(() => reject(new Error('RPC timeout')), TIMEOUT_MS)
+        )
+      ]);
+      
       const totalCost = BigInt(value) + (BigInt(gasPrice) * BigInt(21000));
       
       if (BigInt(balance) < totalCost) {
@@ -186,12 +210,17 @@ export class WalletService {
         chainId: CHAIN_CONFIG.chainId
       };
       
-      // Sign and send transaction
+      // Sign and send transaction with timeout
       const signedTx = await this.web3.eth.accounts.signTransaction(tx, privateKey);
       if (!signedTx.rawTransaction) {
         throw new Error('Failed to sign transaction');
       }
-      const receipt = await this.web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+      const receipt = await Promise.race([
+        this.web3.eth.sendSignedTransaction(signedTx.rawTransaction),
+        new Promise((_resolve, reject) =>
+          setTimeout(() => reject(new Error('RPC timeout')), TIMEOUT_MS)
+        )
+      ]);
       
       console.log('Transaction successful:', receipt.transactionHash);
       // Convert Web3's receipt to our TransactionReceipt type
@@ -208,6 +237,10 @@ export class WalletService {
     } catch (error) {
       console.error('Transaction failed:', error);
       if (error instanceof Error) {
+        // Specific error for timeout
+        if (error.message === 'RPC timeout') {
+          throw new Error('Failed to send transaction: RPC request timed out after 10 seconds');
+        }
         throw new Error('Failed to send transaction: ' + error.message);
       }
       throw new Error('Failed to send transaction');
