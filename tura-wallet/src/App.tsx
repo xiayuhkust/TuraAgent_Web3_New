@@ -15,11 +15,8 @@ import { MessageSquare, Code2, Bot, Mic, AlertCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Separator } from "./components/ui/separator";
 import ChatPage from "./components/pages/ChatPage";
-import WalletPage from "./components/pages/WalletPage";
 import WorkflowPage from "./components/pages/WorkflowPage";
 import AgentsPage from "./components/pages/AgentsPage";
-import MicrophoneTest from "./test/MicrophoneTest";
-import BrowserCapabilityTest from "./test/BrowserCapabilityTest";
 import MinimalMicrophoneTest from "./test/MinimalMicrophoneTest";
 
 function App() {
@@ -613,10 +610,6 @@ function App() {
           </TabsContent>
 
           <TabsContent value="test">
-            <MicrophoneTest />
-          </TabsContent>
-
-          <TabsContent value="minimal">
             <MinimalMicrophoneTest />
           </TabsContent>
         </Tabs>
