@@ -1,0 +1,25 @@
+/* App-specific styles */
+.container {
+  max-width: 480px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.wallet-card {
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.space-y-4 > * + * {
+  margin-top: 1rem;
+}
+
+.font-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.break-all {
+  word-break: break-all;
+}
