@@ -72,9 +72,9 @@ export class WalletService {
       console.log('Setting up MetaMask...');
       
       // Request account access
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }) as string[];
       console.log('MetaMask account access granted:', {
-        accounts: accounts.map((a: string) => `${a.slice(0, 6)}...${a.slice(-4)}`)
+        accounts: accounts.map(a => `${a.slice(0, 6)}...${a.slice(-4)}`)
       });
 
       // Add Tura network if not already added

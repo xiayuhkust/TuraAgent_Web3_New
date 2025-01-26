@@ -18,10 +18,10 @@ type ToasterToast = ToastProps & {
   action?: ToastActionElement
 }
 
-const ADD_TOAST = "ADD_TOAST" as const;
-const UPDATE_TOAST = "UPDATE_TOAST" as const;
-const DISMISS_TOAST = "DISMISS_TOAST" as const;
-const REMOVE_TOAST = "REMOVE_TOAST" as const;
+export const ADD_TOAST = "ADD_TOAST" as const;
+export const UPDATE_TOAST = "UPDATE_TOAST" as const;
+export const DISMISS_TOAST = "DISMISS_TOAST" as const;
+export const REMOVE_TOAST = "REMOVE_TOAST" as const;
 
 let count = 0
 
