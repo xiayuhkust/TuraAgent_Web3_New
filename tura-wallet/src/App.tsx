@@ -11,7 +11,7 @@ interface WalletError extends Error {
   message: string;
 }
 
-import { MessageSquare, Code2, Bot, Mic, Bug } from "lucide-react";
+import { MessageSquare, Code2, Bot, Mic, AlertCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Separator } from "./components/ui/separator";
 import ChatPage from "./components/pages/ChatPage";
