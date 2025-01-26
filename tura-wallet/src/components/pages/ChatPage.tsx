@@ -82,35 +82,6 @@ export default function ChatPage() {
             noiseSuppression: true
           }
         };
-      // Check if mediaDevices API is supported
-      if (!navigator?.mediaDevices?.getUserMedia) {
-        throw new Error('MediaDevices API not supported in this browser');
-      }
-
-      // Check if MediaRecorder is supported
-      if (!window.MediaRecorder) {
-        throw new Error('MediaRecorder not supported in this browser');
-      }
-
-      // First check if we have permission
-      const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-      console.log('Microphone permission status:', permissionStatus.state);
-      
-      if (permissionStatus.state === 'denied') {
-        throw new Error('Microphone permission denied. Please enable microphone access in your browser settings.');
-      }
-
-      // Try to get stream with specific constraints for Baidu API
-      let stream;
-      try {
-        const constraints = {
-          audio: {
-            sampleRate: 16000,    // Required by Baidu API
-            channelCount: 1,      // Mono audio required
-            echoCancellation: true,
-            noiseSuppression: true
-          }
-        };
         
         console.log('Requesting audio stream with constraints:', constraints);
         stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -150,7 +121,6 @@ export default function ChatPage() {
       }
 
       const mediaRecorder = new MediaRecorder(stream, { mimeType });
->>>>>>> a027cf8 (fix: improve microphone permission handling and error logging)
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
@@ -176,7 +146,6 @@ export default function ChatPage() {
           stopRecording();
         }
       }, 15000);
-<<<<<<< HEAD
     } catch (error: any) {
       // Log detailed error information for debugging
       console.error('Recording failed:', {
@@ -217,48 +186,6 @@ export default function ChatPage() {
         default:
           errorMessage += 'Please check your microphone settings.';
       }
-    } catch (error: any) {
-      // Log detailed error information for debugging
-      console.error('Recording failed:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-        browserInfo: {
-          userAgent: navigator.userAgent,
-          platform: navigator.platform,
-          vendor: navigator.vendor,
-          mediaDevices: !!navigator.mediaDevices,
-          mediaRecorder: !!window.MediaRecorder,
-          secure: window.isSecureContext
-        },
-        constraints: {
-          sampleRate: 16000,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true
-        }
-      });
-
-      // Provide user-friendly error message based on error type
-      let errorMessage = 'Failed to start recording. ';
-      switch (error.name) {
-        case 'NotAllowedError':
-          errorMessage += 'Please grant microphone permissions.';
-          break;
-        case 'NotFoundError':
-          errorMessage += 'No microphone found.';
-          break;
-        case 'NotReadableError':
-          errorMessage += 'Microphone is already in use.';
-          break;
-        case 'OverconstrainedError':
-          errorMessage += 'Microphone does not support required audio settings.';
-          break;
-        default:
-          errorMessage += 'Please check your microphone settings.';
-      }
-
->>>>>>> a027cf8 (fix: improve microphone permission handling and error logging)
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         text: 'Failed to start recording. Please check your microphone permissions.',
@@ -310,56 +237,80 @@ export default function ChatPage() {
       <CardHeader>
         <CardTitle>Chat</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col h-full">
-        <ScrollArea className="flex-1 pr-4">
-          <div className="space-y-4">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${
-                  message.sender === 'user' ? 'justify-end' : 'justify-start'
-                }`}
-              >
+      <CardContent className="flex h-full gap-4">
+        {/* AgenticWorkflow Sidebar */}
+        <div className="w-[30%] border-r pr-4">
+          <div className="space-y-2">
+            <h3 className="font-semibold mb-2">Available Agents</h3>
+            <div className="space-y-2">
+              <div className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 cursor-pointer">
+                <div className="font-medium">WalletAgent</div>
+                <div className="text-sm text-muted-foreground">Manage TURA transactions</div>
+              </div>
+              <div className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 cursor-pointer">
+                <div className="font-medium">MarketDataAgent</div>
+                <div className="text-sm text-muted-foreground">Crypto market data</div>
+              </div>
+              <div className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 cursor-pointer">
+                <div className="font-medium">StrategyAgent</div>
+                <div className="text-sm text-muted-foreground">Trading strategy analysis</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Chat Area */}
+        <div className="flex-1 flex flex-col">
+          <ScrollArea className="flex-1 pr-4">
+            <div className="space-y-4">
+              {messages.map((message) => (
                 <div
-                  className={`max-w-[80%] rounded-lg p-3 ${
-                    message.sender === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : message.sender === 'error'
-                      ? 'bg-destructive text-destructive-foreground'
-                      : 'bg-secondary'
+                  key={message.id}
+                  className={`flex ${
+                    message.sender === 'user' ? 'justify-end' : 'justify-start'
                   }`}
                 >
-                  <div>{message.text}</div>
-                  <div className="text-xs opacity-70 mt-1">
-                    {new Date(message.timestamp).toLocaleTimeString()}
+                  <div
+                    className={`max-w-[80%] rounded-lg p-3 ${
+                      message.sender === 'user'
+                        ? 'bg-primary text-primary-foreground'
+                        : message.sender === 'error'
+                        ? 'bg-destructive text-destructive-foreground'
+                        : 'bg-secondary'
+                    }`}
+                  >
+                    <div>{message.text}</div>
+                    <div className="text-xs opacity-70 mt-1">
+                      {new Date(message.timestamp).toLocaleTimeString()}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+          </ScrollArea>
+          
+          <div className="flex gap-2 mt-4">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={isRecording ? stopRecording : startRecording}
+              disabled={isLoading}
+              className={isRecording ? 'text-destructive' : ''}
+            >
+              <Mic className="h-4 w-4" />
+            </Button>
+            <Input
+              placeholder="Type your message..."
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              disabled={isLoading}
+            />
+            <Button onClick={handleSendMessage} disabled={isLoading}>
+              <Send className="h-4 w-4" />
+            </Button>
           </div>
-        </ScrollArea>
-        
-        <div className="flex gap-2 mt-4">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={isRecording ? stopRecording : startRecording}
-            disabled={isLoading}
-            className={isRecording ? 'text-destructive' : ''}
-          >
-            <Mic className="h-4 w-4" />
-          </Button>
-          <Input
-            placeholder="Type your message..."
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-            disabled={isLoading}
-          />
-          <Button onClick={handleSendMessage} disabled={isLoading}>
-            <Send className="h-4 w-4" />
-          </Button>
         </div>
       </CardContent>
     </Card>
