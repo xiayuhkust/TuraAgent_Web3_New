@@ -53,6 +53,24 @@ export default function ChatPage() {
 
   const startRecording = async () => {
     try {
+      // Check if mediaDevices API is supported
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        throw new Error('MediaDevices API not supported in this browser');
+      }
+
+      // Check if MediaRecorder is supported
+      if (!window.MediaRecorder) {
+        throw new Error('MediaRecorder not supported in this browser');
+      }
+
+      // First check if we have permission
+      const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+      console.log('Microphone permission status:', permissionStatus.state);
+      
+      if (permissionStatus.state === 'denied') {
+        throw new Error('Microphone permission denied. Please enable microphone access in your browser settings.');
+      }
+
       // Try to get stream with specific constraints for Baidu API
       let stream;
       try {
@@ -135,6 +153,14 @@ export default function ChatPage() {
         name: error.name,
         message: error.message,
         stack: error.stack,
+        browserInfo: {
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          vendor: navigator.vendor,
+          mediaDevices: !!navigator.mediaDevices,
+          mediaRecorder: !!window.MediaRecorder,
+          secure: window.isSecureContext
+        },
         constraints: {
           sampleRate: 16000,
           channelCount: 1,
