@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Send } from 'lucide-react';
+import { Mic, Send, Bot, Code2, Wallet } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { ScrollArea } from '../ui/scroll-area';
+import { Badge } from '../ui/badge';
+import { officialAgents, agents, workflows } from '../../stores/agent-store';
+import { Agent, OfficialAgent, Workflow } from '../../types/agentTypes';
 
 interface Message {
   id: string;
@@ -17,6 +20,7 @@ export default function ChatPage() {
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(null);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -235,28 +239,140 @@ export default function ChatPage() {
   return (
     <Card className="h-[calc(100vh-8rem)]">
       <CardHeader>
-        <CardTitle>Chat</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <Bot className="h-6 w-6" />
+          {activeAgent ? activeAgent.name : 'Chat'}
+        </CardTitle>
       </CardHeader>
       <CardContent className="flex h-full gap-4">
         {/* AgenticWorkflow Sidebar */}
         <div className="w-[30%] border-r pr-4">
-          <div className="space-y-2">
-            <h3 className="font-semibold mb-2">Available Agents</h3>
-            <div className="space-y-2">
-              <div className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 cursor-pointer">
-                <div className="font-medium">WalletAgent</div>
-                <div className="text-sm text-muted-foreground">Manage TURA transactions</div>
+          <ScrollArea className="h-full">
+            <div className="space-y-6">
+              {/* Official Agents */}
+              <div className="space-y-2">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Bot className="h-4 w-4" />
+                  Official Agents
+                </h3>
+                <div className="space-y-2">
+                  {officialAgents.map(agent => (
+                    <div
+                      key={agent.name}
+                      className={`p-3 rounded-lg hover:bg-secondary/80 cursor-pointer transition-colors ${
+                        activeAgent?.name === agent.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
+                      }`}
+                      onClick={() => {
+                        setActiveAgent(agent);
+                        setMessages(prev => [...prev, {
+                          id: Date.now().toString(),
+                          text: `Connected to ${agent.name}`,
+                          sender: 'agent',
+                          timestamp: new Date().toISOString()
+                        }]);
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="font-medium flex items-center gap-2">
+                          <Wallet className="h-4 w-4" />
+                          {agent.name}
+                        </div>
+                        <Badge variant="secondary" className="text-xs">
+                          {agent.status}
+                        </Badge>
+                      </div>
+                      <div className="text-sm text-muted-foreground">{agent.description}</div>
+                      <div className="text-xs text-muted-foreground mt-2">
+                        Fee: {agent.feePerRequest}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 cursor-pointer">
-                <div className="font-medium">MarketDataAgent</div>
-                <div className="text-sm text-muted-foreground">Crypto market data</div>
+
+              {/* Community Agents */}
+              <div className="space-y-2">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Bot className="h-4 w-4" />
+                  Community Agents
+                </h3>
+                <div className="space-y-2">
+                  {agents.map(agent => (
+                    <div
+                      key={agent.contractAddress}
+                      className={`p-3 rounded-lg hover:bg-secondary/80 cursor-pointer transition-colors ${
+                        activeAgent?.name === agent.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
+                      }`}
+                      onClick={() => {
+                        setActiveAgent(agent);
+                        setMessages(prev => [...prev, {
+                          id: Date.now().toString(),
+                          text: `Connected to ${agent.name}`,
+                          sender: 'agent',
+                          timestamp: new Date().toISOString()
+                        }]);
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="font-medium">{agent.name}</div>
+                        <Badge variant="secondary" className="text-xs">
+                          {agent.status}
+                        </Badge>
+                      </div>
+                      <div className="text-sm text-muted-foreground">{agent.description}</div>
+                      <div className="text-xs font-mono mt-2">
+                        Contract: {agent.contractAddress.slice(0, 6)}...{agent.contractAddress.slice(-4)}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Fee: {agent.feePerRequest}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 cursor-pointer">
-                <div className="font-medium">StrategyAgent</div>
-                <div className="text-sm text-muted-foreground">Trading strategy analysis</div>
+
+              {/* Workflows */}
+              <div className="space-y-2">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Code2 className="h-4 w-4" />
+                  Workflows
+                </h3>
+                <div className="space-y-2">
+                  {workflows.map(workflow => (
+                    <div
+                      key={workflow.contractAddress}
+                      className={`p-3 rounded-lg hover:bg-secondary/80 cursor-pointer transition-colors ${
+                        activeAgent?.name === workflow.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
+                      }`}
+                      onClick={() => {
+                        setActiveAgent(workflow);
+                        setMessages(prev => [...prev, {
+                          id: Date.now().toString(),
+                          text: `Connected to ${workflow.name}`,
+                          sender: 'agent',
+                          timestamp: new Date().toISOString()
+                        }]);
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="font-medium">{workflow.name}</div>
+                        <Badge variant="secondary" className="text-xs">
+                          {workflow.status}
+                        </Badge>
+                      </div>
+                      <div className="text-sm text-muted-foreground">{workflow.description}</div>
+                      <div className="text-xs font-mono mt-2">
+                        Contract: {workflow.contractAddress.slice(0, 6)}...{workflow.contractAddress.slice(-4)}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Fee: {workflow.fee} • Confirmations: {workflow.requiredConfirmations}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          </ScrollArea>
         </div>
 
         {/* Chat Area */}
