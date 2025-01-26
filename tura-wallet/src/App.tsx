@@ -1,11 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Wallet, Send, RefreshCw, Lock, Key, RotateCcw } from 'lucide-react';
+import { Wallet, Send, RefreshCw, Lock, Key, RotateCcw, MessageSquare, Code, Bot } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
-// Alert components removed as they're unused
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import WalletManager from './lib/wallet_manager';
+
+// Page components
+import ChatPage from './components/pages/ChatPage';
+import WalletPage from './components/pages/WalletPage';
+import WorkflowPage from './components/pages/WorkflowPage';
+import AgentsPage from './components/pages/AgentsPage';
 
 interface WalletError extends Error {
   message: string;
@@ -150,18 +156,42 @@ function App() {
   }, []);
 
   return (
-    <>
-      <div className="container mx-auto p-4">
-        <Card className="max-w-md mx-auto">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wallet className="h-6 w-6" />
-              Tura Wallet
-            </CardTitle>
-            <CardDescription>
-              Manage your cryptocurrency securely
-            </CardDescription>
-          </CardHeader>
+    <div className="container mx-auto p-4">
+      <Tabs defaultValue="chat" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="chat" className="flex items-center gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Chat
+          </TabsTrigger>
+          <TabsTrigger value="wallet" className="flex items-center gap-2">
+            <Wallet className="h-4 w-4" />
+            Wallet
+          </TabsTrigger>
+          <TabsTrigger value="workflow" className="flex items-center gap-2">
+            <Code className="h-4 w-4" />
+            Workflow
+          </TabsTrigger>
+          <TabsTrigger value="agents" className="flex items-center gap-2">
+            <Bot className="h-4 w-4" />
+            Agents
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="chat">
+          <ChatPage />
+        </TabsContent>
+
+        <TabsContent value="wallet">
+          <Card className="max-w-md mx-auto">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wallet className="h-6 w-6" />
+                Tura Wallet
+              </CardTitle>
+              <CardDescription>
+                Manage your cryptocurrency securely
+              </CardDescription>
+            </CardHeader>
         
         <CardContent>
           <div className="space-y-4">
@@ -556,8 +586,17 @@ function App() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      </div>
-    </>
+        </TabsContent>
+
+        <TabsContent value="workflow">
+          <WorkflowPage />
+        </TabsContent>
+
+        <TabsContent value="agents">
+          <AgentsPage />
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
 
