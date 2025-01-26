@@ -17,16 +17,51 @@ export default function MinimalMicrophoneTest() {
       chunksRef.current = [];
 
       // Request microphone access with Baidu API requirements
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const constraints = {
         audio: {
           sampleRate: 16000,
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true
         }
+      };
+      
+      console.log('Requesting audio stream with constraints:', constraints);
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      // Log actual stream settings
+      const audioTrack = stream.getAudioTracks()[0];
+      const settings = audioTrack.getSettings();
+      console.log('Actual audio track settings:', {
+        sampleRate: settings.sampleRate,
+        channelCount: settings.channelCount,
+        deviceId: settings.deviceId,
+        groupId: settings.groupId,
+        autoGainControl: settings.autoGainControl,
+        echoCancellation: settings.echoCancellation,
+        noiseSuppression: settings.noiseSuppression,
+        timestamp: new Date().toISOString()
       });
-
-      setStatus('Got microphone stream, initializing recorder...');
+      
+      // Check if actual settings match requirements
+      if (settings.sampleRate !== 16000) {
+        console.warn('Warning: Actual sample rate differs from requested:', settings.sampleRate);
+      }
+      if (settings.channelCount !== 1) {
+        console.warn('Warning: Actual channel count differs from requested:', settings.channelCount);
+      }
+      
+      setStatus(`Got microphone stream (${settings.sampleRate}Hz, ${settings.channelCount} channels)`);
+      
+      // Log supported MIME types
+      const supportedTypes = [
+        'audio/webm',
+        'audio/webm;codecs=opus',
+        'audio/wav',
+        'audio/ogg;codecs=opus'
+      ].filter(type => MediaRecorder.isTypeSupported(type));
+      
+      console.log('Supported MIME types:', supportedTypes);
 
       // Create MediaRecorder with supported MIME type
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -44,10 +79,113 @@ export default function MinimalMicrophoneTest() {
         }
       };
 
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(chunksRef.current, { type: mimeType });
-        setAudioData(audioBlob);
-        setStatus('Recording complete');
+        console.log('Recording complete:', {
+          size: audioBlob.size,
+          type: audioBlob.type,
+          chunks: chunksRef.current.length,
+          timestamp: new Date().toISOString()
+        });
+
+        try {
+          // Convert to WAV for testing
+          const audioContext = new AudioContext();
+          const arrayBuffer = await audioBlob.arrayBuffer();
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+          
+          console.log('Audio buffer details:', {
+            duration: audioBuffer.duration,
+            numberOfChannels: audioBuffer.numberOfChannels,
+            sampleRate: audioBuffer.sampleRate,
+            length: audioBuffer.length,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Create WAV file
+          const wavBuffer = await new Promise<ArrayBuffer>((resolve) => {
+            const numberOfChannels = 1; // Mono
+            const sampleRate = 16000;   // Required by Baidu API
+            const length = audioBuffer.length;
+            const wavBuffer = new ArrayBuffer(44 + length * 2);
+            const view = new DataView(wavBuffer);
+            
+            // WAV header
+            const writeString = (view: DataView, offset: number, string: string) => {
+              for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+              }
+            };
+            
+            writeString(view, 0, 'RIFF');                     // RIFF identifier
+            view.setUint32(4, 36 + length * 2, true);        // File length
+            writeString(view, 8, 'WAVE');                     // WAVE identifier
+            writeString(view, 12, 'fmt ');                    // Format chunk identifier
+            view.setUint32(16, 16, true);                    // Length of format data
+            view.setUint16(20, 1, true);                     // Format type (1 = PCM)
+            view.setUint16(22, numberOfChannels, true);      // Number of channels
+            view.setUint32(24, sampleRate, true);            // Sample rate
+            view.setUint32(28, sampleRate * 2, true);        // Byte rate
+            view.setUint16(32, numberOfChannels * 2, true);  // Block align
+            view.setUint16(34, 16, true);                    // Bits per sample
+            writeString(view, 36, 'data');                   // Data chunk identifier
+            view.setUint32(40, length * 2, true);            // Data chunk length
+            
+            // Write audio data
+            const data = new Float32Array(audioBuffer.getChannelData(0));
+            let offset = 44;
+            for (let i = 0; i < length; i++) {
+              const sample = Math.max(-1, Math.min(1, data[i]));
+              view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+              offset += 2;
+            }
+            
+            resolve(wavBuffer);
+          });
+          
+          // Verify WAV header contents
+          const headerView = new DataView(wavBuffer.slice(0, 44));
+          const header = {
+            chunkId: String.fromCharCode(...new Uint8Array(wavBuffer.slice(0, 4))),
+            fileSize: headerView.getUint32(4, true),
+            format: String.fromCharCode(...new Uint8Array(wavBuffer.slice(8, 12))),
+            subchunk1Id: String.fromCharCode(...new Uint8Array(wavBuffer.slice(12, 16))),
+            subchunk1Size: headerView.getUint32(16, true),
+            audioFormat: headerView.getUint16(20, true),
+            numChannels: headerView.getUint16(22, true),
+            sampleRate: headerView.getUint32(24, true),
+            byteRate: headerView.getUint32(28, true),
+            blockAlign: headerView.getUint16(32, true),
+            bitsPerSample: headerView.getUint16(34, true),
+            subchunk2Id: String.fromCharCode(...new Uint8Array(wavBuffer.slice(36, 40))),
+            subchunk2Size: headerView.getUint32(40, true)
+          };
+          
+          console.log('WAV conversion test:', {
+            header,
+            isValid: (
+              header.chunkId === 'RIFF' &&
+              header.format === 'WAVE' &&
+              header.subchunk1Id === 'fmt ' &&
+              header.subchunk2Id === 'data' &&
+              header.audioFormat === 1 &&
+              header.numChannels === 1 &&
+              header.sampleRate === 16000 &&
+              header.bitsPerSample === 16
+            ),
+            byteLength: wavBuffer.byteLength,
+            timestamp: new Date().toISOString()
+          });
+          
+          const wavBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+          setAudioData(wavBlob);
+          setStatus(`Recording converted to WAV (${(wavBlob.size / 1024).toFixed(1)}KB)`);
+        } catch (error) {
+          console.error('WAV conversion failed:', error);
+          setAudioData(audioBlob);
+          setStatus(`Recording complete (${(audioBlob.size / 1024).toFixed(1)}KB) - WAV conversion failed`);
+        }
+        
         stream.getTracks().forEach(track => track.stop());
       };
 
