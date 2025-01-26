@@ -87,7 +87,8 @@ export class WalletService {
           params: [{ chainId: chainIdHex }],
         });
         console.log('Successfully switched to Tura network');
-      } catch (switchError: any) {
+      } catch (error) {
+        const switchError = error as { code: number; message: string };
         console.log('Switch network error:', { code: switchError.code, message: switchError.message });
         
         // This error code indicates that the chain has not been added to MetaMask
