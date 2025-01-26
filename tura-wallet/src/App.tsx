@@ -82,17 +82,24 @@ function App() {
   const handleLogin = async () => {
     try {
       setError('');
+      setIsCreatingWallet(true);
       const password = prompt('Enter your wallet password:');
-      if (!password) return;
+      if (!password) {
+        setIsCreatingWallet(false);
+        return;
+      }
 
       await walletManager.login(address, password);
       setIsLoggedIn(true);
       
       const balance = await walletManager.getBalance(address);
       setBalance(balance);
+      setLastBalanceUpdate(new Date());
     } catch (error) {
       const walletError = error as WalletError;
       setError('Login failed: ' + walletError.message);
+    } finally {
+      setIsCreatingWallet(false);
     }
   };
 
@@ -214,7 +221,7 @@ function App() {
       const walletError = error as WalletError;
       setError('Failed to create wallet: ' + walletError.message);
     } finally {
-      setIsProcessing(false);
+      setIsCreatingWallet(false);
     }
   };
 
@@ -272,7 +279,7 @@ function App() {
                 variant="outline"
                 className="w-full"
                 onClick={() => setShowRestore(true)}
-                disabled={isProcessing}
+                disabled={isCreatingWallet}
               >
                 <RotateCcw className="mr-2 h-4 w-4" />
                 Restore Wallet
@@ -446,7 +453,7 @@ function App() {
                 signatureDetails?.onReject();
                 setShowSignature(false);
               }}
-              disabled={isProcessing}
+              disabled={isSendingTransaction}
             >
               Reject
             </Button>
@@ -456,12 +463,12 @@ function App() {
                   await signatureDetails.onConfirm();
                 }
               }}
-              disabled={isProcessing}
+              disabled={isSendingTransaction}
             >
-              {isProcessing ? (
+              {isSendingTransaction ? (
                 <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
-              {isProcessing ? 'Signing...' : 'Sign'}
+              {isSendingTransaction ? 'Signing...' : 'Sign'}
             </Button>
           </DialogFooter>
         </DialogContent>
