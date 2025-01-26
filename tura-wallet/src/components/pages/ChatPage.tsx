@@ -7,6 +7,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
 import { officialAgents, agents, workflows } from '../../stores/agent-store';
 import { Agent, OfficialAgent, Workflow } from '../../types/agentTypes';
+import WalletManager from '../../lib/wallet_manager';
 
 interface Message {
   id: string;
@@ -21,15 +22,66 @@ export default function ChatPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(null);
+  const [chatAccount, setChatAccount] = useState('');
+  const [chatBalance, setChatBalance] = useState('0');
+  const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
+  const [lastBalanceUpdate, setLastBalanceUpdate] = useState<Date | null>(null);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const walletManager = useRef(new WalletManager());
   const chunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Scroll to bottom when messages change
+  // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Check for stored wallet and update balance
+  useEffect(() => {
+    const checkStoredWallet = async () => {
+      try {
+        const storedAddress = localStorage.getItem('lastWalletAddress');
+        if (storedAddress) {
+          setChatAccount(storedAddress);
+          setIsRefreshingBalance(true);
+          try {
+            const balance = await walletManager.current.getBalance(storedAddress);
+            setChatBalance(balance);
+            setLastBalanceUpdate(new Date());
+          } catch (error) {
+            console.warn('Failed to get initial balance:', error);
+          } finally {
+            setIsRefreshingBalance(false);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check stored wallet:', error);
+      }
+    };
+
+    checkStoredWallet();
+
+    // Set up interval to refresh balance every 30 seconds
+    const intervalId = setInterval(async () => {
+      const storedAddress = localStorage.getItem('lastWalletAddress');
+      if (storedAddress) {
+        try {
+          setIsRefreshingBalance(true);
+          const balance = await walletManager.current.getBalance(storedAddress);
+          setChatBalance(balance);
+          setLastBalanceUpdate(new Date());
+        } catch (error) {
+          console.warn('Failed to refresh balance:', error);
+        } finally {
+          setIsRefreshingBalance(false);
+        }
+      }
+    }, 30000);
+
+    return () => clearInterval(intervalId);
+  }, []);
 
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
@@ -150,12 +202,13 @@ export default function ChatPage() {
           stopRecording();
         }
       }, 15000);
-    } catch (error: any) {
+    } catch (error) {
       // Log detailed error information for debugging
+      const err = error as Error;
       console.error('Recording failed:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
+        name: err.name,
+        message: err.message,
+        stack: err.stack,
         browserInfo: {
           userAgent: navigator.userAgent,
           platform: navigator.platform,
@@ -173,26 +226,25 @@ export default function ChatPage() {
       });
 
       // Provide user-friendly error message based on error type
-      let errorMessage = 'Failed to start recording. ';
-      switch (error.name) {
-        case 'NotAllowedError':
-          errorMessage += 'Please grant microphone permissions.';
-          break;
-        case 'NotFoundError':
-          errorMessage += 'No microphone found.';
-          break;
-        case 'NotReadableError':
-          errorMessage += 'Microphone is already in use.';
-          break;
-        case 'OverconstrainedError':
-          errorMessage += 'Microphone does not support required audio settings.';
-          break;
-        default:
-          errorMessage += 'Please check your microphone settings.';
-      }
+      const getErrorMessage = (errName: string): string => {
+        const baseMessage = 'Failed to start recording. ';
+        switch (errName) {
+          case 'NotAllowedError':
+            return baseMessage + 'Please grant microphone permissions.';
+          case 'NotFoundError':
+            return baseMessage + 'No microphone found.';
+          case 'NotReadableError':
+            return baseMessage + 'Microphone is already in use.';
+          case 'OverconstrainedError':
+            return baseMessage + 'Microphone does not support required audio settings.';
+          default:
+            return baseMessage + 'Please check your microphone settings.';
+        }
+      };
+      const message = getErrorMessage(err.name);
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
-        text: 'Failed to start recording. Please check your microphone permissions.',
+        text: message,
         sender: 'error',
         timestamp: new Date().toISOString()
       }]);
@@ -239,9 +291,34 @@ export default function ChatPage() {
   return (
     <Card className="h-[calc(100vh-8rem)]">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bot className="h-6 w-6" />
-          {activeAgent ? activeAgent.name : 'Chat'}
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bot className="h-6 w-6" />
+            {activeAgent ? activeAgent.name : 'Chat'}
+          </div>
+          {chatAccount && (
+            <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <Wallet className="h-4 w-4" />
+                <span className="font-mono">
+                  {`${chatAccount.slice(0, 6)}...${chatAccount.slice(-4)}`}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span>{chatBalance} TURA</span>
+                {isRefreshingBalance && (
+                  <span className="text-xs text-muted-foreground animate-pulse">
+                    Refreshing...
+                  </span>
+                )}
+                {lastBalanceUpdate && (
+                  <span className="text-xs text-muted-foreground">
+                    Updated: {lastBalanceUpdate.toLocaleTimeString()}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="flex h-full gap-4">

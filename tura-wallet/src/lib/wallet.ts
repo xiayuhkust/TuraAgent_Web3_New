@@ -72,9 +72,9 @@ export class WalletService {
       console.log('Setting up MetaMask...');
       
       // Request account access
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }) as string[];
       console.log('MetaMask account access granted:', {
-        accounts: accounts.map((a: string) => `${a.slice(0, 6)}...${a.slice(-4)}`)
+        accounts: accounts.map(a => `${a.slice(0, 6)}...${a.slice(-4)}`)
       });
 
       // Add Tura network if not already added
@@ -87,7 +87,9 @@ export class WalletService {
           params: [{ chainId: chainIdHex }],
         });
         console.log('Successfully switched to Tura network');
-      } catch (switchError: any) {
+      } catch (error) {
+        // Handle MetaMask switch error
+        const switchError = error as { code: number; message: string };
         console.log('Switch network error:', { code: switchError.code, message: switchError.message });
         
         // This error code indicates that the chain has not been added to MetaMask
