@@ -163,8 +163,8 @@ export default function MinimalMicrophoneTest() {
             view.setUint32(16, 16, true);                    // Length of format data
             view.setUint16(20, 1, true);                     // Format type (1 = PCM)
             view.setUint16(22, numberOfChannels, true);      // Number of channels
-            view.setUint32(24, sampleRate, true);            // Sample rate
-            view.setUint32(28, sampleRate * 2, true);        // Byte rate
+            view.setUint32(24, targetSampleRate, true);            // Sample rate
+            view.setUint32(28, targetSampleRate * 2, true);        // Byte rate
             view.setUint16(32, numberOfChannels * 2, true);  // Block align
             view.setUint16(34, 16, true);                    // Bits per sample
             writeString(view, 36, 'data');                   // Data chunk identifier

@@ -56,17 +56,44 @@ export default function ChatPage() {
       // Try to get stream with specific constraints for Baidu API
       let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        const constraints = {
           audio: {
             sampleRate: 16000,    // Required by Baidu API
             channelCount: 1,      // Mono audio required
             echoCancellation: true,
             noiseSuppression: true
           }
+        };
+        
+        console.log('Requesting audio stream with constraints:', constraints);
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        // Verify the actual stream settings
+        const audioTrack = stream.getAudioTracks()[0];
+        const settings = audioTrack.getSettings();
+        console.log('Actual audio track settings:', {
+          sampleRate: settings.sampleRate,
+          channelCount: settings.channelCount,
+          deviceId: settings.deviceId,
+          groupId: settings.groupId,
+          autoGainControl: settings.autoGainControl,
+          echoCancellation: settings.echoCancellation,
+          noiseSuppression: settings.noiseSuppression,
+          timestamp: new Date().toISOString()
         });
+        
+        // Warn if sample rate doesn't match requirements
+        if (settings.sampleRate !== 16000) {
+          console.warn('Warning: Audio sample rate does not match required 16kHz:', settings.sampleRate);
+        }
       } catch (constraintError) {
         console.warn('Failed to get stream with specific constraints, falling back to default:', constraintError);
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // Log fallback stream settings
+        const audioTrack = stream.getAudioTracks()[0];
+        const settings = audioTrack.getSettings();
+        console.log('Fallback audio track settings:', settings);
       }
 
       // Try to use specific MIME type for better compatibility
@@ -158,9 +185,25 @@ export default function ChatPage() {
       // Convert audio to WAV format if it's not already
       let processedBlob = audioBlob;
       if (audioBlob.type !== 'audio/wav') {
-        console.log('Converting audio to WAV format...');
+        console.log('Converting audio to WAV format...', {
+          originalType: audioBlob.type,
+          originalSize: audioBlob.size,
+          timestamp: new Date().toISOString()
+        });
+        
         const audioContext = new AudioContext();
+        console.log('Audio context created:', {
+          sampleRate: audioContext.sampleRate,
+          state: audioContext.state,
+          timestamp: new Date().toISOString()
+        });
+        
         const arrayBuffer = await audioBlob.arrayBuffer();
+        console.log('Array buffer created:', {
+          byteLength: arrayBuffer.byteLength,
+          timestamp: new Date().toISOString()
+        });
+        
         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
         
         // Create WAV file
@@ -204,19 +247,74 @@ export default function ChatPage() {
           resolve(wavBuffer);
         });
         
+        // Verify WAV header contents
+        const headerView = new DataView(wavBuffer.slice(0, 44));
+        const header = {
+          chunkId: String.fromCharCode(...new Uint8Array(wavBuffer.slice(0, 4))),
+          fileSize: headerView.getUint32(4, true),
+          format: String.fromCharCode(...new Uint8Array(wavBuffer.slice(8, 12))),
+          subchunk1Id: String.fromCharCode(...new Uint8Array(wavBuffer.slice(12, 16))),
+          subchunk1Size: headerView.getUint32(16, true),
+          audioFormat: headerView.getUint16(20, true),
+          numChannels: headerView.getUint16(22, true),
+          sampleRate: headerView.getUint32(24, true),
+          byteRate: headerView.getUint32(28, true),
+          blockAlign: headerView.getUint16(32, true),
+          bitsPerSample: headerView.getUint16(34, true),
+          subchunk2Id: String.fromCharCode(...new Uint8Array(wavBuffer.slice(36, 40))),
+          subchunk2Size: headerView.getUint32(40, true)
+        };
+        
+        console.log('WAV header verification:', {
+          ...header,
+          isValid: (
+            header.chunkId === 'RIFF' &&
+            header.format === 'WAVE' &&
+            header.subchunk1Id === 'fmt ' &&
+            header.subchunk2Id === 'data' &&
+            header.audioFormat === 1 &&
+            header.numChannels === 1 &&
+            header.sampleRate === 16000 &&
+            header.bitsPerSample === 16
+          ),
+          byteLength: wavBuffer.byteLength,
+          timestamp: new Date().toISOString()
+        });
+        
         processedBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+        console.log('WAV blob created:', {
+          size: processedBlob.size,
+          type: processedBlob.type,
+          timestamp: new Date().toISOString()
+        });
       }
 
       const formData = new FormData();
-      formData.append('audio', processedBlob);
+      formData.append('audio', processedBlob, 'recording.wav');
+      
+      // Log request details
+      console.log('Preparing API request:', {
+        contentType: processedBlob.type,
+        fileName: 'recording.wav',
+        fileSize: processedBlob.size,
+        timestamp: new Date().toISOString()
+      });
 
-      console.log('Sending audio to speech-to-text API:', {
-        format: processedBlob.type,
-        size: processedBlob.size
+      // Log FormData contents for debugging
+      const formDataEntries = Array.from(formData.entries());
+      console.log('FormData contents:', {
+        entries: formDataEntries.map(([key, value]) => ({
+          key,
+          type: value instanceof Blob ? value.type : typeof value,
+          size: value instanceof Blob ? value.size : null,
+          filename: value instanceof File ? value.name : null
+        })),
+        timestamp: new Date().toISOString()
       });
 
       const response = await fetch('/api/v1/speech-to-text', {
         method: 'POST',
+        // Don't set Content-Type header - browser will set it with boundary
         body: formData
       });
 
