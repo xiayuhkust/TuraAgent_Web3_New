@@ -1,25 +1,34 @@
+interface Message {
+  text: string;
+  timestamp: string;
+  sender: 'user' | 'agent';
+}
+
 /**
  * Base class for all agentic workflows in the system.
  * Each agent represents a role that can process messages and provide responses.
  */
 export class AgenticWorkflow {
+  private name: string;
+  private description: string;
+  private messages: Message[] = [];
+
   /**
    * Create a new AgenticWorkflow instance
-   * @param {string} name - The display name of the agent
-   * @param {string} description - A description of what this agent does
+   * @param name - The display name of the agent
+   * @param description - A description of what this agent does
    */
-  constructor(name, description) {
+  constructor(name: string, description: string) {
     this.name = name;
     this.description = description;
-    this.messages = [];  // Store recent messages for context
   }
 
   /**
    * Process an incoming message and return a response
-   * @param {string} text - The message text to process
-   * @returns {Promise<string>} The agent's response
+   * @param text - The message text to process
+   * @returns The agent's response
    */
-  async processMessage(text) {
+  async processMessage(text: string): Promise<string> {
     // Store message for context
     this.messages.push({
       text,
@@ -27,8 +36,8 @@ export class AgenticWorkflow {
       sender: 'user'
     });
 
-    // Base implementation just echoes the message
-    const response = `Received: ${text}`;
+    // Base implementation identifies the agent and echoes the message
+    const response = `I am ${this.name}. ${this.description ? this.description + '. ' : ''}You said: ${text}`;
     
     // Store response
     this.messages.push({
@@ -47,16 +56,16 @@ export class AgenticWorkflow {
 
   /**
    * Get the agent's message history
-   * @returns {Array} Array of message objects
+   * @returns Array of message objects
    */
-  getMessages() {
+  getMessages(): Message[] {
     return this.messages;
   }
 
   /**
    * Clear the agent's message history
    */
-  clearMessages() {
+  clearMessages(): void {
     this.messages = [];
   }
 }
