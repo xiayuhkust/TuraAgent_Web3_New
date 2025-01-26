@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tura Wallet</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="icons.css">
+    
+    <!-- Web3 and Crypto Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bip39@3.0.4/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ethereumjs-util@7.1.3/dist/index.min.js"></script>
+    
+    <!-- Application Script -->
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Password Dialog -->
+        <div id="password-dialog" class="dialog">
+            <div class="dialog-overlay"></div>
+            <div class="dialog-content">
+                <div class="dialog-header">
+                    <h2>Create Wallet Password</h2>
+                    <p>Enter a secure password to encrypt your wallet.</p>
+                </div>
+                <div class="dialog-body">
+                    <div id="password-error" class="error-message" style="display: none;"></div>
+                    <div class="form-group">
+                        <label for="create-password">Password</label>
+                        <input 
+                            type="password" 
+                            id="create-password" 
+                            class="form-input" 
+                            placeholder="Enter a secure password"
+                        />
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="secondary-button" onclick="hideDialog('password-dialog')">Cancel</button>
+                    <button class="primary-button" onclick="window.confirmPassword()">Create Wallet</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Send Transaction Dialog -->
+        <div id="send-dialog" class="dialog">
+            <div class="dialog-overlay"></div>
+            <div class="dialog-content">
+                <div class="dialog-header">
+                    <h2>Send TURA</h2>
+                    <p>Enter the recipient address and amount to send.</p>
+                </div>
+                <div class="dialog-body">
+                    <div class="form-group">
+                        <label for="recipient-address">Recipient Address</label>
+                        <input 
+                            type="text" 
+                            id="recipient-address" 
+                            class="form-input" 
+                            placeholder="0x..."
+                        />
+                    </div>
+                    <div class="form-group">
+                        <label for="send-amount">Amount (TURA)</label>
+                        <input 
+                            type="number" 
+                            id="send-amount" 
+                            class="form-input" 
+                            placeholder="0.0"
+                            min="0"
+                            step="0.000000000000000001"
+                        />
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="secondary-button" onclick="closeSendDialog()">Cancel</button>
+                    <button class="primary-button" onclick="handleSendConfirm()">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Signature Request Dialog -->
+        <div id="signature-dialog" class="dialog">
+            <div class="dialog-overlay"></div>
+            <div class="dialog-content">
+                <div class="dialog-header">
+                    <h2>Signature Request</h2>
+                    <p>Please review the transaction details before signing.</p>
+                </div>
+                <div class="dialog-body">
+                    <div class="info-box">
+                        <div class="info-label">From</div>
+                        <div id="signature-from" class="font-mono text-sm break-all"></div>
+                    </div>
+                    <div class="info-box">
+                        <div class="info-label">To</div>
+                        <div id="signature-to" class="font-mono text-sm break-all"></div>
+                    </div>
+                    <div class="info-box">
+                        <div class="info-label">Amount</div>
+                        <div id="signature-amount" class="text-2xl font-bold"></div>
+                    </div>
+                    <div class="info-box">
+                        <div class="info-label">Network</div>
+                        <div id="signature-network" class="text-sm">Tura Network (Chain ID: 1337)</div>
+                    </div>
+                    <div class="warning-text">
+                        Make sure you trust this site before signing
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="secondary-button" onclick="rejectSignature()">Reject</button>
+                    <button class="primary-button" onclick="confirmSignature()">Sign</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Login Dialog -->
+        <div id="login-dialog" class="dialog">
+            <div class="dialog-overlay"></div>
+            <div class="dialog-content">
+                <div class="dialog-header">
+                    <h2>Login to Wallet</h2>
+                    <p>Enter your wallet password to continue.</p>
+                </div>
+                <div class="dialog-body">
+                    <div class="form-group">
+                        <label for="wallet-password">Password</label>
+                        <input 
+                            type="password" 
+                            id="wallet-password" 
+                            class="form-input" 
+                            placeholder="Enter your password"
+                        />
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="secondary-button" onclick="closeLoginDialog()">Cancel</button>
+                    <button class="primary-button" onclick="handleLoginConfirm()">Login</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Restore Wallet Dialog -->
+        <div id="restore-dialog" class="dialog">
+            <div class="dialog-overlay"></div>
+            <div class="dialog-content">
+                <div class="dialog-header">
+                    <h2>Restore Wallet from Mnemonic</h2>
+                    <p>Enter your 12-word mnemonic phrase to restore your wallet.</p>
+                </div>
+                <div class="dialog-body">
+                    <textarea 
+                        id="mnemonic-input" 
+                        class="mnemonic-input" 
+                        placeholder="Enter your mnemonic phrase"
+                    ></textarea>
+                    <p class="hint-text">Words should be separated by spaces</p>
+                </div>
+                <div class="dialog-footer">
+                    <button class="secondary-button" onclick="closeRestoreDialog()">Cancel</button>
+                    <button class="primary-button" onclick="handleRestoreConfirm()">Restore Wallet</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mnemonic Backup Dialog -->
+        <div id="mnemonic-dialog" class="dialog">
+            <div class="dialog-overlay"></div>
+            <div class="dialog-content">
+                <div class="dialog-header">
+                    <h2>Important: Backup Your Mnemonic Phrase</h2>
+                    <p>Please write down these 12 words in order and keep them safe. They are the only way to recover your wallet if you lose access.</p>
+                </div>
+                <div class="dialog-body">
+                    <div class="mnemonic-grid" id="mnemonic-grid">
+                        <!-- Mnemonic words will be inserted here -->
+                    </div>
+                    <p class="warning-text">Warning: Never share your mnemonic phrase with anyone!</p>
+                </div>
+                <div class="dialog-footer">
+                    <button class="secondary-button" onclick="closeMnemonicDialog()">Close</button>
+                    <button class="primary-button" onclick="confirmMnemonicBackup()">I've Backed Up My Phrase</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="wallet-card">
+            <div class="wallet-header">
+                <h1><span class="icon icon-wallet"></span>Tura Wallet</h1>
+                <p class="subtitle">Manage your cryptocurrency securely</p>
+            </div>
+            
+            <div class="wallet-content">
+                <div id="error-message" class="error-message" style="display: none;"></div>
+                
+                <div class="space-y-4">
+                    <!-- Account Display Section -->
+                    <div id="account-section" class="account-section" style="display: none;">
+                        <div class="info-box">
+                            <div class="account-header">
+                                <div class="info-label">Account</div>
+                                <div class="dropdown">
+                                    <button class="dropdown-button" onclick="toggleDropdown('account-dropdown')">
+                                        <span>Account 1</span>
+                                        <span class="chevron-down"></span>
+                                    </button>
+                                    <div id="account-dropdown" class="dropdown-content">
+                                        <div class="dropdown-item" onclick="handleSwitchAccount(0)">Account 1</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="account-address font-mono text-sm break-all"></div>
+                        </div>
+                        
+                        <div class="info-box">
+                            <div class="info-label">Balance</div>
+                            <div class="balance-amount text-2xl font-bold">0 TURA</div>
+                        </div>
+
+                        <button class="secondary-button" onclick="handleAddAccount()">
+                            <span class="icon icon-plus"></span>
+                            Add Account
+                        </button>
+                    </div>
+
+                    <!-- No Wallet Section -->
+                    <div id="no-wallet-section" class="no-wallet-section">
+                        <p>No wallet connected</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="wallet-footer">
+                <!-- Initial Buttons -->
+                <div id="initial-buttons" class="button-group">
+                    <button class="primary-button" onclick="handleCreateWallet()">
+                        <span class="icon icon-key"></span>
+                        Create New Wallet
+                    </button>
+                    <button class="secondary-button" onclick="handleRestoreWallet()">
+                        <span class="icon icon-rotate"></span>
+                        Restore Wallet
+                    </button>
+                </div>
+
+                <!-- Logged Out Buttons -->
+                <div id="logged-out-buttons" class="button-group" style="display: none;">
+                    <button class="primary-button" onclick="handleLogin()">
+                        <span class="icon icon-lock"></span>
+                        Login to Wallet
+                    </button>
+                </div>
+
+                <!-- Logged In Buttons -->
+                <div id="logged-in-buttons" class="button-group" style="display: none;">
+                    <button class="primary-button" onclick="handleSend()">
+                        <span class="icon icon-send"></span>
+                        Send TURA
+                    </button>
+                    <button class="secondary-button" onclick="handleRefreshBalance()">
+                        <span class="icon icon-refresh"></span>
+                        Refresh Balance
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password Dialog -->
+    <div id="password-dialog" class="dialog" style="display: none;">
+        <div class="dialog-overlay"></div>
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <h2>Create Wallet Password</h2>
+                <p>Enter a secure password to protect your wallet.</p>
+            </div>
+            <div class="dialog-body">
+                <input 
+                    type="password" 
+                    id="create-password" 
+                    class="form-input" 
+                    placeholder="Enter password"
+                />
+                <p id="password-error" class="error-message" style="display: none;"></p>
+            </div>
+            <div class="dialog-footer">
+                <button class="secondary-button" onclick="hideDialog('password-dialog')">Cancel</button>
+                <button class="primary-button" onclick="window.confirmPassword()">Create Wallet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Signature Request Dialog -->
+    <div id="signature-dialog" class="dialog" style="display: none;">
+        <div class="dialog-overlay"></div>
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <h2>Sign Transaction</h2>
+                <p>Please review the transaction details carefully before signing.</p>
+            </div>
+            <div class="dialog-body">
+                <div class="info-box">
+                    <div class="info-label">From</div>
+                    <div id="signature-from" class="account-address"></div>
+                </div>
+                <div class="info-box">
+                    <div class="info-label">To</div>
+                    <div id="signature-to" class="account-address"></div>
+                </div>
+                <div class="info-box">
+                    <div class="info-label">Amount</div>
+                    <div id="signature-amount"></div>
+                </div>
+                <div class="info-box">
+                    <div class="info-label">Network</div>
+                    <div>Tura Network (Chain ID: 1337)</div>
+                </div>
+                <p class="warning-text">Warning: Only sign transactions from sources you trust!</p>
+            </div>
+            <div class="dialog-footer">
+                <button class="secondary-button" onclick="rejectSignature()">Reject</button>
+                <button class="primary-button" onclick="confirmSignature()">Sign</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password Dialog -->
+    <div id="password-dialog" class="dialog" style="display: none;">
+        <div class="dialog-overlay"></div>
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <h2>Create Wallet Password</h2>
+                <p>Enter a secure password to encrypt your wallet.</p>
+            </div>
+            <div class="dialog-body">
+                <div class="form-group">
+                    <label for="create-password">Password</label>
+                    <input 
+                        type="password" 
+                        id="create-password" 
+                        class="form-input" 
+                        placeholder="Enter your password"
+                    />
+                </div>
+                <p class="hint-text">Make sure to remember this password. You'll need it to access your wallet.</p>
+            </div>
+            <div class="dialog-footer">
+                <button class="secondary-button" onclick="hideDialog('password-dialog')">Cancel</button>
+                <button class="primary-button" onclick="window.confirmPassword()">Create Wallet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Restore Wallet Dialog -->
+    <div id="restore-dialog" class="dialog" style="display: none;">
+        <div class="dialog-overlay"></div>
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <h2>Restore Wallet from Mnemonic</h2>
+                <p>Enter your 12-word mnemonic phrase to restore your wallet.</p>
+            </div>
+            <div class="dialog-body">
+                <textarea 
+                    id="mnemonic-input" 
+                    class="mnemonic-input" 
+                    placeholder="Enter your mnemonic phrase"
+                ></textarea>
+                <p class="hint-text">Words should be separated by spaces</p>
+            </div>
+            <div class="dialog-footer">
+                <button class="secondary-button" onclick="closeRestoreDialog()">Cancel</button>
+                <button class="primary-button" onclick="handleRestoreConfirm()">Restore Wallet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mnemonic Backup Dialog -->
+    <div id="mnemonic-dialog" class="dialog" style="display: none;">
+        <div class="dialog-overlay"></div>
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <h2>Important: Backup Your Mnemonic Phrase</h2>
+                <p>Please write down these 12 words in order and keep them safe. They are the only way to recover your wallet if you lose access.</p>
+            </div>
+            <div class="dialog-body">
+                <div class="mnemonic-grid" id="mnemonic-grid">
+                    <!-- Mnemonic words will be inserted here -->
+                </div>
+                <p class="warning-text">Warning: Never share your mnemonic phrase with anyone!</p>
+            </div>
+            <div class="dialog-footer">
+                <button class="secondary-button" onclick="closeMnemonicDialog()">Close</button>
+                <button class="primary-button" onclick="confirmMnemonicBackup()">I've Backed Up My Phrase</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Signature Request Dialog -->
+    <div id="signature-dialog" class="dialog" style="display: none;">
+        <div class="dialog-overlay"></div>
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <h2>Confirm Transaction</h2>
+                <p>Please review the transaction details carefully before signing.</p>
+            </div>
+            <div class="dialog-body">
+                <div class="form-group">
+                    <label>From</label>
+                    <div id="signature-from" class="form-input"></div>
+                </div>
+                <div class="form-group">
+                    <label>To</label>
+                    <div id="signature-to" class="form-input"></div>
+                </div>
+                <div class="form-group">
+                    <label>Amount</label>
+                    <div id="signature-amount" class="form-input"></div>
+                </div>
+                <div class="form-group">
+                    <label>Network</label>
+                    <div class="form-input">Tura Network (Chain ID: 1337)</div>
+                </div>
+                <p class="warning-text">Make sure you trust this site. Signing this message will allow the requester to transfer the specified amount from your account.</p>
+            </div>
+            <div class="dialog-footer">
+                <button class="secondary-button" onclick="rejectSignature()">Reject</button>
+                <button class="primary-button" onclick="confirmSignature()">Sign</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.5.2/web3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bip39/3.0.4/index.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethereumjs-util/7.1.3/index.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

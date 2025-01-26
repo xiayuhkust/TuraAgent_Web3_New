@@ -1,0 +1,43 @@
+<!-- Restore Wallet Dialog -->
+<div id="restore-dialog" class="dialog" style="display: none;">
+    <div class="dialog-overlay"></div>
+    <div class="dialog-content">
+        <div class="dialog-header">
+            <h2>Restore Wallet from Mnemonic</h2>
+            <p>Enter your 12-word mnemonic phrase to restore your wallet.</p>
+        </div>
+        <div class="dialog-body">
+            <textarea 
+                id="mnemonic-input" 
+                class="mnemonic-input" 
+                placeholder="Enter your mnemonic phrase"
+            ></textarea>
+            <p class="hint-text">Words should be separated by spaces</p>
+        </div>
+        <div class="dialog-footer">
+            <button class="secondary-button" onclick="closeRestoreDialog()">Cancel</button>
+            <button class="primary-button" onclick="handleRestoreConfirm()">Restore Wallet</button>
+        </div>
+    </div>
+</div>
+
+<!-- Mnemonic Backup Dialog -->
+<div id="mnemonic-dialog" class="dialog" style="display: none;">
+    <div class="dialog-overlay"></div>
+    <div class="dialog-content">
+        <div class="dialog-header">
+            <h2>Important: Backup Your Mnemonic Phrase</h2>
+            <p>Please write down these 12 words in order and keep them safe. They are the only way to recover your wallet if you lose access.</p>
+        </div>
+        <div class="dialog-body">
+            <div class="mnemonic-grid" id="mnemonic-grid">
+                <!-- Mnemonic words will be inserted here -->
+            </div>
+            <p class="warning-text">Warning: Never share your mnemonic phrase with anyone!</p>
+        </div>
+        <div class="dialog-footer">
+            <button class="secondary-button" onclick="closeMnemonicDialog()">Close</button>
+            <button class="primary-button" onclick="confirmMnemonicBackup()">I've Backed Up My Phrase</button>
+        </div>
+    </div>
+</div>
