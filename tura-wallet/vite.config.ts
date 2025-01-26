@@ -21,6 +21,11 @@ export default defineConfig({
       buffer: 'buffer',
       process: 'process/browser'
     },
+  },
+  server: {
+    host: true,
+    port: 5173,
+    https: true
   }
 })
 
