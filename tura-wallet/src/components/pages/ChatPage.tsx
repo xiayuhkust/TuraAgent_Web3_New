@@ -171,6 +171,27 @@ export default function ChatPage() {
     }
   };
 
+  // Fetch with timeout utility
+  const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 10000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(id);
+      return response;
+    } catch (error) {
+      clearTimeout(id);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`Request timed out after ${timeout}ms`);
+      }
+      throw error;
+    }
+  };
+
   const handleSpeechToText = async (audioBlob: Blob) => {
     try {
       setIsLoading(true);
@@ -184,16 +205,17 @@ export default function ChatPage() {
       formData.append('dev_pid', '1737'); // Automatic language detection model
       formData.append('cuid', 'TuraAIWallet');
 
-      const response = await fetch('/api/v1/speech-to-text', {
+      const response = await fetchWithTimeout('/api/v1/speech-to-text', {
         method: 'POST',
         body: formData,
         headers: {
           'Accept': 'application/json'
         }
-      });
+      }, 10000); // 10 second timeout
 
       if (!response.ok) {
-        throw new Error(`Speech-to-text failed: ${response.statusText}`);
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`Speech recognition failed: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -236,6 +258,10 @@ export default function ChatPage() {
       return;
     }
 
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Agent response timed out after 10 seconds')), 10000)
+    );
+
     try {
       setIsLoading(true);
       
@@ -249,7 +275,7 @@ export default function ChatPage() {
       setMessages(prev => [...prev, userMessage]);
       setInputText("");
 
-      // Get agent response
+      // Get agent response with timeout
       let response: string;
       if (selectedAgent.contractAddress) {
         // Validate contract address and get latest agent data
@@ -263,10 +289,16 @@ export default function ChatPage() {
         }
 
         // For contract-based agents, we'll need to implement contract interaction
-        response = `[${storedAgent.name}] Contract interaction not yet implemented. Contract: ${storedAgent.contractAddress}`;
+        response = await Promise.race([
+          Promise.resolve(`[${storedAgent.name}] Contract interaction not yet implemented. Contract: ${storedAgent.contractAddress}`),
+          timeoutPromise
+        ]);
       } else {
-        // Use AgenticWorkflow for built-in agents
-        response = await agent.processMessage(inputText);
+        // Use AgenticWorkflow for built-in agents with timeout
+        response = await Promise.race([
+          agent.processMessage(inputText),
+          timeoutPromise
+        ]);
       }
       
       // Add agent response
@@ -292,19 +324,42 @@ export default function ChatPage() {
     }
   };
 
-  // Update agent instance when selected agent changes
+  // Update agent instance when selected agent changes with error handling
   useEffect(() => {
-    if (selectedAgent) {
-      const newAgent = new AgenticWorkflow(selectedAgent.name, selectedAgent.description);
-      setAgent(newAgent);
-      // Clear messages when switching agents
-      setMessages([{
-        id: Date.now().toString(),
-        text: `已切换到 ${selectedAgent.name}`,
-        sender: 'agent',
-        timestamp: new Date().toISOString()
-      }]);
-    }
+    const initializeAgent = async () => {
+      if (!selectedAgent) return;
+
+      try {
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Agent initialization timed out after 10 seconds')), 10000)
+        );
+
+        // Initialize agent with timeout
+        const newAgent = await Promise.race([
+          Promise.resolve(new AgenticWorkflow(selectedAgent.name, selectedAgent.description)),
+          timeoutPromise
+        ]);
+
+        setAgent(newAgent);
+        // Clear messages when switching agents
+        setMessages([{
+          id: Date.now().toString(),
+          text: `已切换到 ${selectedAgent.name}`,
+          sender: 'agent',
+          timestamp: new Date().toISOString()
+        }]);
+      } catch (error) {
+        console.error('Failed to initialize agent:', error);
+        setMessages([{
+          id: Date.now().toString(),
+          text: error instanceof Error ? error.message : 'Failed to initialize agent',
+          sender: 'error',
+          timestamp: new Date().toISOString()
+        }]);
+      }
+    };
+
+    initializeAgent();
   }, [selectedAgent]);
 
   const handleAgentSelect = (agent: Agent) => {
