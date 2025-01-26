@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { ScrollArea } from "../ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { AgenticWorkflow } from "../../agentic_workflow/AgenticWorkflow";
-import { getAgent, getWorkflow, getAllAgents, isValidAddress } from "../../stores/agent-store";
+import { getAgent, getWorkflow, isValidAddress } from "../../stores/agent-store";
 
 interface Agent {
   name: string;
@@ -82,7 +82,7 @@ export default function ChatPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [agent] = useState(() => new AgenticWorkflow(
+  const [agent, setAgent] = useState(() => new AgenticWorkflow(
     selectedAgent?.name || "Chat Agent",
     selectedAgent?.description || "A helpful chat agent"
   ));

@@ -36,7 +36,7 @@ export default function WalletPage() {
   const [walletManager] = useState(() => {
     const manager = new WalletManager();
     // Make wallet manager available globally for debugging
-    (window as any).walletManager = manager;
+    window.walletManager = manager;
     return manager;
   });
 
@@ -463,8 +463,12 @@ export default function WalletPage() {
                     console.warn('Failed to get initial balance:', e);
                     setBalance('0');
                   }
-                } catch (error: any) {
-                  setError('Failed to restore wallet: ' + error.message);
+                } catch (error) {
+                  if (error instanceof Error) {
+                    setError('Failed to restore wallet: ' + error.message);
+                  } else {
+                    setError('Failed to restore wallet');
+                  }
                 } finally {
                   setIsRestoringWallet(false);
                 }

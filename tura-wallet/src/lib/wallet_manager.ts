@@ -9,7 +9,14 @@ if (typeof window !== 'undefined') {
 
 declare global {
   interface Window {
-    ethereum: any;
+    ethereum: {
+      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+      on: (event: string, handler: (accounts: string[]) => void) => void;
+      removeListener: (event: string, handler: (accounts: string[]) => void) => void;
+      isMetaMask?: boolean;
+    };
+    walletManager?: WalletManagerImpl;
+    Buffer?: typeof Buffer;
   }
 }
 
@@ -102,7 +109,7 @@ export class WalletManagerImpl {
       
       try {
         decoded = JSON.parse(atob(encryptedData));
-      } catch (e) {
+      } catch {
         throw new Error('Invalid encrypted data format');
       }
       
