@@ -53,8 +53,29 @@ export default function ChatPage() {
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      // Try to get stream with specific constraints for Baidu API
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            sampleRate: 16000,    // Required by Baidu API
+            channelCount: 1,      // Mono audio required
+            echoCancellation: true,
+            noiseSuppression: true
+          }
+        });
+      } catch (constraintError) {
+        console.warn('Failed to get stream with specific constraints, falling back to default:', constraintError);
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+
+      // Try to use specific MIME type for better compatibility
+      let mimeType = 'audio/webm;codecs=opus';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'audio/webm';  // Fallback to basic webm
+      }
+
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
@@ -65,7 +86,8 @@ export default function ChatPage() {
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(chunksRef.current, { type: 'audio/wav' });
+        // Use the MIME type we actually got
+        const audioBlob = new Blob(chunksRef.current, { type: mediaRecorder.mimeType });
         await handleSpeechToText(audioBlob);
         stream.getTracks().forEach(track => track.stop());
       };
@@ -80,11 +102,42 @@ export default function ChatPage() {
           stopRecording();
         }
       }, 15000);
-    } catch (error) {
-      console.error('Failed to start recording:', error);
+    } catch (error: any) {
+      // Log detailed error information for debugging
+      console.error('Recording failed:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        constraints: {
+          sampleRate: 16000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true
+        }
+      });
+
+      // Provide user-friendly error message based on error type
+      let errorMessage = 'Failed to start recording. ';
+      switch (error.name) {
+        case 'NotAllowedError':
+          errorMessage += 'Please grant microphone permissions.';
+          break;
+        case 'NotFoundError':
+          errorMessage += 'No microphone found.';
+          break;
+        case 'NotReadableError':
+          errorMessage += 'Microphone is already in use.';
+          break;
+        case 'OverconstrainedError':
+          errorMessage += 'Microphone does not support required audio settings.';
+          break;
+        default:
+          errorMessage += 'Please check your microphone settings.';
+      }
+
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
-        text: 'Failed to start recording. Please check your microphone permissions.',
+        text: errorMessage,
         sender: 'error',
         timestamp: new Date().toISOString()
       }]);
@@ -101,8 +154,66 @@ export default function ChatPage() {
   const handleSpeechToText = async (audioBlob: Blob) => {
     try {
       setIsLoading(true);
+      
+      // Convert audio to WAV format if it's not already
+      let processedBlob = audioBlob;
+      if (audioBlob.type !== 'audio/wav') {
+        console.log('Converting audio to WAV format...');
+        const audioContext = new AudioContext();
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        
+        // Create WAV file
+        const wavBuffer = await new Promise<ArrayBuffer>((resolve) => {
+          const numberOfChannels = 1; // Mono
+          const sampleRate = 16000;   // Required by Baidu API
+          const length = audioBuffer.length;
+          const wavBuffer = new ArrayBuffer(44 + length * 2);
+          const view = new DataView(wavBuffer);
+          
+          // WAV header
+          const writeString = (view: DataView, offset: number, string: string) => {
+            for (let i = 0; i < string.length; i++) {
+              view.setUint8(offset + i, string.charCodeAt(i));
+            }
+          };
+          
+          writeString(view, 0, 'RIFF');                     // RIFF identifier
+          view.setUint32(4, 36 + length * 2, true);        // File length
+          writeString(view, 8, 'WAVE');                     // WAVE identifier
+          writeString(view, 12, 'fmt ');                    // Format chunk identifier
+          view.setUint32(16, 16, true);                    // Length of format data
+          view.setUint16(20, 1, true);                     // Format type (1 = PCM)
+          view.setUint16(22, numberOfChannels, true);      // Number of channels
+          view.setUint32(24, sampleRate, true);            // Sample rate
+          view.setUint32(28, sampleRate * 2, true);        // Byte rate
+          view.setUint16(32, numberOfChannels * 2, true);  // Block align
+          view.setUint16(34, 16, true);                    // Bits per sample
+          writeString(view, 36, 'data');                   // Data chunk identifier
+          view.setUint32(40, length * 2, true);            // Data chunk length
+          
+          // Write audio data
+          const data = new Float32Array(audioBuffer.getChannelData(0));
+          let offset = 44;
+          for (let i = 0; i < length; i++) {
+            const sample = Math.max(-1, Math.min(1, data[i]));
+            view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+            offset += 2;
+          }
+          
+          resolve(wavBuffer);
+        });
+        
+        processedBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+      }
+
       const formData = new FormData();
-      formData.append('audio', audioBlob);
+      formData.append('audio', processedBlob);
+
+      console.log('Sending audio to speech-to-text API:', {
+        format: processedBlob.type,
+        size: processedBlob.size
+      });
 
       const response = await fetch('/api/v1/speech-to-text', {
         method: 'POST',
