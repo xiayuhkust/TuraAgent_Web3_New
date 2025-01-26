@@ -16,23 +16,35 @@ export default function MinimalMicrophoneTest() {
       setAudioData(null);
       chunksRef.current = [];
 
-      // Request microphone access with Baidu API requirements
-      const constraints = {
-        audio: {
-          sampleRate: 16000,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true
-        }
-      };
+      // Try to get stream with specific constraints for Baidu API
+      let stream;
+      let usingFallback = false;
       
-      console.log('Requesting audio stream with constraints:', constraints);
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      try {
+        const constraints = {
+          audio: {
+            sampleRate: 16000,
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true
+          }
+        };
+        
+        console.log('Requesting audio stream with constraints:', constraints);
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (constraintError) {
+        console.warn('Failed to get stream with specific constraints:', constraintError);
+        console.log('Falling back to default audio constraints');
+        
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        usingFallback = true;
+      }
       
       // Log actual stream settings
       const audioTrack = stream.getAudioTracks()[0];
       const settings = audioTrack.getSettings();
-      console.log('Actual audio track settings:', {
+      console.log('Audio track settings:', {
+        usingFallback,
         sampleRate: settings.sampleRate,
         channelCount: settings.channelCount,
         deviceId: settings.deviceId,
@@ -43,15 +55,12 @@ export default function MinimalMicrophoneTest() {
         timestamp: new Date().toISOString()
       });
       
-      // Check if actual settings match requirements
-      if (settings.sampleRate !== 16000) {
-        console.warn('Warning: Actual sample rate differs from requested:', settings.sampleRate);
-      }
-      if (settings.channelCount !== 1) {
-        console.warn('Warning: Actual channel count differs from requested:', settings.channelCount);
-      }
-      
-      setStatus(`Got microphone stream (${settings.sampleRate}Hz, ${settings.channelCount} channels)`);
+      // Update status with fallback info
+      setStatus(
+        usingFallback
+          ? `Using fallback mode (${settings.sampleRate}Hz, ${settings.channelCount} channels) - Will resample to 16kHz`
+          : `Got microphone stream (${settings.sampleRate}Hz, ${settings.channelCount} channels)`
+      );
       
       // Log supported MIME types
       const supportedTypes = [
@@ -102,11 +111,41 @@ export default function MinimalMicrophoneTest() {
             timestamp: new Date().toISOString()
           });
           
-          // Create WAV file
+          // Create WAV file with resampling if needed
           const wavBuffer = await new Promise<ArrayBuffer>((resolve) => {
-            const numberOfChannels = 1; // Mono
-            const sampleRate = 16000;   // Required by Baidu API
-            const length = audioBuffer.length;
+            const targetSampleRate = 16000;  // Required by Baidu API
+            const numberOfChannels = 1;      // Mono required
+            
+            // Resample if source rate doesn't match target
+            let audioData;
+            let length;
+            
+            if (audioBuffer.sampleRate !== targetSampleRate) {
+              console.log('Resampling audio from', audioBuffer.sampleRate, 'Hz to', targetSampleRate, 'Hz');
+              
+              // Simple linear resampling
+              const scale = audioBuffer.sampleRate / targetSampleRate;
+              const newLength = Math.round(audioBuffer.length / scale);
+              const resampledData = new Float32Array(newLength);
+              const channelData = audioBuffer.getChannelData(0);
+              
+              for (let i = 0; i < newLength; i++) {
+                const originalIndex = i * scale;
+                const index1 = Math.floor(originalIndex);
+                const index2 = Math.min(index1 + 1, audioBuffer.length - 1);
+                const fraction = originalIndex - index1;
+                
+                // Linear interpolation
+                resampledData[i] = (1 - fraction) * channelData[index1] + fraction * channelData[index2];
+              }
+              
+              audioData = resampledData;
+              length = newLength;
+            } else {
+              audioData = audioBuffer.getChannelData(0);
+              length = audioBuffer.length;
+            }
+            
             const wavBuffer = new ArrayBuffer(44 + length * 2);
             const view = new DataView(wavBuffer);
             
@@ -132,10 +171,9 @@ export default function MinimalMicrophoneTest() {
             view.setUint32(40, length * 2, true);            // Data chunk length
             
             // Write audio data
-            const data = new Float32Array(audioBuffer.getChannelData(0));
             let offset = 44;
             for (let i = 0; i < length; i++) {
-              const sample = Math.max(-1, Math.min(1, data[i]));
+              const sample = Math.max(-1, Math.min(1, audioData[i]));
               view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
               offset += 2;
             }
