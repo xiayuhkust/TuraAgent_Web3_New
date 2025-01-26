@@ -28,7 +28,12 @@ function App() {
     onConfirm: () => Promise<void>;
     onReject: () => void;
   } | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
+  const [isCreatingWallet, setIsCreatingWallet] = useState(false);
+  const [isSigningTransaction, setIsSigningTransaction] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isRestoringWallet, setIsRestoringWallet] = useState(false);
+  const [lastBalanceUpdate, setLastBalanceUpdate] = useState<Date | null>(null);
   const [walletManager] = useState(() => {
     const manager = new WalletManager();
     // Make wallet manager available globally for debugging
@@ -79,24 +84,9 @@ function App() {
     checkStoredWallet();
   }, [walletManager]);
 
-  const handleLogin = async () => {
-    try {
-      setError('');
-      const password = prompt('Enter your wallet password:');
-      if (!password) return;
-
-      await walletManager.login(address, password);
-      setIsLoggedIn(true);
-      
-      const balance = await walletManager.getBalance(address);
-      setBalance(balance);
-    } catch (error) {
-      const walletError = error as WalletError;
-      setError('Login failed: ' + walletError.message);
-    }
-  };
-
   const handleSend = async () => {
+    if (isSigningTransaction) return; // Prevent multiple clicks while transaction is in progress
+    
     try {
       setError('');
       const toAddress = prompt('Enter recipient address:');
@@ -115,7 +105,7 @@ function App() {
         amount: amount,
         onConfirm: async () => {
           try {
-            setIsProcessing(true);
+            setIsSigningTransaction(true);
             const receipt = await walletManager.sendTransaction(
               address,
               toAddress,
@@ -132,7 +122,7 @@ function App() {
             setError('Transaction failed: ' + walletError.message);
             setShowSignature(false);
           } finally {
-            setIsProcessing(false);
+            setIsSigningTransaction(false);
           }
         },
         onReject: () => {
@@ -159,77 +149,19 @@ function App() {
     }
   }, []);
 
-  const handleCreateWallet = async () => {
-    try {
-      setError('');
-      setIsProcessing(true);
-      
-      const password = prompt('Enter a secure password for your new wallet:');
-      if (!password) {
-        setIsProcessing(false);
-        return;
-      }
-
-      if (password.length < 8) {
-        setError('Password must be at least 8 characters long');
-        setIsProcessing(false);
-        return;
-      }
-
-      console.log('Creating new wallet...');
-      const wallet = await walletManager.createWallet(password);
-      console.log('Wallet created:', {
-        address: wallet.address,
-        hasMnemonic: !!wallet.mnemonic
-      });
-
-      setAddress(wallet.address);
-      if (wallet.mnemonic) {
-        setMnemonic(wallet.mnemonic);
-      }
-      setShowMnemonic(true);
-      setIsLoggedIn(true);
-      
-      // Get initial balance
-      try {
-        const balance = await walletManager.getBalance(wallet.address);
-        setBalance(balance);
-      } catch (e) {
-        console.warn('Failed to get initial balance:', e);
-        setBalance('0');
-      }
-
-      // Verify storage
-      const storedWallet = localStorage.getItem(`wallet_${wallet.address.toLowerCase()}`);
-      const storedSession = sessionStorage.getItem('wallet_session');
-      console.log('Storage verification:', {
-        hasWalletData: !!storedWallet,
-        hasSession: !!storedSession,
-        walletDataLength: storedWallet?.length,
-        sessionDataLength: storedSession?.length
-      });
-
-    } catch (error) {
-      console.error('Failed to create wallet:', error);
-      const walletError = error as WalletError;
-      setError('Failed to create wallet: ' + walletError.message);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   return (
-    <div className="container mx-auto p-4">
-      <Card className="max-w-md mx-auto">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wallet className="h-6 w-6" />
-            Tura Wallet
-          </CardTitle>
-          <CardDescription>
-            Manage your cryptocurrency securely
-          </CardDescription>
-        </CardHeader>
+    <>
+      <div className="container mx-auto p-4">
+        <Card className="max-w-md mx-auto">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wallet className="h-6 w-6" />
+              Tura Wallet
+            </CardTitle>
+            <CardDescription>
+              Manage your cryptocurrency securely
+            </CardDescription>
+          </CardHeader>
         
         <CardContent>
           <div className="space-y-4">
@@ -243,6 +175,23 @@ function App() {
                 <div className="p-4 bg-secondary rounded-lg">
                   <div className="text-sm text-muted-foreground">Balance</div>
                   <div className="text-2xl font-bold">{balance} TURA</div>
+                  <div className="flex justify-between items-center mt-1">
+                    {lastBalanceUpdate && (
+                      <div className="text-xs text-muted-foreground">
+                        Last updated: {lastBalanceUpdate.toLocaleTimeString()}
+                      </div>
+                    )}
+                    {isRefreshingBalance && (
+                      <div className="text-xs text-muted-foreground animate-pulse">
+                        Refreshing...
+                      </div>
+                    )}
+                  </div>
+                  {_error && _error.includes('balance') && (
+                    <div className="text-xs text-destructive mt-1">
+                      {_error}
+                    </div>
+                  )}
                 </div>
               </>
             ) : (
@@ -257,22 +206,77 @@ function App() {
           {!address ? (
             <div className="flex flex-col gap-2 w-full">
               <Button
-                className="w-full"
-                onClick={handleCreateWallet}
-                disabled={isProcessing}
+                className="w-full relative"
+                onClick={async () => {
+                  if (isCreatingWallet) return;
+                  try {
+                    setError('');
+                    setIsCreatingWallet(true);
+                    
+                    const password = prompt('Enter a secure password for your new wallet:');
+                    if (!password) {
+                      setIsCreatingWallet(false);
+                      return;
+                    }
+
+                    if (password.length < 8) {
+                      setError('Password must be at least 8 characters long');
+                      setIsCreatingWallet(false);
+                      return;
+                    }
+
+                    console.log('Creating new wallet...');
+                    const wallet = await walletManager.createWallet(password);
+                    console.log('Wallet created:', {
+                      address: wallet.address,
+                      hasMnemonic: !!wallet.mnemonic
+                    });
+
+                    setAddress(wallet.address);
+                    if (wallet.mnemonic) {
+                      setMnemonic(wallet.mnemonic);
+                    }
+                    setShowMnemonic(true);
+                    setIsLoggedIn(true);
+                    
+                    try {
+                      const balance = await Promise.race([
+                        walletManager.getBalance(wallet.address),
+                        new Promise<string>((_, reject) => 
+                          setTimeout(() => reject(new Error('Balance check timed out')), 10000)
+                        )
+                      ]);
+                      setBalance(balance);
+                      setLastBalanceUpdate(new Date());
+                    } catch (e) {
+                      console.warn('Failed to get initial balance:', e);
+                      setBalance('0');
+                    }
+                  } catch (error) {
+                    console.error('Failed to create wallet:', error);
+                    const walletError = error as WalletError;
+                    setError('Failed to create wallet: ' + walletError.message);
+                  } finally {
+                    setIsCreatingWallet(false);
+                  }
+                }}
+                disabled={isCreatingWallet}
+                aria-disabled={isCreatingWallet}
               >
-                {isProcessing ? (
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Key className="mr-2 h-4 w-4" />
-                )}
-                {isProcessing ? 'Creating Wallet...' : 'Create New Wallet'}
+                <div className="flex items-center justify-center w-full">
+                  {isCreatingWallet ? (
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Key className="mr-2 h-4 w-4" />
+                  )}
+                  <span>{isCreatingWallet ? 'Creating Wallet...' : 'Create New Wallet'}</span>
+                </div>
               </Button>
               <Button
                 variant="outline"
                 className="w-full"
                 onClick={() => setShowRestore(true)}
-                disabled={isProcessing}
+                disabled={isCreatingWallet}
               >
                 <RotateCcw className="mr-2 h-4 w-4" />
                 Restore Wallet
@@ -280,54 +284,106 @@ function App() {
             </div>
           ) : !isLoggedIn ? (
             <Button
-              className="w-full"
-              onClick={handleLogin}
-              disabled={isProcessing}
+              className="w-full relative"
+              onClick={async () => {
+                if (isLoggingIn) return;
+                try {
+                  setError('');
+                  setIsLoggingIn(true);
+                  const password = prompt('Enter your wallet password:');
+                  if (!password) {
+                    return;
+                  }
+                  await walletManager.login(address, password);
+                  setIsLoggedIn(true);
+                  try {
+                    const balance = await Promise.race([
+                      walletManager.getBalance(address),
+                      new Promise<string>((_, reject) => 
+                        setTimeout(() => reject(new Error('Balance check timed out')), 10000)
+                      )
+                    ]);
+                    setBalance(balance);
+                    setLastBalanceUpdate(new Date());
+                  } catch (error) {
+                    console.warn('Failed to get initial balance:', error);
+                    // Don't fail the login if balance check fails
+                  }
+                } catch (error) {
+                  const walletError = error as WalletError;
+                  setError('Login failed: ' + walletError.message);
+                } finally {
+                  setIsLoggingIn(false);
+                }
+              }}
+              disabled={isLoggingIn}
+              aria-disabled={isLoggingIn}
             >
-              {isProcessing ? (
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Lock className="mr-2 h-4 w-4" />
-              )}
-              {isProcessing ? 'Logging in...' : 'Login to Wallet'}
+              <div className="flex items-center justify-center w-full">
+                {isLoggingIn ? (
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Lock className="mr-2 h-4 w-4" />
+                )}
+                <span>{isLoggingIn ? 'Logging in...' : 'Login to Wallet'}</span>
+              </div>
             </Button>
           ) : (
             <>
               <Button 
                 className="w-full" 
                 onClick={handleSend}
-                disabled={isProcessing}
+                disabled={isSigningTransaction}
+                aria-disabled={isSigningTransaction}
               >
-                {isProcessing ? (
+                {isSigningTransaction ? (
                   <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <Send className="mr-2 h-4 w-4" />
                 )}
-                {isProcessing ? 'Sending...' : 'Send TURA'}
+                <span>{isSigningTransaction ? 'Sending...' : 'Send TURA'}</span>
               </Button>
               <Button
                 variant="outline"
-                className="w-full"
+                className="w-full relative"
                 onClick={async () => {
+                  if (isRefreshingBalance) return;
                   try {
-                    setIsProcessing(true);
-                    const newBalance = await walletManager.getBalance(address);
+                    setIsRefreshingBalance(true);
+                    setError('');
+                    
+                    // Add timeout to balance fetch
+                    const newBalance = await Promise.race([
+                      walletManager.getBalance(address),
+                      new Promise<string>((_, reject) => 
+                        setTimeout(() => reject(new Error('Balance refresh timed out')), 10000)
+                      )
+                    ]);
+                    
                     setBalance(newBalance);
+                    setLastBalanceUpdate(new Date());
+                    
+                    // Show success message briefly
+                    const successMessage = 'Balance updated successfully';
+                    setError(successMessage);
+                    setTimeout(() => {
+                      setError((current) => current === successMessage ? '' : current);
+                    }, 3000);
                   } catch (error) {
                     const walletError = error as WalletError;
                     setError('Failed to refresh balance: ' + walletError.message);
+                    console.error('Balance refresh failed:', error);
                   } finally {
-                    setIsProcessing(false);
+                    setIsRefreshingBalance(false);
                   }
                 }}
-                disabled={isProcessing}
+                disabled={isRefreshingBalance}
+                aria-disabled={isRefreshingBalance}
               >
-                {isProcessing ? (
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                )}
-                {isProcessing ? 'Refreshing...' : 'Refresh Balance'}
+                <div className="flex items-center justify-center w-full">
+                  <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshingBalance ? 'animate-spin' : ''}`} />
+                  <span>{isRefreshingBalance ? 'Refreshing...' : 'Refresh Balance'}</span>
+                </div>
               </Button>
             </>
           )}
@@ -385,29 +441,58 @@ function App() {
             }}>
               Cancel
             </Button>
-            <Button onClick={async () => {
-              try {
-                setError('');
-                if (!restoreMnemonic.trim()) {
-                  setError('Please enter your mnemonic phrase');
-                  return;
+            <Button 
+              onClick={async () => {
+                if (isRestoringWallet) return;
+                try {
+                  setError('');
+                  setIsRestoringWallet(true);
+                  
+                  if (!restoreMnemonic.trim()) {
+                    setError('Please enter your mnemonic phrase');
+                    setIsRestoringWallet(false);
+                    return;
+                  }
+
+                  const password = prompt('Enter a secure password for your restored wallet:');
+                  if (!password) {
+                    setIsRestoringWallet(false);
+                    return;
+                  }
+
+                  const wallet = await walletManager.importWallet(restoreMnemonic.trim(), password);
+                  setAddress(wallet.address);
+                  setShowRestore(false);
+                  setRestoreMnemonic('');
+
+                  try {
+                    const balance = await Promise.race([
+                      walletManager.getBalance(wallet.address),
+                      new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Balance check timed out')), 10000)
+                      )
+                    ]) as string;
+                    setBalance(balance);
+                    setLastBalanceUpdate(new Date());
+                  } catch (e) {
+                    console.warn('Failed to get initial balance:', e);
+                    setBalance('0');
+                  }
+                } catch (error: any) {
+                  setError('Failed to restore wallet: ' + error.message);
+                } finally {
+                  setIsRestoringWallet(false);
                 }
-
-                const password = prompt('Enter a secure password for your restored wallet:');
-                if (!password) return;
-
-                const wallet = await walletManager.importWallet(restoreMnemonic.trim(), password);
-                setAddress(wallet.address);
-                setShowRestore(false);
-                setRestoreMnemonic('');
-
-                const balance = await walletManager.getBalance(wallet.address);
-                setBalance(balance);
-              } catch (error: any) {
-                setError('Failed to restore wallet: ' + error.message);
-              }
-            }}>
-              Restore Wallet
+              }}
+              disabled={isRestoringWallet}
+              aria-disabled={isRestoringWallet}
+            >
+              <div className="flex items-center justify-center w-full">
+                {isRestoringWallet ? (
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                <span>{isRestoringWallet ? 'Restoring...' : 'Restore Wallet'}</span>
+              </div>
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -446,27 +531,33 @@ function App() {
                 signatureDetails?.onReject();
                 setShowSignature(false);
               }}
-              disabled={isProcessing}
+              disabled={isSigningTransaction}
             >
               Reject
             </Button>
             <Button 
               onClick={async () => {
                 if (signatureDetails?.onConfirm) {
-                  await signatureDetails.onConfirm();
+                  try {
+                    setIsSigningTransaction(true);
+                    await signatureDetails.onConfirm();
+                  } finally {
+                    setIsSigningTransaction(false);
+                  }
                 }
               }}
-              disabled={isProcessing}
+              disabled={isSigningTransaction}
             >
-              {isProcessing ? (
+              {isSigningTransaction ? (
                 <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
-              {isProcessing ? 'Signing...' : 'Sign'}
+              {isSigningTransaction ? 'Signing...' : 'Sign'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </>
   );
 }
 
