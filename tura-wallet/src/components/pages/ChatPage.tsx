@@ -53,8 +53,104 @@ export default function ChatPage() {
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      // Check if mediaDevices API is supported
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        throw new Error('MediaDevices API not supported in this browser');
+      }
+
+      // Check if MediaRecorder is supported
+      if (!window.MediaRecorder) {
+        throw new Error('MediaRecorder not supported in this browser');
+      }
+
+      // First check if we have permission
+      const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+      console.log('Microphone permission status:', permissionStatus.state);
+      
+      if (permissionStatus.state === 'denied') {
+        throw new Error('Microphone permission denied. Please enable microphone access in your browser settings.');
+      }
+
+      // Try to get stream with specific constraints for Baidu API
+      let stream;
+      try {
+        const constraints = {
+          audio: {
+            sampleRate: 16000,    // Required by Baidu API
+            channelCount: 1,      // Mono audio required
+            echoCancellation: true,
+            noiseSuppression: true
+          }
+        };
+      // Check if mediaDevices API is supported
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        throw new Error('MediaDevices API not supported in this browser');
+      }
+
+      // Check if MediaRecorder is supported
+      if (!window.MediaRecorder) {
+        throw new Error('MediaRecorder not supported in this browser');
+      }
+
+      // First check if we have permission
+      const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+      console.log('Microphone permission status:', permissionStatus.state);
+      
+      if (permissionStatus.state === 'denied') {
+        throw new Error('Microphone permission denied. Please enable microphone access in your browser settings.');
+      }
+
+      // Try to get stream with specific constraints for Baidu API
+      let stream;
+      try {
+        const constraints = {
+          audio: {
+            sampleRate: 16000,    // Required by Baidu API
+            channelCount: 1,      // Mono audio required
+            echoCancellation: true,
+            noiseSuppression: true
+          }
+        };
+        
+        console.log('Requesting audio stream with constraints:', constraints);
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        // Verify the actual stream settings
+        const audioTrack = stream.getAudioTracks()[0];
+        const settings = audioTrack.getSettings();
+        console.log('Actual audio track settings:', {
+          sampleRate: settings.sampleRate,
+          channelCount: settings.channelCount,
+          deviceId: settings.deviceId,
+          groupId: settings.groupId,
+          autoGainControl: settings.autoGainControl,
+          echoCancellation: settings.echoCancellation,
+          noiseSuppression: settings.noiseSuppression,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Warn if sample rate doesn't match requirements
+        if (settings.sampleRate !== 16000) {
+          console.warn('Warning: Audio sample rate does not match required 16kHz:', settings.sampleRate);
+        }
+      } catch (constraintError) {
+        console.warn('Failed to get stream with specific constraints, falling back to default:', constraintError);
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // Log fallback stream settings
+        const audioTrack = stream.getAudioTracks()[0];
+        const settings = audioTrack.getSettings();
+        console.log('Fallback audio track settings:', settings);
+      }
+
+      // Try to use specific MIME type for better compatibility
+      let mimeType = 'audio/webm;codecs=opus';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'audio/webm';  // Fallback to basic webm
+      }
+
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+>>>>>>> a027cf8 (fix: improve microphone permission handling and error logging)
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
@@ -80,8 +176,89 @@ export default function ChatPage() {
           stopRecording();
         }
       }, 15000);
-    } catch (error) {
-      console.error('Failed to start recording:', error);
+<<<<<<< HEAD
+    } catch (error: any) {
+      // Log detailed error information for debugging
+      console.error('Recording failed:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        browserInfo: {
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          vendor: navigator.vendor,
+          mediaDevices: !!navigator.mediaDevices,
+          mediaRecorder: !!window.MediaRecorder,
+          secure: window.isSecureContext
+        },
+        constraints: {
+          sampleRate: 16000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true
+        }
+      });
+
+      // Provide user-friendly error message based on error type
+      let errorMessage = 'Failed to start recording. ';
+      switch (error.name) {
+        case 'NotAllowedError':
+          errorMessage += 'Please grant microphone permissions.';
+          break;
+        case 'NotFoundError':
+          errorMessage += 'No microphone found.';
+          break;
+        case 'NotReadableError':
+          errorMessage += 'Microphone is already in use.';
+          break;
+        case 'OverconstrainedError':
+          errorMessage += 'Microphone does not support required audio settings.';
+          break;
+        default:
+          errorMessage += 'Please check your microphone settings.';
+      }
+    } catch (error: any) {
+      // Log detailed error information for debugging
+      console.error('Recording failed:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        browserInfo: {
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          vendor: navigator.vendor,
+          mediaDevices: !!navigator.mediaDevices,
+          mediaRecorder: !!window.MediaRecorder,
+          secure: window.isSecureContext
+        },
+        constraints: {
+          sampleRate: 16000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true
+        }
+      });
+
+      // Provide user-friendly error message based on error type
+      let errorMessage = 'Failed to start recording. ';
+      switch (error.name) {
+        case 'NotAllowedError':
+          errorMessage += 'Please grant microphone permissions.';
+          break;
+        case 'NotFoundError':
+          errorMessage += 'No microphone found.';
+          break;
+        case 'NotReadableError':
+          errorMessage += 'Microphone is already in use.';
+          break;
+        case 'OverconstrainedError':
+          errorMessage += 'Microphone does not support required audio settings.';
+          break;
+        default:
+          errorMessage += 'Please check your microphone settings.';
+      }
+
+>>>>>>> a027cf8 (fix: improve microphone permission handling and error logging)
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         text: 'Failed to start recording. Please check your microphone permissions.',
