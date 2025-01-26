@@ -1,3 +1,56 @@
+// Chain Configuration
+const CHAIN_CONFIG = {
+    chainId: 1337,
+    chainName: 'Tura',
+    rpcUrl: 'https://43.135.26.222:8088',
+    nativeCurrency: {
+        name: 'TURA',
+        symbol: 'TURA',
+        decimals: 18
+    }
+};
+
+// Initialize Web3
+let web3;
+try {
+    const provider = new Web3.providers.HttpProvider(CHAIN_CONFIG.rpcUrl, {
+        timeout: 10000,
+        headers: [
+            { name: 'Accept', value: 'application/json' },
+            { name: 'Content-Type', value: 'application/json' }
+        ]
+    });
+    web3 = new Web3(provider);
+    
+    // Verify connection
+    web3.eth.net.isListening()
+        .then(() => console.log('Connected to Tura RPC'))
+        .catch(err => console.error('Failed to connect to RPC:', err));
+} catch (error) {
+    console.error('Failed to initialize Web3:', error);
+}
+
+// Chain Configuration
+const CHAIN_CONFIG = {
+    chainId: 1337,
+    chainName: 'Tura',
+    rpcUrl: 'https://43.135.26.222:8088',
+    nativeCurrency: {
+        name: 'TURA',
+        symbol: 'TURA',
+        decimals: 18
+    }
+};
+
+// Initialize Web3
+const web3 = new Web3(new Web3.providers.HttpProvider(CHAIN_CONFIG.rpcUrl, {
+    timeout: 10000,
+    headers: [
+        { name: 'Accept', value: 'application/json' },
+        { name: 'Content-Type', value: 'application/json' }
+    ]
+}));
+
 // Crypto utilities
 async function deriveKey(password) {
     const encoder = new TextEncoder();
@@ -9,20 +62,48 @@ async function deriveKey(password) {
 }
 
 async function encryptData(data, password) {
-    const key = await deriveKey(password);
-    return btoa(JSON.stringify({
-        data: data,
-        key: key
-    }));
+    try {
+        const encoder = new TextEncoder();
+        const passwordData = encoder.encode(password);
+        const hash = await crypto.subtle.digest('SHA-256', passwordData);
+        const key = Array.from(new Uint8Array(hash))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+            
+        const encrypted = btoa(JSON.stringify({
+            data: data,
+            key: key,
+            version: '1.0'
+        }));
+        
+        // Verify encryption format
+        const verify = JSON.parse(atob(encrypted));
+        if (!verify.data || !verify.key || verify.key !== key) {
+            throw new Error('Encryption verification failed');
+        }
+        
+        return encrypted;
+    } catch (error) {
+        throw new Error('Encryption failed: ' + error.message);
+    }
 }
 
 async function decryptData(encryptedData, password) {
     try {
-        const key = await deriveKey(password);
+        // Generate key from password
+        const encoder = new TextEncoder();
+        const passwordData = encoder.encode(password);
+        const hash = await crypto.subtle.digest('SHA-256', passwordData);
+        const key = Array.from(new Uint8Array(hash))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+        
+        // Decode and verify
         const decoded = JSON.parse(atob(encryptedData));
-        if (decoded.key !== key) {
+        if (!decoded.data || !decoded.key || decoded.key !== key) {
             throw new Error('Invalid password');
         }
+        
         return decoded.data;
     } catch (error) {
         throw new Error('Decryption failed: Invalid password or data');
@@ -36,9 +117,13 @@ const SESSION_KEY = 'tempWalletPassword';
 // Dialog Management
 function showDialog(dialogId) {
     const dialog = document.getElementById(dialogId);
-    dialog.setAttribute('open', '');
-    dialog.style.display = 'flex';
-    setTimeout(() => dialog.style.opacity = '1', 10);
+    if (!dialog) {
+        console.error(`Dialog with id ${dialogId} not found`);
+        return;
+    }
+    
+    console.log(`Showing dialog: ${dialogId}`);
+    dialog.classList.add('visible');
     
     // Prevent body scroll when dialog is open
     document.body.style.overflow = 'hidden';
@@ -53,37 +138,88 @@ function showDialog(dialogId) {
     dialog.addEventListener('close', () => {
         document.removeEventListener('keydown', handleEscape);
     });
+    
+    // Focus the first input if it exists
+    const firstInput = dialog.querySelector('input');
+    if (firstInput) {
+        firstInput.focus();
+    }
 }
 
 function hideDialog(dialogId) {
     const dialog = document.getElementById(dialogId);
-    dialog.style.opacity = '0';
-    setTimeout(() => {
-        dialog.style.display = 'none';
-        dialog.removeAttribute('open');
-        // Restore body scroll
-        document.body.style.overflow = '';
-    }, 200);
+    if (!dialog) {
+        console.error(`Dialog with id ${dialogId} not found`);
+        return;
+    }
+    
+    console.log(`Hiding dialog: ${dialogId}`);
+    dialog.classList.remove('visible');
+    
+    // Restore body scroll
+    document.body.style.overflow = '';
+    
+    // Clear any input values
+    dialog.querySelectorAll('input').forEach(input => {
+        input.value = '';
+    });
 }
 
 // Button Event Handlers
 async function handleCreateWallet() {
     try {
-        const password = prompt('Enter a secure password for your new wallet:');
-        if (!password) return;
-
-        // Generate random private key and address
+        // Create password input dialog
+        const passwordDialog = document.createElement('div');
+        passwordDialog.className = 'dialog';
+        passwordDialog.id = 'password-dialog';
+        passwordDialog.innerHTML = `
+            <div class="dialog-overlay"></div>
+            <div class="dialog-content">
+                <div class="dialog-header">
+                    <h2>Create Wallet Password</h2>
+                    <p>Enter a secure password to encrypt your wallet.</p>
+                </div>
+                <div class="dialog-body">
+                    <div id="password-error" class="error-message" style="display: none;"></div>
+                    <input type="password" id="create-password" class="form-input" placeholder="Enter password" />
+                </div>
+                <div class="dialog-footer">
+                    <button class="secondary-button" onclick="hideDialog('password-dialog')">Cancel</button>
+                    <button class="primary-button" onclick="confirmPassword()">Create Wallet</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(passwordDialog);
+        showDialog('password-dialog');
+        
+        // Wait for password confirmation
+        return new Promise((resolve, reject) => {
+            window.confirmPassword = async () => {
+                const password = document.getElementById('create-password').value;
+                if (!password) {
+                    const errorMsg = document.getElementById('error-message');
+                    errorMsg.textContent = 'Please enter a password';
+                    errorMsg.style.display = 'block';
+                    return;
+                }
+                hideDialog('password-dialog');
+                document.getElementById('password-dialog').remove();
+                delete window.confirmPassword;
+                
+                try {
+                    // Generate mnemonic and derive wallet
         const entropy = await window.crypto.getRandomValues(new Uint8Array(32));
-        const entropyHex = Array.from(entropy)
-            .map(b => b.toString(16).padStart(2, '0'))
-            .join('');
+        const mnemonic = bip39.entropyToMnemonic(Buffer.from(entropy).toString('hex'));
+        
+        // Create account using Web3
+        const account = web3.eth.accounts.create();
+        console.log('Created new account:', account.address);
         
         // Create wallet data
-        const address = '0x742d35Cc6634C0532925a3b844Bc454e4438f44e'; // Example address
-        const privateKey = entropyHex;
         const walletData = {
-            address,
-            privateKey,
+            address: account.address,
+            privateKey: account.privateKey,
+            mnemonic: mnemonic,
             createdAt: new Date().toISOString()
         };
 
@@ -334,13 +470,21 @@ async function handleRestoreConfirm() {
         const password = prompt('Enter a secure password for your restored wallet:');
         if (!password) return;
 
-        // Example restored wallet data (in production, this would be derived from mnemonic)
-        const address = '0x742d35Cc6634C0532925a3b844Bc454e4438f44e';
-        const privateKey = '0x1234567890abcdef'; // Example key
+        // Validate mnemonic
+        if (!bip39.validateMnemonic(mnemonic)) {
+            throw new Error('Invalid mnemonic phrase');
+        }
+        
+        // Create account from mnemonic
+        const seed = await bip39.mnemonicToSeed(mnemonic);
+        const account = web3.eth.accounts.privateKeyToAccount(
+            '0x' + seed.slice(0, 32).toString('hex')
+        );
         
         const walletData = {
-            address,
-            privateKey,
+            address: account.address,
+            privateKey: account.privateKey,
+            mnemonic: mnemonic,
             createdAt: new Date().toISOString()
         };
 
@@ -387,8 +531,32 @@ function toggleDropdown(dropdownId) {
 // Initialize UI and check for existing session
 document.addEventListener('DOMContentLoaded', async () => {
     try {
+        console.log('Initializing wallet interface...');
+        
+        // Log initial storage state
+        console.log('Initial Storage State:', {
+            localStorage: Object.fromEntries(
+                Object.keys(localStorage).map(key => [key, localStorage.getItem(key)])
+            ),
+            sessionStorage: Object.fromEntries(
+                Object.keys(sessionStorage).map(key => [key, sessionStorage.getItem(key)])
+            )
+        });
+        
         // Check for existing wallet and session
         const storedAddress = localStorage.getItem('lastWalletAddress');
+        console.log('Stored wallet address:', storedAddress);
+        
+        // Log storage contents for verification
+        console.log('Storage Contents:', {
+            localStorage: Object.fromEntries(
+                Object.keys(localStorage).map(key => [key, localStorage.getItem(key)])
+            ),
+            sessionStorage: Object.fromEntries(
+                Object.keys(sessionStorage).map(key => [key, sessionStorage.getItem(key)])
+            )
+        });
+        
         if (storedAddress) {
             // Update UI with stored address
             document.querySelector('.account-address').textContent = storedAddress;
@@ -396,13 +564,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             const storedSession = sessionStorage.getItem(SESSION_KEY);
             if (storedSession) {
                 try {
-                    // Try to decrypt session data
-                    const sessionData = await decryptData(storedSession, storedSession);
+                    // Try to decrypt session data with stored password
+                    const sessionData = await decryptData(storedSession, password);
+                    console.log('Session data:', {
+                        expires: new Date(sessionData.expires).toLocaleString(),
+                        remainingTime: Math.round((sessionData.expires - Date.now()) / 1000) + ' seconds',
+                        isValid: sessionData.expires > Date.now(),
+                        hasPassword: !!sessionData.password
+                    });
+                    
                     if (sessionData.expires && sessionData.expires > Date.now()) {
                         // Valid session exists, get wallet data
                         const encryptedWallet = localStorage.getItem(`${WALLET_PREFIX}${storedAddress.toLowerCase()}`);
+                        console.log('Found encrypted wallet data:', !!encryptedWallet);
+                        
                         if (encryptedWallet) {
                             const walletData = await decryptData(encryptedWallet, sessionData.password);
+                            console.log('Wallet data decrypted successfully:', !!walletData);
                             if (walletData && walletData.address) {
                                 // Update UI with wallet data
                                 document.getElementById('no-wallet-section').style.display = 'none';

@@ -159,14 +159,25 @@ button {
     display: none;
     align-items: center;
     justify-content: center;
-    z-index: 50;
-    opacity: 0;
-    transition: opacity 0.2s ease-in-out;
+    z-index: 9999;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 }
 
-.dialog[open] {
-    display: flex;
-    opacity: 1;
+.dialog[style*="display: block"],
+.dialog.visible {
+    display: flex !important;
+    animation: fadeIn 0.3s ease-in-out forwards;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
 }
 
 .dialog-overlay {
@@ -319,6 +330,10 @@ button {
 .form-input[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
+}
+
+.form-input[type="password"] {
+    -webkit-text-security: disc;
 }
 
 .dialog-footer {
