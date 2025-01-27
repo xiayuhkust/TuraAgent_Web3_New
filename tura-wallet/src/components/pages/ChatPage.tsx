@@ -9,6 +9,14 @@ import { Badge } from '../ui/badge';
 import { officialAgents, agents, workflows } from '../../stores/agent-store';
 import { Agent, OfficialAgent, Workflow } from '../../types/agentTypes';
 import { WalletAgent } from '../../agentic_workflow/WalletAgent';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
 
 interface Message {
   id: string;
@@ -19,6 +27,29 @@ interface Message {
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false);
+  const [signatureDetails, setSignatureDetails] = useState<{
+    title: string;
+    description: string;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
+
+  // Expose dialog control to window for AgentManager
+  useEffect(() => {
+    (window as any).ChatPage = {
+      showSignatureDialog: (details: {
+        title: string;
+        description: string;
+        onConfirm: () => Promise<void>;
+      }) => {
+        setSignatureDetails(details);
+        setShowSignatureDialog(true);
+      }
+    };
+    return () => {
+      delete (window as any).ChatPage;
+    };
+  }, []);
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -407,6 +438,46 @@ export default function ChatPage() {
           )}
         </CardTitle>
       </CardHeader>
+      {/* Signature Dialog */}
+      <Dialog open={showSignatureDialog} onOpenChange={setShowSignatureDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{signatureDetails?.title || 'Confirm Transaction'}</DialogTitle>
+            <DialogDescription className="whitespace-pre-wrap">
+              {signatureDetails?.description || 'Please confirm this transaction in your wallet.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex justify-between">
+            <Button
+              variant="outline"
+              onClick={() => setShowSignatureDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (signatureDetails?.onConfirm) {
+                  try {
+                    await signatureDetails.onConfirm();
+                  } catch (error) {
+                    console.error('Transaction failed:', error);
+                    setMessages(prev => [...prev, {
+                      id: Date.now().toString(),
+                      text: `Error: ${error instanceof Error ? error.message : 'Transaction failed'}`,
+                      sender: 'error',
+                      timestamp: new Date().toISOString()
+                    }]);
+                  }
+                  setShowSignatureDialog(false);
+                }
+              }}
+            >
+              Sign & Deploy
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <CardContent className="flex h-full gap-4">
         {/* AgenticWorkflow Sidebar */}
         <div className="w-[30%] border-r pr-4">

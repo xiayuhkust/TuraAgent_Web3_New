@@ -268,9 +268,41 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
               return "Insufficient TURA balance. You need at least 0.1 TURA to deploy an agent contract.";
             }
 
-            // Deploy contract
-            const contractAddress = await deployTuraAgent(signer);
-            
+            // Show signature dialog
+            const signaturePromise = new Promise<string>((resolve, reject) => {
+              // Access window.ChatPage to trigger dialog
+              const chatPage = (window as any).ChatPage;
+              if (!chatPage?.showSignatureDialog) {
+                reject(new Error('Chat interface not available'));
+                return;
+              }
+
+              chatPage.showSignatureDialog({
+                title: 'Deploy TuraAgent Contract',
+                description: [
+                  '🔐 Contract Deployment Details:',
+                  '',
+                  '• Cost: 0.1 TURA',
+                  '• Network: Tura Testnet',
+                  '• Contract: TuraAgent',
+                  '',
+                  'Please confirm this transaction in your wallet to deploy the contract.',
+                  '',
+                  '⚠️ Make sure you have enough TURA to cover the deployment cost.'
+                ].join('\n'),
+                onConfirm: async () => {
+                  try {
+                    const address = await deployTuraAgent(signer);
+                    resolve(address);
+                  } catch (error) {
+                    reject(error);
+                  }
+                }
+              });
+            });
+
+            // Wait for signature and deployment
+            const contractAddress = await signaturePromise;
             // Verify contract deployment
             console.log('Verifying contract deployment...');
             const isVerified = await this.verifyContractDeployment(contractAddress);
