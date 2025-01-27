@@ -13,7 +13,8 @@ export default defineConfig({
       'tura-web-app-tunnel-z1uga9gq.devinapps.com',
       'tura-web-app-tunnel-ewgwj87v.devinapps.com',
       'tura-web-app-tunnel-98olszjh.devinapps.com',
-      'tura-web-app-tunnel-ya85bqnb.devinapps.com'
+      'tura-web-app-tunnel-ya85bqnb.devinapps.com',
+      'tura-web-app-tunnel-w20u3ea8.devinapps.com'
     ]
   },
   server: {
@@ -23,7 +24,8 @@ export default defineConfig({
       'tura-web-app-tunnel-z1uga9gq.devinapps.com',
       'tura-web-app-tunnel-ewgwj87v.devinapps.com',
       'tura-web-app-tunnel-98olszjh.devinapps.com',
-      'tura-web-app-tunnel-ya85bqnb.devinapps.com'
+      'tura-web-app-tunnel-ya85bqnb.devinapps.com',
+      'tura-web-app-tunnel-w20u3ea8.devinapps.com'
     ]
   },
   resolve: {
