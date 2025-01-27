@@ -1,9 +1,13 @@
 import { OpenAI } from 'openai';
+import type { ChatCompletionCreateParams } from 'openai/resources/chat/completions';
 import WalletManager from '../lib/wallet_manager';
 import { AgenticWorkflow } from './AgenticWorkflow';
 
+type Role = 'system' | 'user' | 'assistant';
+type ChatMessage = ChatCompletionCreateParams['messages'][number];
+
 // Initialize DeepSeek client for intent recognition
-const DEEPSEEK_API_KEY = 'sk-72fa6711ee14499fafdc85b49207263b';
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 let openai: OpenAI | undefined;
 try {
   console.log('Initializing DeepSeek client');
@@ -76,10 +80,10 @@ export class WalletAgent extends AgenticWorkflow {
 
       // Prepare conversation context with limited history
       const recentMessages = this.messages.slice(-5); // Keep last 5 messages for context
-      const conversationLog = [
-        systemMessage,
+      const conversationLog: ChatMessage[] = [
+        { role: 'system', content: systemMessage.content },
         ...recentMessages.map(msg => ({
-          role: msg.sender === 'user' ? 'user' : 'assistant',
+          role: (msg.sender === 'user' ? 'user' : 'assistant') as Role,
           content: msg.text
         })),
         { role: 'user', content: text }
@@ -96,6 +100,7 @@ export class WalletAgent extends AgenticWorkflow {
               messages: conversationLog,
               model: "deepseek-chat",
               temperature: 0.1, // Lower temperature for more consistent categorization
+              max_tokens: 50
             }),
             new Promise((_, reject) => 
               setTimeout(() => reject(new Error('DeepSeek API timeout')), 10000)
@@ -112,16 +117,17 @@ export class WalletAgent extends AgenticWorkflow {
           } else {
             console.warn('Unexpected intent from DeepSeek:', intent);
           }
-        } catch (error) {
+        } catch (error: unknown) {
           console.warn('DeepSeek API error:', error);
           // If it's a timeout, we might want to retry once
-          if (error.message === 'DeepSeek API timeout') {
+          if (error instanceof Error && error.message === 'DeepSeek API timeout') {
             console.log('Retrying after timeout...');
             try {
               const result = await openai.chat.completions.create({
                 messages: conversationLog,
                 model: "deepseek-chat",
                 temperature: 0.1,
+                max_tokens: 50,
               });
               const intent = result.choices?.[0]?.message?.content?.trim();
               if (intent && ['Create Wallet', 'Account Information', 'Transfer Services', 'General Help'].includes(intent)) {
@@ -154,9 +160,10 @@ export class WalletAgent extends AgenticWorkflow {
 - "What's my balance?"
 - "Send 10 TURA to [address]"`;
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('WalletAgent error:', error);
-      return `Sorry, I encountered an error: ${error.message}. Please try again.`;
+      const message = error instanceof Error ? error.message : 'Unknown error occurred';
+      return `Sorry, I encountered an error: ${message}. Please try again.`;
     }
   }
 
@@ -203,10 +210,11 @@ Your wallet address: ${wallet.address}
 ${wallet.mnemonic}
 
 Never share your mnemonic phrase with anyone! I'll help you check your balance and send TURA when you need to.`;
-    } catch (error) {
+    } catch (error: unknown) {
       this.isWaitingForPassword = false;
       console.error('Wallet creation error:', error);
-      return `❌ Failed to create wallet: ${error.message}. Please try again or contact support if the issue persists.`;
+      const message = error instanceof Error ? error.message : 'Unknown error occurred';
+      return `❌ Failed to create wallet: ${message}. Please try again or contact support if the issue persists.`;
     }
   }
 
@@ -226,9 +234,10 @@ Never share your mnemonic phrase with anyone! I'll help you check your balance a
 
 Need to send TURA? Just tell me the amount and recipient address like:
 "Send 10 TURA to 0x..."`;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Balance check error:', error);
-      return `❌ Couldn't check your balance: ${error.message}. Please try again in a moment.`;
+      const message = error instanceof Error ? error.message : 'Unknown error occurred';
+      return `❌ Couldn't check your balance: ${message}. Please try again in a moment.`;
     }
   }
 
@@ -267,9 +276,10 @@ Send ${amount} TURA
 To: ${toAddress}
 
 Your current balance is ${balance} TURA.`;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Transfer request error:', error);
-      return `❌ Error checking balance for transfer: ${error.message}. Please try again in a moment.`;
+      const message = error instanceof Error ? error.message : 'Unknown error occurred';
+      return `❌ Error checking balance for transfer: ${message}. Please try again in a moment.`;
     }
   }
 }

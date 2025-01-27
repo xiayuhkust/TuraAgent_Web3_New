@@ -83,8 +83,6 @@ export default function ChatPage() {
     setMessages(prev => [...prev, newMessage]);
     setInputText('');
 
-    const lowercasedMessage = inputText.toLowerCase().trim();
-
     // All wallet-related logic is now handled by WalletAgent
 
     try {
@@ -122,11 +120,12 @@ export default function ChatPage() {
         };
         setMessages(prev => [...prev, response]);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Agent processing error:', error);
+      const message = error instanceof Error ? error.message : 'Unknown error occurred';
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: `Error: ${error.message}`,
+        text: `Error: ${message}`,
         sender: 'error',
         timestamp: new Date().toISOString()
       };
