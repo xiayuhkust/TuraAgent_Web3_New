@@ -260,6 +260,25 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
             // Deploy contract
             const contractAddress = await deployTuraAgent(signer);
             
+            // Verify contract deployment
+            console.log('Verifying contract deployment...');
+            const isVerified = await this.verifyContractDeployment(contractAddress);
+            if (!isVerified) {
+              return [
+                '❌ Contract Verification Failed',
+                '',
+                `Contract at ${contractAddress} could not be verified.`,
+                'The contract may not have been deployed correctly.',
+                '',
+                '🔍 Common solutions:',
+                '1. Check your transaction on the block explorer',
+                '2. Wait a few minutes for the transaction to be mined',
+                '3. Try deploying again if the issue persists',
+                '',
+                'Technical details have been logged for debugging.'
+              ].join('\n');
+            }
+
             // Store agent data
             const agentData: AgentData = {
               ...registrationData,
@@ -269,19 +288,64 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
             };
             
             if (addAgent(agentData)) {
-              return `Successfully deployed and registered your agent!
-Contract Address: ${contractAddress}
-Name: ${agentData.name}
-Description: ${agentData.description}
-Company: ${agentData.company}
-
-You can view your agent details anytime by saying "Show my agents".`;
+              // Format success message with contract details and next steps
+              const successMessage = [
+                '✅ Agent successfully deployed and registered!',
+                '',
+                '📋 Contract Details:',
+                `Contract Address: ${contractAddress}`,
+                `Name: ${agentData.name}`,
+                `Description: ${agentData.description}`,
+                `Company: ${agentData.company}`,
+                '',
+                '🔍 Next Steps:',
+                '1. View your agent details by saying "Show my agents"',
+                '2. Check agent status with "Check agent status"',
+                '3. Deploy another agent by saying "Deploy a new agent"'
+              ].join('\n');
+              
+              console.log('Agent deployment successful:', {
+                contractAddress,
+                owner: address,
+                timestamp: new Date().toISOString()
+              });
+              
+              return successMessage;
             } else {
-              return `Contract deployed to ${contractAddress} but there was an error saving the agent metadata. Please try registering the metadata again.`;
+              // Format metadata error with debugging info
+              console.error('Metadata storage failed for contract:', contractAddress);
+              return [
+                '⚠️ Partial Success - Action Required',
+                '',
+                `Contract successfully deployed to ${contractAddress}`,
+                'However, there was an error saving the agent metadata.',
+                '',
+                '📝 To resolve this:',
+                '1. Make note of your contract address',
+                '2. Try registering again with "Register agent"',
+                '3. If the issue persists, please contact support'
+              ].join('\n');
             }
           } catch (error) {
+            // Format error message with debugging details
             console.error('Contract deployment failed:', error);
-            return `Failed to deploy agent contract: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`;
+            const errorDetails = error instanceof Error 
+              ? `${error.message}\n${error.stack}`
+              : 'Unknown error occurred';
+            
+            return [
+              '❌ Contract Deployment Failed',
+              '',
+              'There was an error deploying your agent contract:',
+              errorDetails,
+              '',
+              '🔍 Common solutions:',
+              '1. Check your wallet is connected',
+              '2. Ensure you have sufficient TURA balance (0.1 TURA required)',
+              '3. Try again in a few minutes',
+              '',
+              'If the issue persists, please contact support with the error details above.'
+            ].join('\n');
           }
         } else if (text.toLowerCase() === 'cancel') {
           this.registrationState = { step: 'idle' };
@@ -322,6 +386,45 @@ You can view your agent details anytime by saying "Show my agents".`;
    * Check the status of agent deployments
    * TODO: Implement in step 004 with contract deployment
    */
+  /**
+   * Verify a deployed contract by checking its bytecode and functionality
+   * @param contractAddress The address of the deployed contract
+   * @returns Promise<boolean> True if contract is valid
+   */
+  private async verifyContractDeployment(contractAddress: string): Promise<boolean> {
+    try {
+      console.log('Verifying contract deployment:', contractAddress);
+      const provider = getTuraProvider();
+      
+      // Check if contract exists (has bytecode)
+      const code = await provider.getCode(contractAddress);
+      if (code === '0x') {
+        console.error('Contract not found at address:', contractAddress);
+        return false;
+      }
+      
+      // Verify contract interface by checking key functions
+      const contract = new ethers.Contract(contractAddress, TuraAgentABI, provider);
+      try {
+        // Test required functions
+        const owner = await contract.owner();
+        const totalSubs = await contract.totalSubscribers();
+        console.log('Contract verification successful:', {
+          owner,
+          totalSubscribers: totalSubs.toString(),
+          address: contractAddress
+        });
+        return true;
+      } catch (error) {
+        console.error('Contract function verification failed:', error);
+        return false;
+      }
+    } catch (error) {
+      console.error('Contract verification error:', error);
+      return false;
+    }
+  }
+
   private async checkAgentStatus(): Promise<string> {
     const address = localStorage.getItem('lastWalletAddress');
     if (!address) {
@@ -339,10 +442,18 @@ You can view your agent details anytime by saying "Show my agents".`;
       // Check contract status for each agent
       const statusChecks = await Promise.all(userAgents.map(async (agent) => {
         try {
+          // Verify contract is still valid
+          const isValid = await this.verifyContractDeployment(agent.contractAddress);
+          if (!isValid) {
+            return `${agent.name} (${agent.contractAddress.slice(0,6)}...${agent.contractAddress.slice(-4)})
+  Status: Invalid Contract - Verification Failed
+  Created: ${new Date(agent.createdAt).toLocaleDateString()}`;
+          }
+          
           const contract = new ethers.Contract(agent.contractAddress, TuraAgentABI, provider);
           const isSubscribed = await contract.isSubscribed(address);
           return `${agent.name} (${agent.contractAddress.slice(0,6)}...${agent.contractAddress.slice(-4)})
-  Status: ${isSubscribed ? 'Active' : 'Inactive'}
+  Status: ${isSubscribed ? 'Active ✅' : 'Inactive ⚠️'}
   Created: ${new Date(agent.createdAt).toLocaleDateString()}`;
         } catch (error) {
           return `${agent.name} (${agent.contractAddress.slice(0,6)}...${agent.contractAddress.slice(-4)})
@@ -354,7 +465,23 @@ You can view your agent details anytime by saying "Show my agents".`;
       return `Agent Status Report:\n\n${statusChecks.join('\n\n')}`;
     } catch (error) {
       console.error('Status check failed:', error);
-      return `Failed to check agent status: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      const errorDetails = error instanceof Error 
+        ? `${error.message}\n${error.stack}`
+        : 'Unknown error occurred';
+      
+      return [
+        '❌ Status Check Failed',
+        '',
+        'There was an error checking your agent status:',
+        errorDetails,
+        '',
+        '🔍 Common solutions:',
+        '1. Check your wallet connection',
+        '2. Verify the contract addresses',
+        '3. Try again in a few minutes',
+        '',
+        'If the issue persists, please contact support with the error details above.'
+      ].join('\n');
     }
   }
 }
