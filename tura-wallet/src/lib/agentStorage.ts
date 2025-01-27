@@ -43,8 +43,43 @@ export function saveLocalAgents(data: AgentStorage): boolean {
  * @param {AgentData} agent The agent data to add
  * @returns {boolean} True if addition was successful
  */
+/**
+ * Validate agent data before storage
+ * @param {AgentData} agent The agent data to validate
+ * @throws {Error} If validation fails
+ */
+function validateAgentData(agent: AgentData): void {
+  // Check required fields
+  if (!agent.name?.trim()) throw new Error('Agent name is required');
+  if (!agent.description?.trim()) throw new Error('Agent description is required');
+  if (!agent.company?.trim()) throw new Error('Company name is required');
+  if (!agent.contractAddress?.trim()) throw new Error('Contract address is required');
+  if (!agent.owner?.trim()) throw new Error('Owner address is required');
+  
+  // Validate contract address format
+  if (!/^0x[a-fA-F0-9]{40}$/.test(agent.contractAddress)) {
+    throw new Error('Invalid contract address format');
+  }
+  
+  // Validate owner address format
+  if (!/^0x[a-fA-F0-9]{40}$/.test(agent.owner)) {
+    throw new Error('Invalid owner address format');
+  }
+  
+  // Validate social media URLs if present
+  if (agent.socialLinks?.twitter && !agent.socialLinks.twitter.includes('twitter.com/')) {
+    throw new Error('Invalid Twitter URL format');
+  }
+  if (agent.socialLinks?.github && !agent.socialLinks.github.includes('github.com/')) {
+    throw new Error('Invalid GitHub URL format');
+  }
+}
+
 export function addAgent(agent: AgentData): boolean {
   try {
+    // Validate agent data
+    validateAgentData(agent);
+    
     const currentData = readLocalAgents();
     
     // Check for duplicate name under same owner
