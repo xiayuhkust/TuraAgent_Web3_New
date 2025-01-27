@@ -38,6 +38,31 @@ export class CustomProvider {
   }
 
   /**
+   * Disconnect the provider and clear state
+   */
+  disconnect(): void {
+    // Clear account state
+    this.accounts = [];
+    this.connected = false;
+    
+    // Clear stored keys
+    try {
+      KeyManager.clearStoredKey();
+    } catch (error) {
+      console.error('Failed to clear stored key:', error);
+    }
+    
+    // Reset provider state
+    this.provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.rpcUrl);
+    
+    // Emit events
+    this.emit('accountsChanged', []);
+    this.emit('disconnect', { chainId: CHAIN_CONFIG.chainId });
+    
+    console.log('Provider disconnected and state cleared');
+  }
+
+  /**
    * Check if provider is connected
    */
   isConnected(): boolean {
@@ -67,7 +92,8 @@ export class CustomProvider {
   /**
    * Emit an event to all registered handlers
    */
-  private emit(eventName: string, data: any): void {
+  // Made protected for testing purposes
+  protected emit(eventName: string, data: any): void {
     const handlers = this.eventHandlers.get(eventName);
     if (handlers) {
       handlers.forEach(handler => handler(data));
@@ -119,7 +145,8 @@ export class CustomProvider {
 
       // If no account exists, we'll create a new one
       const privateKey = KeyManager.generatePrivateKey();
-      const wallet = new ethers.Wallet(privateKey);
+      // Validate key by attempting to create a wallet
+      new ethers.Wallet(privateKey);
       
       // Request password from user to encrypt key
       // This would typically be handled by a UI component
@@ -157,15 +184,79 @@ export class CustomProvider {
    * Create and encrypt a new account
    */
   async createAccount(password: string): Promise<string> {
-    const privateKey = KeyManager.generatePrivateKey();
-    const encryptedData = await KeyManager.encryptKey(privateKey, password);
-    KeyManager.storeEncryptedKey(encryptedData);
-    
-    const wallet = new ethers.Wallet(privateKey);
-    this.accounts = [wallet.address];
-    this.connected = true;
-    this.emit('connect', { chainId: CHAIN_CONFIG.chainId });
-    return wallet.address;
+    try {
+      console.log('Starting account creation process');
+      
+      // Check if account already exists
+      const existingKey = KeyManager.getStoredKey();
+      if (existingKey) {
+        console.error('Account already exists');
+        throw new Error('Account already exists');
+      }
+      
+      // Generate and validate private key
+      const privateKey = KeyManager.generatePrivateKey();
+      console.log('Generated new private key');
+      
+      if (!KeyManager.validatePrivateKey(privateKey)) {
+        console.error('Generated key failed validation');
+        throw new Error('Invalid private key generated');
+      }
+      console.log('Private key validation passed');
+
+      // Encrypt the private key
+      const encryptedData = await KeyManager.encryptKey(privateKey, password);
+      if (!encryptedData || !encryptedData.encryptedKey || !encryptedData.salt || !encryptedData.iv) {
+        console.error('Encryption failed or returned invalid data:', encryptedData);
+        throw new Error('Failed to encrypt private key');
+      }
+      console.log('Private key encrypted successfully');
+
+      // Store the encrypted key data
+      try {
+        KeyManager.storeEncryptedKey(encryptedData);
+        // Verify storage was successful
+        const storedKey = KeyManager.getStoredKey();
+        if (!storedKey) {
+          throw new Error('Storage verification failed');
+        }
+        console.log('Encrypted key stored and verified successfully');
+      } catch (storageError) {
+        console.error('Failed to store encrypted key:', storageError);
+        throw new Error('Failed to store encrypted key');
+      }
+      
+      // Create wallet and update state
+      const wallet = new ethers.Wallet(privateKey);
+      this.accounts = [wallet.address];
+      this.connected = true;
+      
+      // Emit connection event
+      this.emit('accountsChanged', [wallet.address]);
+      this.emit('connect', { chainId: CHAIN_CONFIG.chainId });
+      
+      console.log('Account creation completed successfully');
+      return wallet.address;
+    } catch (error) {
+      console.error('Failed to create account:', error);
+      // Reset state on failure
+      this.accounts = [];
+      this.connected = false;
+      this.emit('accountsChanged', []);
+      this.emit('disconnect', { chainId: CHAIN_CONFIG.chainId });
+      
+      // Clean up any partial storage
+      try {
+        KeyManager.clearStoredKey();
+      } catch (cleanupError) {
+        console.error('Failed to clean up after error:', cleanupError);
+      }
+      
+      if (error instanceof Error) {
+        throw new Error(`Failed to create account: ${error.message}`);
+      }
+      throw new Error('Failed to create account: Unknown error');
+    }
   }
 
   /**
@@ -177,32 +268,60 @@ export class CustomProvider {
       throw new Error('No account selected');
     }
 
-    // Get the stored account data
-    const storedAccount = localStorage.getItem('tura_wallet_account');
-    if (!storedAccount) {
+    // Get the stored encrypted key data
+    const encryptedData = KeyManager.getStoredKey();
+    if (!encryptedData) {
       throw new Error('No account data found');
     }
 
-    const account = JSON.parse(storedAccount);
-    
-    // Create a wallet instance
-    const wallet = new ethers.Wallet(account.privateKey, this.provider);
-    
-    // Prepare transaction
-    const tx = {
-      from: txParams.from,
-      to: txParams.to,
-      value: txParams.value || '0x0',
-      data: txParams.data || '0x',
-      nonce: await this.provider.getTransactionCount(this.accounts[0], 'latest'),
-      gasLimit: txParams.gas || '0x5208', // Default: 21000
-      gasPrice: await this.provider.getFeeData().then(fees => fees.gasPrice),
-      chainId: CHAIN_CONFIG.chainId
-    };
+    // Request password from user to decrypt key
+    // This would typically be handled by a UI component
+    throw new Error('NEEDS_PASSWORD_UNLOCK');
 
-    // Sign and send transaction
-    const signedTx = await wallet.signTransaction(tx);
-    return this.provider.send('eth_sendRawTransaction', [signedTx]);
+    // Note: The UI should catch this error and prompt for password
+    // Then call unlockAndSendTransaction with the password
+  }
+
+  /**
+   * Unlock wallet with password and send transaction
+   */
+  async unlockAndSendTransaction(txParams: any, password: string): Promise<string> {
+    try {
+      const encryptedData = KeyManager.getStoredKey();
+      if (!encryptedData) {
+        throw new Error('No account data found');
+      }
+
+      // Decrypt private key
+      const privateKey = await KeyManager.decryptKey(encryptedData, password);
+      
+      // Create wallet instance
+      const wallet = new ethers.Wallet(privateKey, this.provider);
+      
+      // Verify the wallet address matches
+      if (wallet.address.toLowerCase() !== this.accounts[0].toLowerCase()) {
+        throw new Error('Wallet address mismatch');
+      }
+      
+      // Prepare transaction
+      const tx = {
+        from: txParams.from,
+        to: txParams.to,
+        value: txParams.value || '0x0',
+        data: txParams.data || '0x',
+        nonce: await this.provider.getTransactionCount(this.accounts[0], 'latest'),
+        gasLimit: txParams.gas || '0x5208', // Default: 21000
+        gasPrice: await this.provider.getFeeData().then(fees => fees.gasPrice),
+        chainId: CHAIN_CONFIG.chainId
+      };
+
+      // Sign and send transaction
+      const signedTx = await wallet.signTransaction(tx);
+      return this.provider.send('eth_sendRawTransaction', [signedTx]);
+    } catch (error) {
+      console.error('Failed to send transaction:', error);
+      throw new Error('Failed to send transaction');
+    }
   }
 
   /**

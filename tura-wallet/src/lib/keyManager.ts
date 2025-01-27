@@ -9,7 +9,8 @@ interface EncryptedKeyData {
 
 export class KeyManager {
   private static readonly ITERATION_COUNT = 100000;
-  private static readonly KEY_LENGTH = 32;
+  // AES-256 key length in bytes, used for key derivation
+  private static readonly HASH_ALGORITHM = 'SHA-256';
   private static readonly STORAGE_KEY = 'tura_encrypted_key';
   
   /**
@@ -17,10 +18,28 @@ export class KeyManager {
    */
   static async encryptKey(privateKey: string, password: string): Promise<EncryptedKeyData> {
     try {
+      console.log('Starting key encryption process');
+      
+      // Validate inputs
+      if (!privateKey || typeof privateKey !== 'string') {
+        throw new Error('Invalid private key format');
+      }
+      if (!password || typeof password !== 'string') {
+        throw new Error('Invalid password format');
+      }
+
+      // Normalize private key format
+      const normalizedKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
+      if (!this.validatePrivateKey(normalizedKey)) {
+        throw new Error('Invalid private key');
+      }
+
+      console.log('Generating salt and IV');
       // Generate random salt and IV
       const salt = crypto.getRandomValues(new Uint8Array(16));
       const iv = crypto.getRandomValues(new Uint8Array(12));
       
+      console.log('Deriving encryption key from password');
       // Derive encryption key from password
       const encryptionKey = await crypto.subtle.importKey(
         'raw',
@@ -30,12 +49,13 @@ export class KeyManager {
         ['deriveBits', 'deriveKey']
       );
       
+      console.log('Deriving AES key');
       const key = await crypto.subtle.deriveKey(
         {
           name: 'PBKDF2',
           salt: salt,
           iterations: this.ITERATION_COUNT,
-          hash: 'SHA-256'
+          hash: this.HASH_ALGORITHM
         },
         encryptionKey,
         { name: 'AES-GCM', length: 256 },
@@ -43,21 +63,30 @@ export class KeyManager {
         ['encrypt']
       );
       
+      console.log('Encrypting private key');
       // Encrypt the private key
+      const dataToEncrypt = new TextEncoder().encode(normalizedKey);
+      console.log('Data prepared for encryption:', {
+        byteLength: dataToEncrypt.byteLength,
+        format: 'UTF-8'
+      });
+
       const encryptedData = await crypto.subtle.encrypt(
         {
           name: 'AES-GCM',
           iv: iv
         },
         key,
-        new TextEncoder().encode(privateKey)
+        dataToEncrypt
       );
       
+      console.log('Converting encrypted data to base64');
       // Convert to base64 for storage
-      const encryptedKey = Buffer.from(encryptedData).toString('base64');
+      const encryptedKey = Buffer.from(new Uint8Array(encryptedData)).toString('base64');
       const saltString = Buffer.from(salt).toString('base64');
       const ivString = Buffer.from(iv).toString('base64');
       
+      console.log('Encryption complete');
       return {
         encryptedKey,
         salt: saltString,
@@ -65,7 +94,10 @@ export class KeyManager {
       };
     } catch (error) {
       console.error('Failed to encrypt key:', error);
-      throw new Error('Failed to encrypt private key');
+      if (error instanceof Error) {
+        throw new Error(`Failed to encrypt private key: ${error.message}`);
+      }
+      throw new Error('Failed to encrypt private key: Unknown error');
     }
   }
   
@@ -74,11 +106,23 @@ export class KeyManager {
    */
   static async decryptKey(encryptedData: EncryptedKeyData, password: string): Promise<string> {
     try {
+      console.log('Starting key decryption process');
+      
+      // Validate inputs
+      if (!encryptedData || !encryptedData.encryptedKey || !encryptedData.salt || !encryptedData.iv) {
+        throw new Error('Invalid encrypted data format');
+      }
+      if (!password || typeof password !== 'string') {
+        throw new Error('Invalid password format');
+      }
+
+      console.log('Converting base64 data to buffers');
       // Convert base64 strings back to buffers
       const encryptedKey = Buffer.from(encryptedData.encryptedKey, 'base64');
       const salt = Buffer.from(encryptedData.salt, 'base64');
       const iv = Buffer.from(encryptedData.iv, 'base64');
       
+      console.log('Deriving decryption key from password');
       // Derive decryption key from password
       const decryptionKey = await crypto.subtle.importKey(
         'raw',
@@ -88,12 +132,13 @@ export class KeyManager {
         ['deriveBits', 'deriveKey']
       );
       
+      console.log('Deriving AES key for decryption');
       const key = await crypto.subtle.deriveKey(
         {
           name: 'PBKDF2',
           salt: salt,
           iterations: this.ITERATION_COUNT,
-          hash: 'SHA-256'
+          hash: this.HASH_ALGORITHM
         },
         decryptionKey,
         { name: 'AES-GCM', length: 256 },
@@ -101,6 +146,7 @@ export class KeyManager {
         ['decrypt']
       );
       
+      console.log('Decrypting private key');
       // Decrypt the private key
       const decryptedData = await crypto.subtle.decrypt(
         {
@@ -111,10 +157,21 @@ export class KeyManager {
         encryptedKey
       );
       
-      return new TextDecoder().decode(decryptedData);
+      const decryptedKey = new TextDecoder().decode(decryptedData);
+      
+      // Validate decrypted key
+      if (!this.validatePrivateKey(decryptedKey)) {
+        throw new Error('Decrypted key validation failed');
+      }
+      
+      console.log('Decryption complete');
+      return decryptedKey;
     } catch (error) {
       console.error('Failed to decrypt key:', error);
-      throw new Error('Failed to decrypt private key');
+      if (error instanceof Error) {
+        throw new Error(`Failed to decrypt private key: ${error.message}`);
+      }
+      throw new Error('Failed to decrypt private key: Unknown error');
     }
   }
   
@@ -123,7 +180,30 @@ export class KeyManager {
    */
   static storeEncryptedKey(encryptedData: EncryptedKeyData): void {
     try {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(encryptedData));
+      console.log('Storing encrypted key data');
+      if (!encryptedData || !encryptedData.encryptedKey || !encryptedData.salt || !encryptedData.iv) {
+        console.error('Invalid encrypted data format:', encryptedData);
+        throw new Error('Invalid encrypted data format');
+      }
+
+      const serializedData = JSON.stringify(encryptedData);
+      localStorage.setItem(this.STORAGE_KEY, serializedData);
+      
+      // Verify storage was successful
+      const storedData = localStorage.getItem(this.STORAGE_KEY);
+      if (!storedData) {
+        console.error('Storage verification failed: no data found after storage');
+        throw new Error('Storage verification failed');
+      }
+      
+      // Verify data integrity
+      const parsedData = JSON.parse(storedData);
+      if (!parsedData.encryptedKey || !parsedData.salt || !parsedData.iv) {
+        console.error('Storage verification failed: stored data is incomplete');
+        throw new Error('Storage verification failed: data integrity check');
+      }
+      
+      console.log('Encrypted key data stored successfully');
     } catch (error) {
       console.error('Failed to store encrypted key:', error);
       throw new Error('Failed to store encrypted key');
@@ -135,9 +215,24 @@ export class KeyManager {
    */
   static getStoredKey(): EncryptedKeyData | null {
     try {
+      console.log('Retrieving stored key data');
       const storedData = localStorage.getItem(this.STORAGE_KEY);
-      if (!storedData) return null;
-      return JSON.parse(storedData);
+      
+      if (!storedData) {
+        console.log('No stored key data found');
+        return null;
+      }
+      
+      const parsedData = JSON.parse(storedData) as EncryptedKeyData;
+      
+      // Validate parsed data
+      if (!parsedData.encryptedKey || !parsedData.salt || !parsedData.iv) {
+        console.error('Retrieved data is incomplete:', parsedData);
+        return null;
+      }
+      
+      console.log('Successfully retrieved stored key data');
+      return parsedData;
     } catch (error) {
       console.error('Failed to retrieve stored key:', error);
       return null;
@@ -161,13 +256,52 @@ export class KeyManager {
    */
   static validatePrivateKey(privateKey: string): boolean {
     try {
-      if (!privateKey.startsWith('0x')) return false;
-      if (privateKey.length !== 66) return false;
+      console.log('Validating private key format');
       
-      // Try to create a wallet with the key
-      new ethers.Wallet(privateKey);
+      // Basic format validation
+      if (!privateKey || typeof privateKey !== 'string') {
+        console.log('Invalid private key: not a string');
+        return false;
+      }
+      
+      // Normalize key format
+      const normalizedKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
+      
+      // Check length (32 bytes = 64 hex chars + '0x' prefix = 66 chars)
+      if (normalizedKey.length !== 66) {
+        console.log('Invalid private key length:', normalizedKey.length);
+        return false;
+      }
+      
+      // Validate hex format (after 0x prefix)
+      const hexRegex = /^0x[0-9a-fA-F]{64}$/;
+      if (!hexRegex.test(normalizedKey)) {
+        console.log('Invalid private key: not a valid hex string');
+        return false;
+      }
+      
+      // Validate key range (must be less than curve order)
+      const keyBigInt = BigInt(normalizedKey);
+      const curveOrder = BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141');
+      if (keyBigInt >= curveOrder) {
+        console.log('Invalid private key: exceeds curve order');
+        return false;
+      }
+      
+      // Final validation: try to create a wallet
+      console.log('Creating test wallet with private key');
+      const wallet = new ethers.Wallet(normalizedKey);
+      
+      // Verify the wallet was created successfully
+      if (!wallet.address.startsWith('0x')) {
+        console.log('Wallet creation failed: invalid address format');
+        return false;
+      }
+      
+      console.log('Private key validation successful');
       return true;
-    } catch {
+    } catch (error) {
+      console.error('Private key validation failed:', error);
       return false;
     }
   }
@@ -176,7 +310,22 @@ export class KeyManager {
    * Generate a new random private key
    */
   static generatePrivateKey(): string {
-    const wallet = ethers.Wallet.createRandom();
-    return wallet.privateKey;
+    try {
+      console.log('Generating new private key');
+      const wallet = ethers.Wallet.createRandom();
+      const privateKey = wallet.privateKey;
+      
+      // Validate the generated key
+      if (!this.validatePrivateKey(privateKey)) {
+        console.error('Generated key failed validation');
+        throw new Error('Generated private key failed validation');
+      }
+      
+      console.log('Successfully generated valid private key');
+      return privateKey;
+    } catch (error) {
+      console.error('Failed to generate private key:', error);
+      throw new Error('Failed to generate private key');
+    }
   }
 }
