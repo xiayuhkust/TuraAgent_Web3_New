@@ -25,6 +25,7 @@ export default function ChatPage() {
   const [chatAddress, setChatAddress] = useState('');
   const [chatBalance, setChatBalance] = useState('0');
   const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
+  const [isWaitingForPassword, setIsWaitingForPassword] = useState(false);
   const [walletManager] = useState(() => {
     const manager = new WalletManager();
     // Make wallet manager available globally for debugging
@@ -44,9 +45,23 @@ export default function ChatPage() {
           setChatAddress(storedAddress);
           const balance = await walletManager.getBalance(storedAddress);
           setChatBalance(balance);
+        } else {
+          // If no wallet is found, display a welcome message
+          setMessages(prev => [...prev, {
+            id: Date.now().toString(),
+            text: "Welcome! I notice you don't have a wallet yet. Type 'create wallet' to create your first wallet.",
+            sender: 'agent',
+            timestamp: new Date().toISOString()
+          }]);
         }
       } catch (error) {
         console.error('Failed to fetch wallet data:', error);
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          text: 'There was an error checking your wallet status. Please try refreshing the page.',
+          sender: 'error',
+          timestamp: new Date().toISOString()
+        }]);
       }
     };
 
@@ -71,7 +86,74 @@ export default function ChatPage() {
     setMessages(prev => [...prev, newMessage]);
     setInputText('');
 
-    // TODO: Implement agent response logic
+    const lowercasedMessage = inputText.toLowerCase().trim();
+
+    // Handle wallet creation flow
+    if (isWaitingForPassword) {
+      try {
+        if (inputText.length < 8) {
+          setMessages(prev => [...prev, {
+            id: Date.now().toString(),
+            text: "Password must be at least 8 characters long. Please try again.",
+            sender: 'error',
+            timestamp: new Date().toISOString()
+          }]);
+          return;
+        }
+
+        const wallet = await walletManager.createWallet(inputText);
+        setChatAddress(wallet.address);
+        localStorage.setItem('lastWalletAddress', wallet.address);
+        
+        // Display success message and mnemonic
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          text: `Wallet created successfully! Here is your mnemonic phrase. Please write it down and keep it safe - you'll need it to recover your wallet:\n\n${wallet.mnemonic}`,
+          sender: 'agent',
+          timestamp: new Date().toISOString()
+        }]);
+
+        // Reset password waiting state
+        setIsWaitingForPassword(false);
+
+        // Fetch initial balance
+        const balance = await walletManager.getBalance(wallet.address);
+        setChatBalance(balance);
+      } catch (error) {
+        console.error('Wallet creation failed:', error);
+        // Display error in chat
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          text: 'Failed to create wallet. Please try again.',
+          sender: 'error',
+          timestamp: new Date().toISOString()
+        }]);
+      }
+      return;
+    }
+
+    // Handle "create wallet" command
+    if (lowercasedMessage === 'create wallet') {
+      if (chatAddress) {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          text: "You already have a wallet! Your address is: " + chatAddress,
+          sender: 'agent',
+          timestamp: new Date().toISOString()
+        }]);
+      } else {
+        setIsWaitingForPassword(true);
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          text: "Please enter a secure password (at least 8 characters) to create your wallet:",
+          sender: 'agent',
+          timestamp: new Date().toISOString()
+        }]);
+      }
+      return;
+    }
+
+    // Default response for other messages
     const response: Message = {
       id: (Date.now() + 1).toString(),
       text: `Received: ${inputText}`,
