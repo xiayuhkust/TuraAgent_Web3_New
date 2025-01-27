@@ -25,12 +25,30 @@ export default function ChatPage() {
   const [chatAddress, setChatAddress] = useState('');
   const [chatBalance, setChatBalance] = useState('0');
   const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
+  const [lastMessageTime, setLastMessageTime] = useState<number>(Date.now());
   const [walletAgent] = useState(() => (officialAgents[0].instance as WalletAgent));
+  
+  // Initialize messages with welcome message
+  useEffect(() => {
+    const initializeChat = async () => {
+      if (messages.length === 0) {
+        const welcomeMessage: Message = {
+          id: Date.now().toString(),
+          text: 'Welcome! I am your WalletAgent. I can help you create a wallet, check your balance, or request test tokens. How can I assist you today?',
+          sender: 'agent',
+          timestamp: new Date().toISOString()
+        };
+        setMessages([welcomeMessage]);
+      }
+    };
+    initializeChat();
+  }, []);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Initialize chat and set up balance refresh interval
   useEffect(() => {
     const initializeChat = async () => {
       try {
@@ -63,7 +81,22 @@ export default function ChatPage() {
     };
 
     initializeChat();
-  }, [walletAgent]);
+
+    // Set up balance refresh interval after faucet transactions
+    const refreshInterval = setInterval(async () => {
+      const timeSinceLastMessage = Date.now() - lastMessageTime;
+      // Only refresh if there was a message in the last 30 seconds
+      if (timeSinceLastMessage < 30000 && chatAddress) {
+        const response = await walletAgent.processMessage('check balance');
+        const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
+        if (balanceMatch) {
+          setChatBalance(balanceMatch[1]);
+        }
+      }
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(refreshInterval);
+  }, [walletAgent, lastMessageTime, chatAddress]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -82,8 +115,7 @@ export default function ChatPage() {
 
     setMessages(prev => [...prev, newMessage]);
     setInputText('');
-
-    // All wallet-related logic is now handled by WalletAgent
+    setLastMessageTime(Date.now());
 
     try {
       // Process message through WalletAgent
@@ -96,10 +128,20 @@ export default function ChatPage() {
           setChatAddress(storedAddress || '');
         }
         
-        // Update balance if it's mentioned in the response
-        const balanceMatch = agentResponse.match(/contains (\d+(?:\.\d+)?)/);
-        if (balanceMatch) {
-          setChatBalance(balanceMatch[1]);
+        // Always refresh balance after agent response for faucet-related actions
+        if (chatAddress) {
+          try {
+            setIsRefreshingBalance(true);
+            const balanceResponse = await walletAgent.processMessage('check balance');
+            const balanceMatch = balanceResponse.match(/contains (\d+(?:\.\d+)?)/);
+            if (balanceMatch) {
+              setChatBalance(balanceMatch[1]);
+            }
+          } catch (error) {
+            console.error('Balance refresh failed:', error);
+          } finally {
+            setIsRefreshingBalance(false);
+          }
         }
 
         const response: Message = {
