@@ -31,8 +31,10 @@ export default function ChatPage() {
   const [signatureDetails, setSignatureDetails] = useState<{
     title: string;
     description: string;
-    onConfirm: () => Promise<void>;
+    requirePassword?: boolean;
+    onConfirm: (password?: string) => Promise<void>;
   } | null>(null);
+  const [password, setPassword] = useState('');
 
   // Expose dialog control to window for AgentManager
   useEffect(() => {
@@ -40,7 +42,8 @@ export default function ChatPage() {
       showSignatureDialog: (details: {
         title: string;
         description: string;
-        onConfirm: () => Promise<void>;
+        requirePassword?: boolean;
+        onConfirm: (password?: string) => Promise<void>;
       }) => {
         setSignatureDetails(details);
         setShowSignatureDialog(true);
@@ -439,7 +442,15 @@ export default function ChatPage() {
         </CardTitle>
       </CardHeader>
       {/* Signature Dialog */}
-      <Dialog open={showSignatureDialog} onOpenChange={setShowSignatureDialog}>
+      <Dialog 
+        open={showSignatureDialog} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setPassword('');
+          }
+          setShowSignatureDialog(open);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{signatureDetails?.title || 'Confirm Transaction'}</DialogTitle>
@@ -447,10 +458,27 @@ export default function ChatPage() {
               {signatureDetails?.description || 'Please confirm this transaction in your wallet.'}
             </DialogDescription>
           </DialogHeader>
+          {signatureDetails?.requirePassword && (
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your wallet password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="col-span-3"
+                />
+              </div>
+            </div>
+          )}
           <DialogFooter className="flex justify-between">
             <Button
               variant="outline"
-              onClick={() => setShowSignatureDialog(false)}
+              onClick={() => {
+                setPassword('');
+                setShowSignatureDialog(false);
+              }}
             >
               Cancel
             </Button>
@@ -458,7 +486,18 @@ export default function ChatPage() {
               onClick={async () => {
                 if (signatureDetails?.onConfirm) {
                   try {
-                    await signatureDetails.onConfirm();
+                    if (signatureDetails.requirePassword && !password) {
+                      setMessages(prev => [...prev, {
+                        id: Date.now().toString(),
+                        text: 'Error: Password is required',
+                        sender: 'error',
+                        timestamp: new Date().toISOString()
+                      }]);
+                      return;
+                    }
+                    await signatureDetails.onConfirm(signatureDetails.requirePassword ? password : undefined);
+                    setPassword('');
+                    setShowSignatureDialog(false);
                   } catch (error) {
                     console.error('Transaction failed:', error);
                     setMessages(prev => [...prev, {
@@ -468,9 +507,9 @@ export default function ChatPage() {
                       timestamp: new Date().toISOString()
                     }]);
                   }
-                  setShowSignatureDialog(false);
                 }
               }}
+              disabled={signatureDetails?.requirePassword && !password}
             >
               Sign & Deploy
             </Button>
