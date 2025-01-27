@@ -1,5 +1,18 @@
 import { AgenticWorkflow } from '../agentic_workflow/AgenticWorkflow';
 
+export interface AgentData {
+  name: string;
+  description: string;
+  company: string;
+  socialLinks: {
+    twitter?: string;
+    github?: string;
+  };
+  contractAddress: string;
+  createdAt: string;
+  owner: string;
+}
+
 // Base interface for common properties
 interface BaseAgent {
   name: string;
