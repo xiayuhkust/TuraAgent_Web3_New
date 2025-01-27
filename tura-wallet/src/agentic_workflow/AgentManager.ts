@@ -39,7 +39,6 @@ export class AgentManager extends AgenticWorkflow {
 
   constructor() {
     super("AgentManager", "Deploy and register TuraAgent contracts with metadata collection");
-    this.registrationState = { step: 'idle' };
   }
 
   /**
@@ -245,7 +244,6 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
           
           try {
             // Get provider and signer
-            const provider = getTuraProvider();
             const provider = getTuraProvider();
             const signer = provider.getSigner();
             const address = await signer.getAddress();
