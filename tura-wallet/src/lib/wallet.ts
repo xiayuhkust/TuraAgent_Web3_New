@@ -1,16 +1,6 @@
 import Web3 from 'web3';
-
-// Chain configuration
-const CHAIN_CONFIG = {
-  chainId: 1337,
-  chainName: 'Tura',
-  rpcUrl: 'https://43.135.26.222:8088',  // Direct HTTPS RPC endpoint
-  nativeCurrency: {
-    name: 'TURA',
-    symbol: 'TURA',
-    decimals: 18
-  }
-};
+import { CHAIN_CONFIG } from './config';
+import { CustomProvider } from './customProvider';
 
 interface Web3TransactionReceipt {
   transactionHash: string;
@@ -38,21 +28,20 @@ export class WalletService {
   private web3: Web3;
 
   constructor() {
-    // Initialize with HTTP provider first to ensure we have a working Web3 instance
-    let provider = new Web3.providers.HttpProvider(CHAIN_CONFIG.rpcUrl);
-    this.web3 = new Web3(provider);
-    
     console.log('Initializing Web3 with chain config:', {
       chainId: CHAIN_CONFIG.chainId,
       chainName: CHAIN_CONFIG.chainName,
       rpcUrl: CHAIN_CONFIG.rpcUrl,
       nativeCurrency: CHAIN_CONFIG.nativeCurrency
     });
+
+    // Initialize with HTTP provider first
+    let provider = new Web3.providers.HttpProvider(CHAIN_CONFIG.rpcUrl);
+    this.web3 = new Web3(provider);
     
-    // Then try to detect and setup MetaMask
+    // Then try to detect and setup MetaMask or use CustomProvider
     if (typeof window !== 'undefined') {
-      // Wait for window.ethereum to be injected
-      const checkForEthereum = async () => {
+      const setupProvider = async () => {
         let attempts = 0;
         const maxAttempts = 10;
         
@@ -69,8 +58,20 @@ export class WalletService {
               break;
             } catch (error) {
               console.error('Failed to setup MetaMask:', error);
-              // Fallback to HTTP provider already set
+              // Fall back to CustomProvider
+              console.log('Falling back to CustomProvider...');
+              const customProvider = new CustomProvider();
+              this.web3.setProvider(customProvider as any);
+              console.log('CustomProvider setup successful');
+              break;
             }
+          } else {
+            // No MetaMask, use CustomProvider
+            console.log('MetaMask not detected, using CustomProvider...');
+            const customProvider = new CustomProvider();
+            this.web3.setProvider(customProvider as any);
+            console.log('CustomProvider setup successful');
+            break;
           }
           
           attempts++;
@@ -78,13 +79,9 @@ export class WalletService {
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
         }
-        
-        if (attempts === maxAttempts) {
-          console.log('MetaMask not detected after all attempts, using HTTP provider');
-        }
       };
       
-      checkForEthereum();
+      setupProvider();
     }
   }
 
@@ -178,10 +175,31 @@ export class WalletService {
 
   async createAccount(privateKey?: string) {
     try {
-      // Create account with private key if provided, otherwise create new one
-      const account = privateKey 
-        ? this.web3.eth.accounts.privateKeyToAccount(privateKey)
-        : this.web3.eth.accounts.create();
+      let account;
+      
+      // Check if we're using CustomProvider
+      if (this.web3.currentProvider instanceof CustomProvider) {
+        // Use provider's account creation/import
+        const provider = this.web3.currentProvider as CustomProvider;
+        if (privateKey) {
+          // Import existing account
+          account = this.web3.eth.accounts.privateKeyToAccount(privateKey);
+        } else {
+          // Create new account
+          account = this.web3.eth.accounts.create();
+          // Store account in provider
+          await provider.request({
+            method: 'eth_accounts',
+            params: [{ address: account.address, privateKey: account.privateKey }]
+          });
+        }
+      } else {
+        // Using MetaMask or HTTP provider
+        account = privateKey 
+          ? this.web3.eth.accounts.privateKeyToAccount(privateKey)
+          : this.web3.eth.accounts.create();
+      }
+      
       console.log('Created new account:', account.address);
       
       return {
@@ -277,17 +295,37 @@ export class WalletService {
         chainId: CHAIN_CONFIG.chainId
       };
       
-      // Sign and send transaction with timeout
-      const signedTx = await this.web3.eth.accounts.signTransaction(tx, privateKey);
-      if (!signedTx.rawTransaction) {
-        throw new Error('Failed to sign transaction');
+      let receipt: Web3TransactionReceipt;
+      
+      // Check if we're using CustomProvider
+      if (this.web3.currentProvider instanceof CustomProvider) {
+        // Use provider's transaction signing
+        const provider = this.web3.currentProvider as CustomProvider;
+        const txHash = await provider.request({
+          method: 'eth_sendTransaction',
+          params: [{ ...tx, privateKey }]
+        });
+        
+        // Wait for transaction receipt
+        receipt = await Promise.race([
+          this.web3.eth.getTransactionReceipt(txHash),
+          new Promise((_resolve, reject) =>
+            setTimeout(() => reject(new Error('RPC timeout')), TIMEOUT_MS)
+          )
+        ]) as Web3TransactionReceipt;
+      } else {
+        // Using MetaMask or HTTP provider
+        const signedTx = await this.web3.eth.accounts.signTransaction(tx, privateKey);
+        if (!signedTx.rawTransaction) {
+          throw new Error('Failed to sign transaction');
+        }
+        receipt = await Promise.race([
+          this.web3.eth.sendSignedTransaction(signedTx.rawTransaction),
+          new Promise((_resolve, reject) =>
+            setTimeout(() => reject(new Error('RPC timeout')), TIMEOUT_MS)
+          )
+        ]) as Web3TransactionReceipt;
       }
-      const receipt = await Promise.race([
-        this.web3.eth.sendSignedTransaction(signedTx.rawTransaction),
-        new Promise((_resolve, reject) =>
-          setTimeout(() => reject(new Error('RPC timeout')), TIMEOUT_MS)
-        )
-      ]) as Web3TransactionReceipt;
       
       console.log('Transaction successful:', receipt.transactionHash);
       // Convert Web3's receipt to our TransactionReceipt type
