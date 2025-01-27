@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Send, Bot, Code2, Wallet } from 'lucide-react';
+import { Mic, Send, Bot, Code2, Wallet, RefreshCw } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -7,6 +7,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
 import { officialAgents, agents, workflows } from '../../stores/agent-store';
 import { Agent, OfficialAgent, Workflow } from '../../types/agentTypes';
+import WalletManager from '../../lib/wallet_manager';
 
 interface Message {
   id: string;
@@ -21,10 +22,36 @@ export default function ChatPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(null);
+  const [chatAddress, setChatAddress] = useState('');
+  const [chatBalance, setChatBalance] = useState('0');
+  const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
+  const [walletManager] = useState(() => {
+    const manager = new WalletManager();
+    // Make wallet manager available globally for debugging
+    (window as any).walletManager = manager;
+    return manager;
+  });
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const fetchWalletData = async () => {
+      try {
+        const storedAddress = localStorage.getItem('lastWalletAddress');
+        if (storedAddress) {
+          setChatAddress(storedAddress);
+          const balance = await walletManager.getBalance(storedAddress);
+          setChatBalance(balance);
+        }
+      } catch (error) {
+        console.error('Failed to fetch wallet data:', error);
+      }
+    };
+
+    fetchWalletData();
+  }, [walletManager]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -242,6 +269,49 @@ export default function ChatPage() {
         <CardTitle className="flex items-center gap-2">
           <Bot className="h-6 w-6" />
           {activeAgent ? activeAgent.name : 'Chat'}
+          
+          {chatAddress && (
+            <div className="p-2 bg-secondary rounded-lg flex flex-col items-start ml-4">
+              <div className="text-xs text-muted-foreground">Account</div>
+              <div className="font-mono text-sm break-all">
+                {chatAddress.slice(0,6)}...{chatAddress.slice(-4)}
+              </div>
+            </div>
+          )}
+
+          {chatAddress && (
+            <div className="p-2 bg-secondary rounded-lg flex flex-col items-start ml-2">
+              <div className="text-xs text-muted-foreground">Balance</div>
+              <div className="text-sm font-bold flex items-center gap-2">
+                {chatBalance} TURA
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-4 w-4 p-0"
+                  onClick={async () => {
+                    if (isRefreshingBalance) return;
+                    try {
+                      setIsRefreshingBalance(true);
+                      const newBalance = await Promise.race([
+                        walletManager.getBalance(chatAddress),
+                        new Promise<string>((_, reject) => 
+                          setTimeout(() => reject(new Error('Balance refresh timed out')), 10000)
+                        )
+                      ]);
+                      setChatBalance(newBalance);
+                    } catch (error) {
+                      console.error('Balance refresh failed:', error);
+                    } finally {
+                      setIsRefreshingBalance(false);
+                    }
+                  }}
+                  disabled={isRefreshingBalance}
+                >
+                  <RefreshCw className={`h-3 w-3 ${isRefreshingBalance ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="flex h-full gap-4">
