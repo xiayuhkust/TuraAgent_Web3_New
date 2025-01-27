@@ -27,7 +27,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/rpc': {
-        target: 'http://43.135.26.222:8000',
+        target: 'https://43.135.26.222:8088',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/rpc/, ''),

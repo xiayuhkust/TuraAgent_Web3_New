@@ -163,7 +163,7 @@ export const TuraAgentBytecode = "0x608060405234801561001057600080fd5b5033600080
 
 // Contract deployment configuration
 export const CONTRACT_CONFIG = {
-  rpcEndpoint: 'http://43.135.26.222:8000',
+  rpcEndpoint: 'https://43.135.26.222:8088',
   chainId: 1337,
   gasLimit: 3000000,
   subscriptionFee: ethers.parseEther('0.1')
