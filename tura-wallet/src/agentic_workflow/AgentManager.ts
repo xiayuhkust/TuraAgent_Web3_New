@@ -262,6 +262,7 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
             const provider = getTuraProvider();
             let signer: ethers.Signer;
             let address: string = '';
+            let deployedAddress: string;
 
             // Check if using CustomProvider
             if (provider instanceof ethers.JsonRpcProvider && !window.ethereum) {
@@ -272,7 +273,6 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
               }
 
               // Show password dialog for key decryption and deploy contract
-              let deployedAddress: string;
               try {
                 const chatPage = (window as any).ChatPage;
                 if (!chatPage?.showSignatureDialog) {
@@ -315,8 +315,8 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
                         }
 
                         // Deploy contract
-                        const contractAddress = await deployTuraAgent(wallet);
-                        resolve(contractAddress);
+                        deployedAddress = await deployTuraAgent(wallet);
+                        resolve(deployedAddress);
                       } catch (error) {
                         reject(error);
                       }
@@ -365,8 +365,8 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
                     ].join('\n'),
                     onConfirm: async () => {
                       try {
-                        const contractAddress = await deployTuraAgent(signer);
-                        resolve(contractAddress);
+                        deployedAddress = await deployTuraAgent(signer);
+                        resolve(deployedAddress);
                       } catch (error) {
                         reject(error);
                       }
