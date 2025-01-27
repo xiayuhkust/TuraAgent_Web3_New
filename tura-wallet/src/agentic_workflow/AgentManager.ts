@@ -52,25 +52,42 @@ export class AgentManager extends AgenticWorkflow {
       // System message for intent recognition
       const systemMessage = {
         role: 'system' as const,
-        content: `You are an agent registration assistant. Analyze user messages and categorize them into exactly one of these intents:
-        DEPLOY_CONTRACT - User wants to deploy a new TuraAgent contract
-        REGISTER_AGENT - User wants to register agent metadata
-        CHECK_STATUS - User wants to check deployment/registration status
-        LIST_AGENTS - User wants to list registered agents
-        GENERAL_HELP - Other inquiries or unclear intent
-        
-        Respond with ONLY the category name, no other text.
-        
-        Examples:
-        "I want to deploy an agent" -> DEPLOY_CONTRACT
-        "Deploy a new contract" -> DEPLOY_CONTRACT
-        "Register my agent" -> REGISTER_AGENT
-        "Add agent info" -> REGISTER_AGENT
-        "Show me my agents" -> LIST_AGENTS
-        "What agents are registered?" -> LIST_AGENTS
-        "Check my agent status" -> CHECK_STATUS
-        "Is my agent deployed?" -> CHECK_STATUS
-        "Help" -> GENERAL_HELP`
+        content: `You are an agent registration assistant that classifies user messages into exactly one category. Respond with ONLY the category name in uppercase with underscores, no other text.
+
+Valid categories:
+DEPLOY_CONTRACT - User wants to deploy a new TuraAgent contract (costs 0.1 TURA)
+REGISTER_AGENT - User wants to register agent metadata only
+CHECK_STATUS - User wants to check deployment/registration status
+LIST_AGENTS - User wants to list registered agents
+GENERAL_HELP - Other inquiries or unclear intent
+
+Example mappings:
+"I want to deploy an agent" -> DEPLOY_CONTRACT
+"Create a new agent" -> DEPLOY_CONTRACT
+"Deploy contract" -> DEPLOY_CONTRACT
+"Set up an agent" -> DEPLOY_CONTRACT
+
+"Register my agent" -> REGISTER_AGENT
+"Add agent info" -> REGISTER_AGENT
+"Update agent details" -> REGISTER_AGENT
+"Save agent metadata" -> REGISTER_AGENT
+
+"Show my agents" -> LIST_AGENTS
+"List all agents" -> LIST_AGENTS
+"What agents do I have?" -> LIST_AGENTS
+"Display registered agents" -> LIST_AGENTS
+
+"Check agent status" -> CHECK_STATUS
+"Is my agent deployed?" -> CHECK_STATUS
+"Deployment status" -> CHECK_STATUS
+"Agent status" -> CHECK_STATUS
+
+For unclear or multiple intents -> GENERAL_HELP
+
+Priority order (highest to lowest):
+DEPLOY_CONTRACT > REGISTER_AGENT > CHECK_STATUS > LIST_AGENTS > GENERAL_HELP
+
+Remember: Always respond with exactly one category name in uppercase with underscores, no other text.`
       };
 
       // Prepare conversation context
@@ -87,8 +104,12 @@ export class AgentManager extends AgenticWorkflow {
           const result = await openai.chat.completions.create({
             messages: conversationLog,
             model: "deepseek-chat",
-            temperature: 0.1,
-            max_tokens: 15
+            temperature: 0,
+            max_tokens: 15,
+            presence_penalty: 0,
+            frequency_penalty: 0,
+            top_p: 1,
+            stop: ["\n", "->", "."]
           });
           userIntent = result.choices[0]?.message?.content?.trim() || userIntent;
           console.log('Detected intent:', userIntent);
@@ -102,10 +123,25 @@ export class AgentManager extends AgenticWorkflow {
         return await this.handleRegistrationState(text);
       }
 
+      // Get current wallet address
+      const address = localStorage.getItem('lastWalletAddress');
+      if (!address && userIntent !== 'GENERAL_HELP') {
+        return "Please connect your wallet first to interact with agents.";
+      }
+
       // Map intent to handler functions
       switch (userIntent) {
         case 'DEPLOY_CONTRACT':
+          if (this.registrationState.step !== 'idle') {
+            return "You're already in the process of registering an agent. Please complete or cancel the current registration first.";
+          }
           return this.startRegistrationFlow();
+        
+        case 'REGISTER_AGENT':
+          if (this.registrationState.step !== 'idle') {
+            return "You're already in the process of registering an agent. Please complete or cancel the current registration first.";
+          }
+          return "Agent-only registration without contract deployment is not supported yet. Please use 'Deploy a new agent' to create and register an agent.";
         
         case 'LIST_AGENTS':
           return this.listRegisteredAgents();
@@ -115,15 +151,24 @@ export class AgentManager extends AgenticWorkflow {
         
         default:
           return `I can help you deploy and register TuraAgent contracts. Here's what I can do:
-- Deploy a new TuraAgent contract (costs 0.1 TURA)
-- Register agent metadata (name, description, company info)
-- List registered agents
-- Check deployment status
 
-Try saying:
-- "Deploy a new agent"
-- "Show me my agents"
-- "Check agent status"`;
+1. Deploy a new TuraAgent contract (costs 0.1 TURA)
+   - Creates a new agent contract
+   - Collects metadata (name, description, company)
+   - Registers on the blockchain
+   Try: "Deploy a new agent"
+
+2. List your registered agents
+   - Shows all your deployed agents
+   - Displays contract addresses and metadata
+   Try: "Show my agents"
+
+3. Check deployment status
+   - View contract deployment status
+   - Verify registration details
+   Try: "Check agent status"
+
+Note: You must have a connected wallet with sufficient TURA balance (0.1 TURA) to deploy contracts.`;
       }
     } catch (error) {
       console.error('AgentManager error:', error);
