@@ -165,7 +165,7 @@ export const CONTRACT_CONFIG = {
   rpcEndpoint: 'https://43.135.26.222:8088',
   chainId: 1337,
   gasLimit: 3000000,
-  subscriptionFee: ethers.utils.parseEther('0.1')
+  subscriptionFee: ethers.parseEther('0.1')
 };
 
 /**
@@ -204,7 +204,7 @@ export async function deployTuraAgent(signer: ethers.Signer): Promise<string> {
  * @returns True if balance is sufficient
  */
 export async function checkTuraBalance(
-  provider: ethers.providers.Provider,
+  provider: ethers.Provider,
   address: string
 ): Promise<boolean> {
   try {
@@ -220,8 +220,8 @@ export async function checkTuraBalance(
  * Get a Web3 provider for the Tura network
  * @returns Configured ethers provider
  */
-export function getTuraProvider(): ethers.providers.JsonRpcProvider {
-  return new ethers.providers.JsonRpcProvider(CONTRACT_CONFIG.rpcEndpoint, {
+export function getTuraProvider(): ethers.JsonRpcProvider {
+  return new ethers.JsonRpcProvider(CONTRACT_CONFIG.rpcEndpoint, {
     chainId: CONTRACT_CONFIG.chainId,
     name: 'Tura'
   });
