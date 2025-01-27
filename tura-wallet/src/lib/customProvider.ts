@@ -262,7 +262,7 @@ export class CustomProvider {
   /**
    * Handle transaction sending
    */
-  private async handleSendTransaction(txParams: any): Promise<string> {
+  private async handleSendTransaction(_transaction: any): Promise<string> {
     // Ensure we have an account
     if (this.accounts.length === 0) {
       throw new Error('No account selected');

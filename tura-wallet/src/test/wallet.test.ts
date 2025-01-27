@@ -20,15 +20,20 @@ describe('Wallet Integration Tests', () => {
     localStorage.clear();
     
     // Reset mock wallet state
-    vi.spyOn(ethers.Wallet, 'createRandom').mockImplementation(() => mockWallet);
+    vi.spyOn(ethers.Wallet, 'createRandom').mockImplementation(() => mockWallet as any);
     
     // Mock JsonRpcProvider methods
     vi.spyOn(ethers.JsonRpcProvider.prototype, 'getTransactionCount')
       .mockResolvedValue(0);
     vi.spyOn(ethers.JsonRpcProvider.prototype, 'getFeeData')
-      .mockResolvedValue({ gasPrice: BigInt(1000000000) }); // 1 gwei
+      .mockResolvedValue({ 
+        gasPrice: BigInt(1000000000),
+        maxFeePerGas: null,
+        maxPriorityFeePerGas: null,
+        toJSON: () => ({})
+      }); // 1 gwei
     vi.spyOn(ethers.JsonRpcProvider.prototype, 'send')
-      .mockImplementation((method: string, params: any[]) => {
+      .mockImplementation((method: string, _params: any[] | Record<string, any>) => {
         switch (method) {
           case 'eth_sendRawTransaction':
             return Promise.resolve('0xtxhash');
