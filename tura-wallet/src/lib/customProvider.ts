@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { CHAIN_CONFIG } from './config';
+import { KeyManager } from './keyManager';
 
 type RequestArguments = {
   method: string;
@@ -100,19 +101,65 @@ export class CustomProvider {
    * Handle account request/creation
    */
   private async handleRequestAccounts(): Promise<string[]> {
-    // Check if we have a stored account
-    const storedAccount = localStorage.getItem('tura_wallet_account');
-    if (storedAccount) {
-      const account = JSON.parse(storedAccount);
-      this.accounts = [account.address];
-      this.connected = true;
-      this.emit('connect', { chainId: CHAIN_CONFIG.chainId });
-      return this.accounts;
-    }
+    try {
+      // Check if we have a stored encrypted key
+      const encryptedData = KeyManager.getStoredKey();
+      if (encryptedData) {
+        // Request password from user to decrypt key
+        // This would typically be handled by a UI component
+        // For now, we'll throw an error that the UI can catch and handle
+        throw new Error('NEEDS_PASSWORD_UNLOCK');
+      }
 
-    // If no account exists, we'll need to create one or get it from the user
-    // This will be handled by the WalletService's createAccount method
-    throw new Error('No account available. Please create one first.');
+      // If no account exists, we'll create a new one
+      const privateKey = KeyManager.generatePrivateKey();
+      const wallet = new ethers.Wallet(privateKey);
+      
+      // Request password from user to encrypt key
+      // This would typically be handled by a UI component
+      // For now, we'll throw an error that the UI can catch and handle
+      throw new Error('NEEDS_PASSWORD_SETUP');
+    } catch (error) {
+      if (error instanceof Error && 
+          (error.message === 'NEEDS_PASSWORD_UNLOCK' || 
+           error.message === 'NEEDS_PASSWORD_SETUP')) {
+        throw error;
+      }
+      console.error('Failed to handle account request:', error);
+      throw new Error('Failed to access account');
+    }
+  }
+  
+  /**
+   * Unlock an existing account with password
+   */
+  async unlockAccount(password: string): Promise<string> {
+    const encryptedData = KeyManager.getStoredKey();
+    if (!encryptedData) {
+      throw new Error('No stored account found');
+    }
+    
+    const privateKey = await KeyManager.decryptKey(encryptedData, password);
+    const wallet = new ethers.Wallet(privateKey);
+    this.accounts = [wallet.address];
+    this.connected = true;
+    this.emit('connect', { chainId: CHAIN_CONFIG.chainId });
+    return wallet.address;
+  }
+  
+  /**
+   * Create and encrypt a new account
+   */
+  async createAccount(password: string): Promise<string> {
+    const privateKey = KeyManager.generatePrivateKey();
+    const encryptedData = await KeyManager.encryptKey(privateKey, password);
+    KeyManager.storeEncryptedKey(encryptedData);
+    
+    const wallet = new ethers.Wallet(privateKey);
+    this.accounts = [wallet.address];
+    this.connected = true;
+    this.emit('connect', { chainId: CHAIN_CONFIG.chainId });
+    return wallet.address;
   }
 
   /**

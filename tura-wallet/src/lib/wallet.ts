@@ -1,6 +1,7 @@
 import Web3 from 'web3';
 import { CHAIN_CONFIG } from './config';
 import { CustomProvider } from './customProvider';
+import { KeyManager } from './keyManager';
 
 interface Web3TransactionReceipt {
   transactionHash: string;
@@ -237,18 +238,13 @@ export class WalletService {
     }
   }
 
-  async sendTransaction(fromAddress: string, toAddress: string, amount: string, privateKey: string) {
+  async sendTransaction(fromAddress: string, toAddress: string, amount: string, password?: string) {
     const TIMEOUT_MS = 10000; // 10 second timeout
     
     try {
       // Validate addresses
       if (!this.web3.utils.isAddress(fromAddress) || !this.web3.utils.isAddress(toAddress)) {
         throw new Error('Invalid Ethereum address format');
-      }
-      
-      // Validate private key
-      if (!privateKey || !privateKey.startsWith('0x') || privateKey.length !== 66) {
-        throw new Error('Invalid private key format');
       }
       
       // Convert amount to Wei and validate
@@ -299,28 +295,49 @@ export class WalletService {
       
       // Check if we're using CustomProvider
       if (this.web3.currentProvider instanceof CustomProvider) {
-        // Use provider's transaction signing
-        const provider = this.web3.currentProvider as CustomProvider;
-        const txHash = await provider.request({
-          method: 'eth_sendTransaction',
-          params: [{ ...tx, privateKey }]
-        });
+        if (!password) {
+          throw new Error('Password required for transaction signing');
+        }
         
-        // Wait for transaction receipt
-        receipt = await Promise.race([
-          this.web3.eth.getTransactionReceipt(txHash),
-          new Promise((_resolve, reject) =>
-            setTimeout(() => reject(new Error('RPC timeout')), TIMEOUT_MS)
-          )
-        ]) as Web3TransactionReceipt;
+        // Get stored encrypted key
+        const encryptedData = KeyManager.getStoredKey();
+        if (!encryptedData) {
+          throw new Error('No stored account found');
+        }
+        
+        try {
+          // Decrypt private key using password
+          const privateKey = await KeyManager.decryptKey(encryptedData, password);
+          
+          // Validate decrypted key
+          if (!KeyManager.validatePrivateKey(privateKey)) {
+            throw new Error('Invalid private key format after decryption');
+          }
+          
+          // Sign and send transaction
+          const signedTx = await this.web3.eth.accounts.signTransaction(tx, privateKey);
+          if (!signedTx.rawTransaction) {
+            throw new Error('Failed to sign transaction');
+          }
+          
+          receipt = await Promise.race([
+            this.web3.eth.sendSignedTransaction(signedTx.rawTransaction),
+            new Promise((_resolve, reject) =>
+              setTimeout(() => reject(new Error('RPC timeout')), TIMEOUT_MS)
+            )
+          ]) as Web3TransactionReceipt;
+        } catch (error) {
+          if (error instanceof Error) {
+            if (error.message.includes('password')) {
+              throw new Error('Invalid password');
+            }
+          }
+          throw error;
+        }
       } else {
         // Using MetaMask or HTTP provider
-        const signedTx = await this.web3.eth.accounts.signTransaction(tx, privateKey);
-        if (!signedTx.rawTransaction) {
-          throw new Error('Failed to sign transaction');
-        }
         receipt = await Promise.race([
-          this.web3.eth.sendSignedTransaction(signedTx.rawTransaction),
+          this.web3.eth.sendTransaction(tx),
           new Promise((_resolve, reject) =>
             setTimeout(() => reject(new Error('RPC timeout')), TIMEOUT_MS)
           )
