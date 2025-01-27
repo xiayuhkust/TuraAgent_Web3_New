@@ -111,7 +111,7 @@ export class WalletAgent extends AgenticWorkflow {
           console.log('Raw intent from DeepSeek:', intent);
           
           // Validate that we got one of our expected intents
-          if (intent && ['Create Wallet', 'Account Information', 'Transfer Services', 'General Help'].includes(intent)) {
+          if (intent && ['Create Wallet', 'Account Information', 'Transfer Services', 'Faucet Request', 'General Help'].includes(intent)) {
             userIntent = intent;
             console.log('Valid intent detected:', userIntent);
           } else {
@@ -130,7 +130,7 @@ export class WalletAgent extends AgenticWorkflow {
                 max_tokens: 50,
               });
               const intent = result.choices?.[0]?.message?.content?.trim();
-              if (intent && ['Create Wallet', 'Account Information', 'Transfer Services', 'General Help'].includes(intent)) {
+              if (intent && ['Create Wallet', 'Account Information', 'Transfer Services', 'Faucet Request', 'General Help'].includes(intent)) {
                 userIntent = intent;
                 console.log('Valid intent detected on retry:', userIntent);
               }
