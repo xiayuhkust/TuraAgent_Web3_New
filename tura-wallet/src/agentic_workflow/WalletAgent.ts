@@ -3,7 +3,6 @@ import type { ChatCompletionCreateParams } from 'openai/resources/chat/completio
 import WalletManager from '../lib/wallet_manager';
 import { AgenticWorkflow } from './AgenticWorkflow';
 
-type Role = 'system' | 'user' | 'assistant';
 type ChatMessage = ChatCompletionCreateParams['messages'][number];
 
 // Initialize DeepSeek client for intent recognition
@@ -37,7 +36,6 @@ export class WalletAgent extends AgenticWorkflow {
   private readonly FAUCET_PASSWORD: string;
   private readonly VALID_CATEGORIES: string[];
   private readonly INTENT_MAP: { [key: string]: string };
-  private readonly VALID_INTENTS: { [key: string]: string };
 
   constructor() {
     super(
@@ -89,14 +87,7 @@ export class WalletAgent extends AgenticWorkflow {
       'INFO': 'GENERAL_HELP'
     };
 
-    // Define valid intents mapping - map categories to user-friendly names
-    this.VALID_INTENTS = {
-      'CREATE_WALLET': 'Create Wallet',
-      'ACCOUNT_INFO': 'Account Information',
-      'TRANSFER_TURA': 'Transfer Services',
-      'FAUCET_REQUEST': 'Faucet Request',
-      'GENERAL_HELP': 'General Help'
-    };
+    // No need for VALID_INTENTS mapping since we use normalized categories directly
     console.log('WalletAgent constructor called with:', {
       name: this.name,
       description: this.description,
@@ -171,14 +162,12 @@ Remember: Always respond with exactly one category name in uppercase with unders
       console.log('Processing message:', { text });
 
       // Get intent classification from DeepSeek with fallback and retry logic
-      let userIntent = 'General Help';  // Default fallback
+      let normalizedCompletion = 'GENERAL_HELP';  // Default fallback
       if (openai) {
         try {
           console.log('Calling DeepSeek API for intent classification');
           // Define confidence threshold
           const CONFIDENCE_THRESHOLD = 0.7;
-          const VALID_INTENTS = ['Create Wallet', 'Account Information', 'Transfer Services', 'Faucet Request', 'General Help'];
-
           console.log('Sending request to DeepSeek API...');
           console.log('Sending to DeepSeek:', { systemMessage: systemMessage.content, userMessage: text });
           const result = await openai.chat.completions.create({
@@ -211,7 +200,7 @@ Remember: Always respond with exactly one category name in uppercase with unders
           // Use class-level intent map for consistency
           
           // Normalize the completion and handle common variations
-          const normalizedCompletion = completion?.trim().toUpperCase().replace(/\s+/g, '_');
+          normalizedCompletion = completion ? completion.trim().toUpperCase().replace(/\s+/g, '_') : '';
           
           // Calculate confidence based on exact category match with normalization
           const calculateConfidence = (completion: string): number => {
@@ -269,14 +258,11 @@ Remember: Always respond with exactly one category name in uppercase with unders
           
           // Validate intent and check confidence
           if (completion && confidence >= CONFIDENCE_THRESHOLD) {
-            // Use class-level valid intents mapping
-            
-            if (this.VALID_INTENTS[normalizedCompletion]) {
-              userIntent = this.VALID_INTENTS[normalizedCompletion];
-              console.log(`Valid intent "${normalizedCompletion}" mapped to "${userIntent}" with confidence ${confidence.toFixed(3)}`);
+            if (this.VALID_CATEGORIES.includes(normalizedCompletion)) {
+              console.log(`Valid intent detected: "${normalizedCompletion}" with confidence ${confidence.toFixed(3)}`);
             } else {
               console.warn('Unexpected normalized intent:', normalizedCompletion);
-              userIntent = 'General Help';
+              normalizedCompletion = 'GENERAL_HELP';
             }
           } else {
             if (!completion) {
@@ -285,30 +271,31 @@ Remember: Always respond with exactly one category name in uppercase with unders
               console.warn(`Low confidence (${confidence.toFixed(3)}) for intent: ${completion}`);
             }
             // Fall back to General Help with detailed message
-            userIntent = 'General Help';
+            normalizedCompletion = 'GENERAL_HELP';
           }
         } catch (error: unknown) {
           console.warn('DeepSeek API error:', error);
           // Log the error and fall back to General Help
           console.warn('DeepSeek API error:', error);
-          userIntent = 'General Help';
+          normalizedCompletion = 'GENERAL_HELP';
         }
       } else {
         console.warn('DeepSeek client not initialized - using fallback response');
+        normalizedCompletion = 'GENERAL_HELP';
       }
 
-      // Map intent to wallet operations
-      switch (userIntent) {
-        case 'Create Wallet':
+      // Map normalized intent to wallet operations using normalized categories
+      switch (normalizedCompletion) {
+        case 'CREATE_WALLET':
           return this.initiateWalletCreation();
         
-        case 'Account Information':
+        case 'ACCOUNT_INFO':
           return await this.handleBalanceCheck();
         
-        case 'Transfer Services':
+        case 'TRANSFER_TURA':
           return await this.handleTransferRequest(text);
         
-        case 'Faucet Request':
+        case 'FAUCET_REQUEST':
           if (this.isWaitingForFaucetConfirmation) {
             if (text.toLowerCase().includes('yes')) {
               return await this.distributeFaucetTokens();
