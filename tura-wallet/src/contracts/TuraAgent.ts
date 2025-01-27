@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { CustomProvider } from '../lib/customProvider';
 
 // TuraAgent contract ABI
 export const TuraAgentABI = [
@@ -240,9 +241,19 @@ export async function checkTuraBalance(
  * Get a Web3 provider for the Tura network
  * @returns Configured ethers provider
  */
-export function getTuraProvider(): ethers.JsonRpcProvider {
-  // For browser environment, we can't use node:https
-  // Instead, we'll use the built-in fetch with a basic configuration
+export function getTuraProvider(): ethers.Provider {
+  // Check for window.ethereum first
+  if (typeof window !== 'undefined' && window.ethereum) {
+    return new ethers.BrowserProvider(window.ethereum);
+  }
+
+  // Use custom provider if available
+  const customProvider = (window as any).turaProvider;
+  if (customProvider) {
+    return customProvider;
+  }
+
+  // Fallback to JSON-RPC provider
   return new ethers.JsonRpcProvider(
     CONTRACT_CONFIG.rpcEndpoint,
     {

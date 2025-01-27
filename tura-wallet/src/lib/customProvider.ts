@@ -13,6 +13,12 @@ type EventHandler = (params: any) => void;
  * CustomProvider implements the EIP-1193 interface for Ethereum provider
  * This allows us to handle transactions without relying on MetaMask
  */
+declare global {
+  interface Window {
+    turaProvider?: CustomProvider;
+  }
+}
+
 export class CustomProvider {
   private eventHandlers: Map<string, Set<EventHandler>>;
   private accounts: string[];
