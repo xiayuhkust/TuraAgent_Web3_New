@@ -1,4 +1,5 @@
 import { Agent, OfficialAgent, Workflow } from "../types/agentTypes";
+import { WalletAgent } from "../agentic_workflow/WalletAgent";
 
 // Official agents are managed separately from community agents
 export const officialAgents: OfficialAgent[] = [
@@ -9,7 +10,8 @@ export const officialAgents: OfficialAgent[] = [
     feePerRequest: '0.0 TURA',
     owner: '',  // No specific owner as it's a system agent
     chainId: 1337,
-    status: 'OFFICIAL'
+    status: 'OFFICIAL',
+    instance: new WalletAgent()
   }
 ];
 
