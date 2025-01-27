@@ -28,6 +28,22 @@ export default function ChatPage() {
   const [lastMessageTime, setLastMessageTime] = useState<number>(Date.now());
   const [walletAgent] = useState(() => (officialAgents[0].instance as WalletAgent));
   
+  // Initialize messages with welcome message
+  useEffect(() => {
+    const initializeChat = async () => {
+      if (messages.length === 0) {
+        const welcomeMessage: Message = {
+          id: Date.now().toString(),
+          text: 'Welcome! I am your WalletAgent. I can help you create a wallet, check your balance, or request test tokens. How can I assist you today?',
+          sender: 'agent',
+          timestamp: new Date().toISOString()
+        };
+        setMessages([welcomeMessage]);
+      }
+    };
+    initializeChat();
+  }, []);
+  
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
