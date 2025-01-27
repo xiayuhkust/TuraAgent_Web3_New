@@ -5,7 +5,7 @@ let isInitialized = false;
 const CHAIN_CONFIG = {
     chainId: 1337,
     chainName: 'Tura',
-    rpcUrl: 'http://43.135.26.222:8088',
+    rpcUrl: 'http://43.135.26.222:8000',
     nativeCurrency: {
         name: 'TURA',
         symbol: 'TURA',
