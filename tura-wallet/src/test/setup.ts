@@ -4,7 +4,8 @@ import { ethers } from 'ethers';
 
 // Test constants
 const TEST_PRIVATE_KEY = '0x1234567890123456789012345678901234567890123456789012345678901234';
-const TEST_ADDRESS = new ethers.Wallet(TEST_PRIVATE_KEY).address;
+const mockWallet = new ethers.Wallet(TEST_PRIVATE_KEY);
+// const TEST_ADDRESS = mockWallet.address; // Unused for now
 
 // Add Buffer to global scope with proper polyfill
 if (typeof global.Buffer === 'undefined') {
@@ -72,7 +73,7 @@ for (let i = 0; i < 32; i++) {
 
 // Create a more detailed crypto mock with proper implementations
 const subtle = {
-  importKey: vi.fn().mockImplementation(async (format, keyData, algorithm, extractable, keyUsages) => {
+  importKey: vi.fn().mockImplementation(async (format, keyData, algorithm, _extractable, keyUsages) => {
     console.log('Mock importKey called with:', { format, algorithm: algorithm.name, usages: keyUsages });
     
     if (!keyData || !algorithm || !keyUsages) {
@@ -102,7 +103,7 @@ const subtle = {
     };
   }),
 
-  deriveKey: vi.fn().mockImplementation(async (algorithm, baseKey, derivedKeyAlgorithm, extractable, keyUsages) => {
+  deriveKey: vi.fn().mockImplementation(async (algorithm, baseKey, derivedKeyAlgorithm, _extractable, keyUsages) => {
     console.log('Mock deriveKey called with:', {
       algorithmName: algorithm.name,
       derivedKeyAlgorithm: derivedKeyAlgorithm.name,
@@ -257,7 +258,7 @@ beforeAll(() => {
     ...cryptoMock,
     subtle: {
       ...cryptoMock.subtle,
-      importKey: async (format: string, keyData: ArrayBuffer | string, algorithm: any, extractable: boolean, keyUsages: string[]) => {
+      importKey: async (format: string, keyData: ArrayBuffer | string, algorithm: any, _extractable: boolean, keyUsages: string[]) => {
         console.log('Mock importKey called with:', { format, algorithm: algorithm.name, usages: keyUsages });
         
         const inputData = keyData instanceof ArrayBuffer ? new Uint8Array(keyData) : new TextEncoder().encode(keyData);
@@ -271,7 +272,7 @@ beforeAll(() => {
         };
       },
       
-      deriveKey: async (algorithm: any, baseKey: any, derivedKeyAlgorithm: any, extractable: boolean, keyUsages: string[]) => {
+      deriveKey: async (algorithm: any, baseKey: any, derivedKeyAlgorithm: any, _extractable: boolean, keyUsages: string[]) => {
         console.log('Mock deriveKey called with:', {
           algorithmName: algorithm.name,
           derivedKeyAlgorithm: derivedKeyAlgorithm.name,
@@ -367,9 +368,7 @@ beforeAll(() => {
   vi.stubGlobal('crypto', cryptoWithFullSupport);
   
   // Mock ethers random wallet creation
-  vi.spyOn(ethers.Wallet, 'createRandom').mockImplementation(() => {
-    return new ethers.Wallet(TEST_PRIVATE_KEY);
-  });
+  vi.spyOn(ethers.Wallet, 'createRandom').mockImplementation(() => mockWallet as any);
 });
 
 afterEach(() => {
