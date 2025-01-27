@@ -18,7 +18,9 @@ export default defineConfig({
     }
   },
   define: {
-    'process.env': {},
+    'process.env': {
+      VITE_DEEPSEEK_API_KEY: JSON.stringify(process.env.VITE_DEEPSEEK_API_KEY)
+    },
     global: {}
   }
 });
