@@ -1,5 +1,6 @@
 import { Agent, OfficialAgent, Workflow } from "../types/agentTypes";
 import { WalletAgent } from "../agentic_workflow/WalletAgent";
+import { AgentManager } from "../agentic_workflow/AgentManager";
 
 // Official agents are managed separately from community agents
 export const officialAgents: OfficialAgent[] = [
@@ -12,6 +13,16 @@ export const officialAgents: OfficialAgent[] = [
     chainId: 1337,
     status: 'OFFICIAL',
     instance: new WalletAgent()
+  },
+  {
+    name: 'AgentManager',
+    contractAddress: '',  // No contract address as it's a built-in agent
+    description: 'Deploy and manage TuraAgent contracts with metadata collection',
+    feePerRequest: '0.0 TURA',
+    owner: '',  // No specific owner as it's a system agent
+    chainId: 1337,
+    status: 'OFFICIAL',
+    instance: new AgentManager()
   }
 ];
 
