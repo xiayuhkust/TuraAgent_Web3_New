@@ -1,5 +1,5 @@
+// Import ethers for contract deployment
 import { ethers } from 'ethers';
-import { CustomProvider } from '../lib/customProvider';
 
 // TuraAgent contract ABI
 export const TuraAgentABI = [

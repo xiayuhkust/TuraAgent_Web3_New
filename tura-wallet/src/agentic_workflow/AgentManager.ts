@@ -261,7 +261,7 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
             // Get provider
             const provider = getTuraProvider();
             let signer: ethers.Signer;
-            let address: string;
+            let address: string = '';
 
             // Check if using CustomProvider
             if (provider instanceof ethers.JsonRpcProvider && !window.ethereum) {
@@ -271,61 +271,69 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
                 return "No wallet found. Please create a wallet first.";
               }
 
-              // Show password dialog for key decryption
-              const signaturePromise = new Promise<string>((resolve, reject) => {
+              // Show password dialog for key decryption and deploy contract
+              let deployedAddress: string;
+              try {
                 const chatPage = (window as any).ChatPage;
                 if (!chatPage?.showSignatureDialog) {
-                  reject(new Error('Chat interface not available'));
-                  return;
+                  throw new Error('Chat interface not available');
                 }
 
-                chatPage.showSignatureDialog({
-                  title: 'Deploy TuraAgent Contract',
-                  description: [
-                    '🔐 Contract Deployment Details:',
-                    '',
-                    '• Cost: 0.1 TURA',
-                    '• Network: Tura Testnet',
-                    '• Contract: TuraAgent',
-                    '',
-                    'Please enter your wallet password to sign and deploy the contract.',
-                    '',
-                    '⚠️ Make sure you have enough TURA to cover the deployment cost.'
-                  ].join('\n'),
-                  requirePassword: true,
-                  onConfirm: async (password: string) => {
-                    try {
-                      // Decrypt private key
-                      const privateKey = await KeyManager.decryptKey(encryptedData, password);
-                      if (!KeyManager.validatePrivateKey(privateKey)) {
-                        reject(new Error('Invalid wallet password'));
-                        return;
+                deployedAddress = await new Promise<string>((resolve, reject) => {
+                  chatPage.showSignatureDialog({
+                    title: 'Deploy TuraAgent Contract',
+                    description: [
+                      '🔐 Contract Deployment Details:',
+                      '',
+                      '• Cost: 0.1 TURA',
+                      '• Network: Tura Testnet',
+                      '• Contract: TuraAgent',
+                      '',
+                      'Please enter your wallet password to sign and deploy the contract.',
+                      '',
+                      '⚠️ Make sure you have enough TURA to cover the deployment cost.'
+                    ].join('\n'),
+                    requirePassword: true,
+                    onConfirm: async (password: string) => {
+                      try {
+                        // Decrypt private key
+                        const privateKey = await KeyManager.decryptKey(encryptedData, password);
+                        if (!KeyManager.validatePrivateKey(privateKey)) {
+                          reject(new Error('Invalid wallet password'));
+                          return;
+                        }
+
+                        // Create wallet from private key
+                        const wallet = new ethers.Wallet(privateKey, provider);
+                        address = wallet.address;
+
+                        // Check TURA balance
+                        const hasSufficientBalance = await checkTuraBalance(provider, address);
+                        if (!hasSufficientBalance) {
+                          reject(new Error('Insufficient TURA balance'));
+                          return;
+                        }
+
+                        // Deploy contract
+                        const contractAddress = await deployTuraAgent(wallet);
+                        resolve(contractAddress);
+                      } catch (error) {
+                        reject(error);
                       }
-
-                      // Create wallet from private key
-                      const wallet = new ethers.Wallet(privateKey, provider);
-                      address = wallet.address;
-
-                      // Check TURA balance
-                      const hasSufficientBalance = await checkTuraBalance(provider, address);
-                      if (!hasSufficientBalance) {
-                        reject(new Error('Insufficient TURA balance'));
-                        return;
-                      }
-
-                      // Deploy contract
-                      const contractAddress = await deployTuraAgent(wallet);
-                      resolve(contractAddress);
-                    } catch (error) {
-                      reject(error);
                     }
-                  }
+                  });
                 });
-              });
+              } catch (error) {
+                throw error;
+              }
             } else {
               // Using MetaMask or other injected provider
               try {
-                signer = await provider.getSigner();
+                if (provider instanceof ethers.BrowserProvider) {
+                  signer = await provider.getSigner();
+                } else {
+                  throw new Error('Unsupported provider type');
+                }
                 address = await signer.getAddress();
 
                 // Check TURA balance
@@ -334,8 +342,8 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
                   return "Insufficient TURA balance. You need at least 0.1 TURA to deploy an agent contract.";
                 }
 
-                // Show standard signature dialog
-                const signaturePromise = new Promise<string>((resolve, reject) => {
+                // Show standard signature dialog and deploy contract
+                deployedAddress = await new Promise<string>((resolve, reject) => {
                   const chatPage = (window as any).ChatPage;
                   if (!chatPage?.showSignatureDialog) {
                     reject(new Error('Chat interface not available'));
@@ -371,16 +379,15 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
               }
             }
 
-            // Wait for signature and deployment
-            const contractAddress = await signaturePromise;
+            // Contract address is now available from the promise above
             // Verify contract deployment
             console.log('Verifying contract deployment...');
-            const isVerified = await this.verifyContractDeployment(contractAddress);
+            const isVerified = await this.verifyContractDeployment(deployedAddress);
             if (!isVerified) {
               return [
                 '❌ Contract Verification Failed',
                 '',
-                `Contract at ${contractAddress} could not be verified.`,
+                `Contract at ${deployedAddress} could not be verified.`,
                 'The contract may not have been deployed correctly.',
                 '',
                 '🔍 Common solutions:',
@@ -398,7 +405,7 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
               description: registrationData?.description || '',
               company: registrationData?.company || '',
               socialLinks: registrationData?.socialLinks || {},
-              contractAddress,
+              contractAddress: deployedAddress,
               owner: address,
               createdAt: new Date().toISOString()
             };
@@ -409,7 +416,7 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
                 '✅ Agent successfully deployed and registered!',
                 '',
                 '📋 Contract Details:',
-                `Contract Address: ${contractAddress}`,
+                `Contract Address: ${deployedAddress}`,
                 `Name: ${agentData.name}`,
                 `Description: ${agentData.description}`,
                 `Company: ${agentData.company}`,
@@ -421,7 +428,7 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
               ].join('\n');
               
               console.log('Agent deployment successful:', {
-                contractAddress,
+                contractAddress: deployedAddress,
                 owner: address,
                 timestamp: new Date().toISOString()
               });
@@ -429,11 +436,11 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
               return successMessage;
             } else {
               // Format metadata error with debugging info
-              console.error('Metadata storage failed for contract:', contractAddress);
+              console.error('Metadata storage failed for contract:', deployedAddress);
               return [
                 '⚠️ Partial Success - Action Required',
                 '',
-                `Contract successfully deployed to ${contractAddress}`,
+                `Contract successfully deployed to ${deployedAddress}`,
                 'However, there was an error saving the agent metadata.',
                 '',
                 '📝 To resolve this:',
