@@ -7,7 +7,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
 import { officialAgents, agents, workflows } from '../../stores/agent-store';
 import { Agent, OfficialAgent, Workflow } from '../../types/agentTypes';
-import WalletManager from '../../lib/wallet_manager';
+import { WalletAgent } from '../../agentic_workflow/WalletAgent';
 
 interface Message {
   id: string;
@@ -21,52 +21,49 @@ export default function ChatPage() {
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(null);
+  const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(officialAgents[0]); // Default to WalletAgent
   const [chatAddress, setChatAddress] = useState('');
   const [chatBalance, setChatBalance] = useState('0');
   const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
-  const [isWaitingForPassword, setIsWaitingForPassword] = useState(false);
-  const [walletManager] = useState(() => {
-    const manager = new WalletManager();
-    // Make wallet manager available globally for debugging
-    (window as any).walletManager = manager;
-    return manager;
-  });
+  const [walletAgent] = useState(() => (officialAgents[0].instance as WalletAgent));
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const fetchWalletData = async () => {
+    const initializeChat = async () => {
       try {
         const storedAddress = localStorage.getItem('lastWalletAddress');
         if (storedAddress) {
           setChatAddress(storedAddress);
-          const balance = await walletManager.getBalance(storedAddress);
-          setChatBalance(balance);
+          const response = await walletAgent.processMessage('check balance');
+          const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
+          if (balanceMatch) {
+            setChatBalance(balanceMatch[1]);
+          }
         } else {
-          // If no wallet is found, display a welcome message
+          const welcomeResponse = await walletAgent.processMessage('help');
           setMessages(prev => [...prev, {
             id: Date.now().toString(),
-            text: "Welcome! I notice you don't have a wallet yet. Type 'create wallet' to create your first wallet.",
+            text: welcomeResponse,
             sender: 'agent',
             timestamp: new Date().toISOString()
           }]);
         }
       } catch (error) {
-        console.error('Failed to fetch wallet data:', error);
+        console.error('Failed to initialize chat:', error);
         setMessages(prev => [...prev, {
           id: Date.now().toString(),
-          text: 'There was an error checking your wallet status. Please try refreshing the page.',
+          text: 'There was an error initializing the chat. Please try refreshing the page.',
           sender: 'error',
           timestamp: new Date().toISOString()
         }]);
       }
     };
 
-    fetchWalletData();
-  }, [walletManager]);
+    initializeChat();
+  }, [walletAgent]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -88,80 +85,53 @@ export default function ChatPage() {
 
     const lowercasedMessage = inputText.toLowerCase().trim();
 
-    // Handle wallet creation flow
-    if (isWaitingForPassword) {
-      try {
-        if (inputText.length < 8) {
-          setMessages(prev => [...prev, {
-            id: Date.now().toString(),
-            text: "Password must be at least 8 characters long. Please try again.",
-            sender: 'error',
-            timestamp: new Date().toISOString()
-          }]);
-          return;
+    // All wallet-related logic is now handled by WalletAgent
+
+    try {
+      // Process message through WalletAgent
+      if (!activeAgent || activeAgent.name === 'WalletAgent') {
+        const agentResponse = await walletAgent.processMessage(inputText);
+        
+        // Update UI state based on agent response
+        const storedAddress = localStorage.getItem('lastWalletAddress');
+        if (storedAddress !== chatAddress) {
+          setChatAddress(storedAddress || '');
+        }
+        
+        // Update balance if it's mentioned in the response
+        const balanceMatch = agentResponse.match(/contains (\d+(?:\.\d+)?)/);
+        if (balanceMatch) {
+          setChatBalance(balanceMatch[1]);
         }
 
-        const wallet = await walletManager.createWallet(inputText);
-        setChatAddress(wallet.address);
-        localStorage.setItem('lastWalletAddress', wallet.address);
-        
-        // Display success message and mnemonic
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          text: `Wallet created successfully! Here is your mnemonic phrase. Please write it down and keep it safe - you'll need it to recover your wallet:\n\n${wallet.mnemonic}`,
+        const response: Message = {
+          id: (Date.now() + 1).toString(),
+          text: agentResponse,
           sender: 'agent',
           timestamp: new Date().toISOString()
-        }]);
+        };
 
-        // Reset password waiting state
-        setIsWaitingForPassword(false);
-
-        // Fetch initial balance
-        const balance = await walletManager.getBalance(wallet.address);
-        setChatBalance(balance);
-      } catch (error) {
-        console.error('Wallet creation failed:', error);
-        // Display error in chat
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          text: 'Failed to create wallet. Please try again.',
-          sender: 'error',
-          timestamp: new Date().toISOString()
-        }]);
-      }
-      return;
-    }
-
-    // Handle "create wallet" command
-    if (lowercasedMessage === 'create wallet') {
-      if (chatAddress) {
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          text: "You already have a wallet! Your address is: " + chatAddress,
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        }]);
+        setMessages(prev => [...prev, response]);
       } else {
-        setIsWaitingForPassword(true);
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          text: "Please enter a secure password (at least 8 characters) to create your wallet:",
+        // Handle other agents' messages here
+        const response: Message = {
+          id: (Date.now() + 1).toString(),
+          text: `Agent ${activeAgent.name} received: ${inputText}`,
           sender: 'agent',
           timestamp: new Date().toISOString()
-        }]);
+        };
+        setMessages(prev => [...prev, response]);
       }
-      return;
+    } catch (error) {
+      console.error('Agent processing error:', error);
+      const errorResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        text: `Error: ${error.message}`,
+        sender: 'error',
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, errorResponse]);
     }
-
-    // Default response for other messages
-    const response: Message = {
-      id: (Date.now() + 1).toString(),
-      text: `Received: ${inputText}`,
-      sender: 'agent',
-      timestamp: new Date().toISOString()
-    };
-
-    setMessages(prev => [...prev, response]);
   };
 
   const startRecording = async () => {
@@ -374,13 +344,11 @@ export default function ChatPage() {
                     if (isRefreshingBalance) return;
                     try {
                       setIsRefreshingBalance(true);
-                      const newBalance = await Promise.race([
-                        walletManager.getBalance(chatAddress),
-                        new Promise<string>((_, reject) => 
-                          setTimeout(() => reject(new Error('Balance refresh timed out')), 10000)
-                        )
-                      ]);
-                      setChatBalance(newBalance);
+                      const response = await walletAgent.processMessage('check balance');
+                      const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
+                      if (balanceMatch) {
+                        setChatBalance(balanceMatch[1]);
+                      }
                     } catch (error) {
                       console.error('Balance refresh failed:', error);
                     } finally {
