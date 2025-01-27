@@ -175,11 +175,24 @@ export const CONTRACT_CONFIG = {
  */
 export async function deployTuraAgent(signer: ethers.Signer): Promise<string> {
   try {
-    // Create contract factory
-    const factory = new ethers.ContractFactory(TuraAgentABI, TuraAgentBytecode, signer);
+    console.log('Starting contract deployment...');
+    
+    // Verify signer is connected
+    const address = await signer.getAddress();
+    console.log('Deploying from address:', address);
+    
+    // Create contract factory with proper provider
+    const factory = new ethers.ContractFactory(
+      TuraAgentABI,
+      TuraAgentBytecode,
+      signer
+    );
     
     // Deploy contract with subscription fee
     console.log('Deploying TuraAgent contract...');
+    console.log('Gas limit:', CONTRACT_CONFIG.gasLimit);
+    console.log('Subscription fee:', ethers.formatEther(CONTRACT_CONFIG.subscriptionFee), 'TURA');
+    
     const contract = await factory.deploy({
       gasLimit: CONTRACT_CONFIG.gasLimit,
       value: CONTRACT_CONFIG.subscriptionFee
@@ -187,10 +200,17 @@ export async function deployTuraAgent(signer: ethers.Signer): Promise<string> {
     
     // Wait for deployment to complete
     console.log('Waiting for deployment transaction...');
-    const receipt = await contract.deployTransaction.wait();
+    const tx = contract.deploymentTransaction();
+    if (!tx) throw new Error('Deployment transaction failed');
     
-    console.log('TuraAgent deployed to:', receipt.contractAddress);
-    return receipt.contractAddress;
+    const receipt = await tx.wait();
+    if (!receipt) throw new Error('Failed to get deployment receipt');
+    
+    const contractAddress = receipt.contractAddress;
+    if (!contractAddress) throw new Error('Contract address not found in receipt');
+    
+    console.log('TuraAgent deployed to:', contractAddress);
+    return contractAddress;
   } catch (error) {
     console.error('Contract deployment failed:', error);
     throw error;
@@ -209,7 +229,7 @@ export async function checkTuraBalance(
 ): Promise<boolean> {
   try {
     const balance = await provider.getBalance(address);
-    return balance.gte(CONTRACT_CONFIG.subscriptionFee);
+    return balance >= CONTRACT_CONFIG.subscriptionFee;
   } catch (error) {
     console.error('Balance check failed:', error);
     return false;
@@ -221,8 +241,13 @@ export async function checkTuraBalance(
  * @returns Configured ethers provider
  */
 export function getTuraProvider(): ethers.JsonRpcProvider {
-  return new ethers.JsonRpcProvider(CONTRACT_CONFIG.rpcEndpoint, {
-    chainId: CONTRACT_CONFIG.chainId,
-    name: 'Tura'
-  });
+  // For browser environment, we can't use node:https
+  // Instead, we'll use the built-in fetch with a basic configuration
+  return new ethers.JsonRpcProvider(
+    CONTRACT_CONFIG.rpcEndpoint,
+    {
+      chainId: CONTRACT_CONFIG.chainId,
+      name: 'Tura'
+    }
+  );
 }

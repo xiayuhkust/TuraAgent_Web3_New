@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Mic, Send, Bot, Code2, Wallet, RefreshCw } from 'lucide-react';
+import { AgenticWorkflow } from '../../agentic_workflow/AgenticWorkflow';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -152,11 +153,12 @@ export default function ChatPage() {
         };
 
         setMessages(prev => [...prev, response]);
-      } else {
-        // Handle other agents' messages here
+      } else if (activeAgent?.instance instanceof AgenticWorkflow) {
+        // Process message through agent's instance
+        const agentResponse = await activeAgent.instance.processMessage(inputText);
         const response: Message = {
           id: (Date.now() + 1).toString(),
-          text: `Agent ${activeAgent.name} received: ${inputText}`,
+          text: agentResponse,
           sender: 'agent',
           timestamp: new Date().toISOString()
         };

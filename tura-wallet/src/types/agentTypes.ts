@@ -30,6 +30,7 @@ export interface Agent extends BaseAgent {
   multiSigAddress: string;
   chainId: number;
   status: 'VALID' | 'DEPRECATED';
+  instance?: AgenticWorkflow;
 }
 
 export interface Workflow extends BaseAgent {
@@ -38,4 +39,5 @@ export interface Workflow extends BaseAgent {
   turaToken: string;
   usdtToken: string;
   status: 'VALID' | 'DEPRECATED';
+  instance?: AgenticWorkflow;
 }

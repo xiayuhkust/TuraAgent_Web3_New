@@ -14,7 +14,10 @@ export function readLocalAgents(): AgentStorage {
   try {
     const storedData = localStorage.getItem(STORAGE_KEY);
     if (!storedData) {
-      return { agents: [] };
+      // Initialize storage with empty array if not exists
+      const initialData = { agents: [] };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(initialData));
+      return initialData;
     }
     return JSON.parse(storedData);
   } catch (error) {
@@ -81,6 +84,7 @@ export function addAgent(agent: AgentData): boolean {
     validateAgentData(agent);
     
     const currentData = readLocalAgents();
+    console.log('Current agent data:', currentData);
     
     // Check for duplicate name under same owner
     const isDuplicate = currentData.agents.some(
@@ -91,8 +95,21 @@ export function addAgent(agent: AgentData): boolean {
       throw new Error('An agent with this name already exists for this owner');
     }
     
+    // Add new agent
     currentData.agents.push(agent);
-    return saveLocalAgents(currentData);
+    console.log('Updated agent data:', currentData);
+    
+    // Save and verify
+    const saved = saveLocalAgents(currentData);
+    if (saved) {
+      // Verify save was successful
+      const verifyData = readLocalAgents();
+      console.log('Verified saved data:', verifyData);
+      return verifyData.agents.some(
+        a => a.contractAddress === agent.contractAddress
+      );
+    }
+    return false;
   } catch (error) {
     console.error('Error adding agent:', error);
     return false;
