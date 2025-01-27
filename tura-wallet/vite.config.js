@@ -4,12 +4,26 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  preview: {
+    host: '0.0.0.0',
+    port: 4173,
+    allowedHosts: [
+      'tura-web-app-tunnel-do83hq6o.devinapps.com',
+      'tura-web-app-tunnel-fjtb8gdh.devinapps.com',
+      'tura-web-app-tunnel-z1uga9gq.devinapps.com',
+      'tura-web-app-tunnel-ewgwj87v.devinapps.com',
+      'tura-web-app-tunnel-98olszjh.devinapps.com',
+      'tura-web-app-tunnel-ya85bqnb.devinapps.com'
+    ]
+  },
   server: {
     allowedHosts: [
       'tura-web-app-tunnel-do83hq6o.devinapps.com',
       'tura-web-app-tunnel-fjtb8gdh.devinapps.com',
       'tura-web-app-tunnel-z1uga9gq.devinapps.com',
-      'tura-web-app-tunnel-ewgwj87v.devinapps.com'
+      'tura-web-app-tunnel-ewgwj87v.devinapps.com',
+      'tura-web-app-tunnel-98olszjh.devinapps.com',
+      'tura-web-app-tunnel-ya85bqnb.devinapps.com'
     ]
   },
   resolve: {

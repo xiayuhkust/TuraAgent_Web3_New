@@ -38,8 +38,9 @@ export class WalletService {
   private web3: Web3;
 
   constructor() {
-    // Try to use window.ethereum if available, otherwise fall back to HTTP provider
-    let provider;
+    // Initialize with HTTP provider first to ensure we have a working Web3 instance
+    let provider = new Web3.providers.HttpProvider(CHAIN_CONFIG.rpcUrl);
+    this.web3 = new Web3(provider);
     
     console.log('Initializing Web3 with chain config:', {
       chainId: CHAIN_CONFIG.chainId,
@@ -48,34 +49,68 @@ export class WalletService {
       nativeCurrency: CHAIN_CONFIG.nativeCurrency
     });
     
-    if (typeof window !== 'undefined' && window.ethereum) {
-      provider = window.ethereum;
-      console.log('Using window.ethereum provider');
+    // Then try to detect and setup MetaMask
+    if (typeof window !== 'undefined') {
+      // Wait for window.ethereum to be injected
+      const checkForEthereum = async () => {
+        let attempts = 0;
+        const maxAttempts = 10;
+        
+        while (attempts < maxAttempts) {
+          console.log(`Checking for window.ethereum... Attempt ${attempts + 1}/${maxAttempts}`);
+          
+          if (window.ethereum) {
+            console.log('window.ethereum detected, setting up MetaMask...');
+            try {
+              // Update provider to use MetaMask
+              this.web3.setProvider(window.ethereum);
+              await this.setupMetaMask();
+              console.log('MetaMask setup successful');
+              break;
+            } catch (error) {
+              console.error('Failed to setup MetaMask:', error);
+              // Fallback to HTTP provider already set
+            }
+          }
+          
+          attempts++;
+          if (attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+        
+        if (attempts === maxAttempts) {
+          console.log('MetaMask not detected after all attempts, using HTTP provider');
+        }
+      };
       
-      // Request account access and setup network
-      this.setupMetaMask().catch(error => {
-        console.error('Failed to setup MetaMask:', error);
-        console.log('Falling back to HTTP provider');
-        provider = new Web3.providers.HttpProvider(CHAIN_CONFIG.rpcUrl);
-        this.web3 = new Web3(provider);
-      });
-    } else {
-      console.log('MetaMask not detected, using HTTP provider');
-      provider = new Web3.providers.HttpProvider(CHAIN_CONFIG.rpcUrl);
+      checkForEthereum();
     }
-    
-    this.web3 = new Web3(provider);
   }
 
   private async setupMetaMask() {
     try {
       console.log('Setting up MetaMask...');
       
-      // Request account access
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      console.log('MetaMask account access granted:', {
-        accounts: accounts.map((a: string) => `${a.slice(0, 6)}...${a.slice(-4)}`)
-      });
+      // Request account access with retry
+      let accounts: string[] = [];
+      let retries = 0;
+      const maxRetries = 3;
+      
+      while (retries < maxRetries) {
+        try {
+          accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+          console.log('MetaMask account access granted:', {
+            accounts: accounts.map((a: string) => `${a.slice(0, 6)}...${a.slice(-4)}`)
+          });
+          break;
+        } catch (error: any) {
+          console.warn(`Failed to get accounts (attempt ${retries + 1}/${maxRetries}):`, error);
+          retries++;
+          if (retries === maxRetries) throw error;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
 
       // Add Tura network if not already added
       const chainIdHex = `0x${CHAIN_CONFIG.chainId.toString(16)}`;
@@ -91,31 +126,50 @@ export class WalletService {
         console.log('Switch network error:', { code: switchError.code, message: switchError.message });
         
         // This error code indicates that the chain has not been added to MetaMask
-        if (switchError.code === 4902) {
+        if (switchError.code === 4902 || switchError.code === -32603) {
           console.log('Adding Tura network to MetaMask...');
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: chainIdHex,
-              chainName: CHAIN_CONFIG.chainName,
-              nativeCurrency: CHAIN_CONFIG.nativeCurrency,
-              rpcUrls: [CHAIN_CONFIG.rpcUrl]
-            }]
-          });
-          console.log('Successfully added Tura network');
+          try {
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: chainIdHex,
+                chainName: CHAIN_CONFIG.chainName,
+                nativeCurrency: CHAIN_CONFIG.nativeCurrency,
+                rpcUrls: [CHAIN_CONFIG.rpcUrl]
+              }]
+            });
+            console.log('Successfully added Tura network');
+            
+            // Try switching again after adding
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: chainIdHex }],
+            });
+          } catch (addError) {
+            console.error('Failed to add Tura network:', addError);
+            throw addError;
+          }
         } else {
           console.error('Failed to switch to Tura network:', switchError);
           throw switchError;
         }
       }
       
-      // Verify we're on the correct network
-      const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
-      if (currentChainId !== chainIdHex) {
-        throw new Error(`Network verification failed. Expected ${chainIdHex}, got ${currentChainId}`);
+      // Verify we're on the correct network with retry
+      retries = 0;
+      while (retries < maxRetries) {
+        const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
+        if (currentChainId === chainIdHex) {
+          console.log('Network verification successful');
+          return;
+        }
+        console.warn(`Network verification failed. Expected ${chainIdHex}, got ${currentChainId}`);
+        retries++;
+        if (retries === maxRetries) {
+          throw new Error(`Network verification failed after ${maxRetries} attempts`);
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
-      console.log('Network verification successful');
-      
     } catch (error) {
       console.error('Failed to setup MetaMask:', error);
       throw error;
