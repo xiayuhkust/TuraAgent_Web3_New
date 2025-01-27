@@ -2,9 +2,7 @@ import { AgenticWorkflow } from './AgenticWorkflow';
 import { OpenAI } from 'openai';
 import { ethers } from 'ethers';
 import { 
-  TuraAgentABI, 
-  TuraAgentBytecode, 
-  CONTRACT_CONFIG,
+  TuraAgentABI,
   deployTuraAgent,
   checkTuraBalance,
   getTuraProvider
@@ -36,8 +34,8 @@ try {
 export class AgentManager extends AgenticWorkflow {
   private registrationState: {
     step: 'idle' | 'collecting_name' | 'collecting_description' | 'collecting_company' | 'collecting_socials' | 'confirming_deployment';
-    data?: Partial<AgentData>;
-  };
+    data: Partial<AgentData>;
+  } = { step: 'idle', data: {} };
 
   constructor() {
     super("AgentManager", "Deploy and register TuraAgent contracts with metadata collection");
@@ -248,7 +246,8 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
           try {
             // Get provider and signer
             const provider = getTuraProvider();
-            const signer = new ethers.providers.Web3Provider(window.ethereum).getSigner();
+            const provider = getTuraProvider();
+            const signer = provider.getSigner();
             const address = await signer.getAddress();
 
             // Check TURA balance
@@ -281,7 +280,10 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
 
             // Store agent data
             const agentData: AgentData = {
-              ...registrationData,
+              name: registrationData?.name || '',
+              description: registrationData?.description || '',
+              company: registrationData?.company || '',
+              socialLinks: registrationData?.socialLinks || {},
               contractAddress,
               owner: address,
               createdAt: new Date().toISOString()

@@ -4,10 +4,7 @@ export interface AgentData {
   name: string;
   description: string;
   company: string;
-  socialLinks: {
-    twitter?: string;
-    github?: string;
-  };
+  socialLinks: Record<string, string>;
   contractAddress: string;
   createdAt: string;
   owner: string;
