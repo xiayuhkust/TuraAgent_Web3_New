@@ -7,7 +7,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
 import { officialAgents, agents, workflows } from '../../stores/agent-store';
 import { Agent, OfficialAgent, Workflow } from '../../types/agentTypes';
-import WalletManager from '../../lib/wallet_manager';
+import { WalletAgent } from '../../agentic_workflow/WalletAgent';
 
 interface Message {
   id: string;
@@ -21,37 +21,49 @@ export default function ChatPage() {
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(null);
+  const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(officialAgents[0]); // Default to WalletAgent
   const [chatAddress, setChatAddress] = useState('');
   const [chatBalance, setChatBalance] = useState('0');
   const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
-  const [walletManager] = useState(() => {
-    const manager = new WalletManager();
-    // Make wallet manager available globally for debugging
-    (window as any).walletManager = manager;
-    return manager;
-  });
+  const [walletAgent] = useState(() => (officialAgents[0].instance as WalletAgent));
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const fetchWalletData = async () => {
+    const initializeChat = async () => {
       try {
         const storedAddress = localStorage.getItem('lastWalletAddress');
         if (storedAddress) {
           setChatAddress(storedAddress);
-          const balance = await walletManager.getBalance(storedAddress);
-          setChatBalance(balance);
+          const response = await walletAgent.processMessage('check balance');
+          const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
+          if (balanceMatch) {
+            setChatBalance(balanceMatch[1]);
+          }
+        } else {
+          const welcomeResponse = await walletAgent.processMessage('help');
+          setMessages(prev => [...prev, {
+            id: Date.now().toString(),
+            text: welcomeResponse,
+            sender: 'agent',
+            timestamp: new Date().toISOString()
+          }]);
         }
       } catch (error) {
-        console.error('Failed to fetch wallet data:', error);
+        console.error('Failed to initialize chat:', error);
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          text: 'There was an error initializing the chat. Please try refreshing the page.',
+          sender: 'error',
+          timestamp: new Date().toISOString()
+        }]);
       }
     };
 
-    fetchWalletData();
-  }, [walletManager]);
+    initializeChat();
+  }, [walletAgent]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -71,15 +83,54 @@ export default function ChatPage() {
     setMessages(prev => [...prev, newMessage]);
     setInputText('');
 
-    // TODO: Implement agent response logic
-    const response: Message = {
-      id: (Date.now() + 1).toString(),
-      text: `Received: ${inputText}`,
-      sender: 'agent',
-      timestamp: new Date().toISOString()
-    };
+    // All wallet-related logic is now handled by WalletAgent
 
-    setMessages(prev => [...prev, response]);
+    try {
+      // Process message through WalletAgent
+      if (!activeAgent || activeAgent.name === 'WalletAgent') {
+        const agentResponse = await walletAgent.processMessage(inputText);
+        
+        // Update UI state based on agent response
+        const storedAddress = localStorage.getItem('lastWalletAddress');
+        if (storedAddress !== chatAddress) {
+          setChatAddress(storedAddress || '');
+        }
+        
+        // Update balance if it's mentioned in the response
+        const balanceMatch = agentResponse.match(/contains (\d+(?:\.\d+)?)/);
+        if (balanceMatch) {
+          setChatBalance(balanceMatch[1]);
+        }
+
+        const response: Message = {
+          id: (Date.now() + 1).toString(),
+          text: agentResponse,
+          sender: 'agent',
+          timestamp: new Date().toISOString()
+        };
+
+        setMessages(prev => [...prev, response]);
+      } else {
+        // Handle other agents' messages here
+        const response: Message = {
+          id: (Date.now() + 1).toString(),
+          text: `Agent ${activeAgent.name} received: ${inputText}`,
+          sender: 'agent',
+          timestamp: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, response]);
+      }
+    } catch (error: unknown) {
+      console.error('Agent processing error:', error);
+      const message = error instanceof Error ? error.message : 'Unknown error occurred';
+      const errorResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        text: `Error: ${message}`,
+        sender: 'error',
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, errorResponse]);
+    }
   };
 
   const startRecording = async () => {
@@ -292,13 +343,11 @@ export default function ChatPage() {
                     if (isRefreshingBalance) return;
                     try {
                       setIsRefreshingBalance(true);
-                      const newBalance = await Promise.race([
-                        walletManager.getBalance(chatAddress),
-                        new Promise<string>((_, reject) => 
-                          setTimeout(() => reject(new Error('Balance refresh timed out')), 10000)
-                        )
-                      ]);
-                      setChatBalance(newBalance);
+                      const response = await walletAgent.processMessage('check balance');
+                      const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
+                      if (balanceMatch) {
+                        setChatBalance(balanceMatch[1]);
+                      }
                     } catch (error) {
                       console.error('Balance refresh failed:', error);
                     } finally {

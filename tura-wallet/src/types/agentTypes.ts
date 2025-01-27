@@ -1,3 +1,5 @@
+import { AgenticWorkflow } from '../agentic_workflow/AgenticWorkflow';
+
 // Base interface for common properties
 interface BaseAgent {
   name: string;
@@ -10,6 +12,7 @@ export interface OfficialAgent extends BaseAgent {
   feePerRequest: string;
   chainId: number;
   status: 'OFFICIAL';
+  instance?: AgenticWorkflow;
 }
 
 export interface Agent extends BaseAgent {
