@@ -1,7 +1,14 @@
 import { AgenticWorkflow } from './AgenticWorkflow';
 import { OpenAI } from 'openai';
 import { ethers } from 'ethers';
-import { TuraAgentABI } from '../contracts/TuraAgent';
+import { 
+  TuraAgentABI, 
+  TuraAgentBytecode, 
+  CONTRACT_CONFIG,
+  deployTuraAgent,
+  checkTuraBalance,
+  getTuraProvider
+} from '../contracts/TuraAgent';
 import { AgentData } from '../types/agentTypes';
 import { readLocalAgents, saveLocalAgents, addAgent, getAgentsByOwner } from '../lib/agentStorage';
 
@@ -238,8 +245,44 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
           const registrationData = this.registrationState.data;
           this.registrationState = { step: 'idle' };
           
-          // TODO: Implement contract deployment in step 004
-          return "Contract deployment will be implemented in the next phase. Registration data collected successfully.";
+          try {
+            // Get provider and signer
+            const provider = getTuraProvider();
+            const signer = new ethers.providers.Web3Provider(window.ethereum).getSigner();
+            const address = await signer.getAddress();
+
+            // Check TURA balance
+            const hasSufficientBalance = await checkTuraBalance(provider, address);
+            if (!hasSufficientBalance) {
+              return "Insufficient TURA balance. You need at least 0.1 TURA to deploy an agent contract.";
+            }
+
+            // Deploy contract
+            const contractAddress = await deployTuraAgent(signer);
+            
+            // Store agent data
+            const agentData: AgentData = {
+              ...registrationData,
+              contractAddress,
+              owner: address,
+              createdAt: new Date().toISOString()
+            };
+            
+            if (addAgent(agentData)) {
+              return `Successfully deployed and registered your agent!
+Contract Address: ${contractAddress}
+Name: ${agentData.name}
+Description: ${agentData.description}
+Company: ${agentData.company}
+
+You can view your agent details anytime by saying "Show my agents".`;
+            } else {
+              return `Contract deployed to ${contractAddress} but there was an error saving the agent metadata. Please try registering the metadata again.`;
+            }
+          } catch (error) {
+            console.error('Contract deployment failed:', error);
+            return `Failed to deploy agent contract: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`;
+          }
         } else if (text.toLowerCase() === 'cancel') {
           this.registrationState = { step: 'idle' };
           return "Registration cancelled. Let me know if you'd like to try again!";
@@ -279,7 +322,39 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
    * Check the status of agent deployments
    * TODO: Implement in step 004 with contract deployment
    */
-  private checkAgentStatus(): string {
-    return "Status checking will be implemented with contract deployment in a later phase.";
+  private async checkAgentStatus(): Promise<string> {
+    const address = localStorage.getItem('lastWalletAddress');
+    if (!address) {
+      return "Please connect your wallet to check agent status.";
+    }
+
+    try {
+      const provider = getTuraProvider();
+      const userAgents = getAgentsByOwner(address);
+      
+      if (userAgents.length === 0) {
+        return "You haven't deployed any agents yet.";
+      }
+
+      // Check contract status for each agent
+      const statusChecks = await Promise.all(userAgents.map(async (agent) => {
+        try {
+          const contract = new ethers.Contract(agent.contractAddress, TuraAgentABI, provider);
+          const isSubscribed = await contract.isSubscribed(address);
+          return `${agent.name} (${agent.contractAddress.slice(0,6)}...${agent.contractAddress.slice(-4)})
+  Status: ${isSubscribed ? 'Active' : 'Inactive'}
+  Created: ${new Date(agent.createdAt).toLocaleDateString()}`;
+        } catch (error) {
+          return `${agent.name} (${agent.contractAddress.slice(0,6)}...${agent.contractAddress.slice(-4)})
+  Status: Error - Could not verify contract
+  Created: ${new Date(agent.createdAt).toLocaleDateString()}`;
+        }
+      }));
+
+      return `Agent Status Report:\n\n${statusChecks.join('\n\n')}`;
+    } catch (error) {
+      console.error('Status check failed:', error);
+      return `Failed to check agent status: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
   }
 }
