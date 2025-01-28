@@ -4,6 +4,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { AgentManager } from '../../agentic_workflow/AgentManager';
+import '../tests/wallet_test';  // Import test script
 import {
   Dialog,
   DialogContent,
