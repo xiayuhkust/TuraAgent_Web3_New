@@ -7,14 +7,8 @@ import {
   checkTuraBalance,
   getTuraProvider
 } from '../contracts/TuraAgent';
-<<<<<<< Updated upstream
-||||||| constructed merge base
-import { KeyManager } from '../lib/keyManager';
-import { WalletManagerImpl } from '../lib/wallet_manager';
-=======
 // Using WalletManagerImpl for key management
 import { WalletManagerImpl } from '../lib/wallet_manager';
->>>>>>> Stashed changes
 import { AgentData } from '../types/agentTypes';
 import { readLocalAgents, saveLocalAgents, addAgent, getAgentsByOwner } from '../lib/agentStorage';
 

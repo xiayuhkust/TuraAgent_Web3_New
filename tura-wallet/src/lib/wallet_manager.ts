@@ -1,35 +1,6 @@
 import { WalletService } from './wallet';
-<<<<<<< Updated upstream
-import * as bip39 from 'bip39';
-import { Buffer } from 'buffer';
-
-// Ensure Buffer is available globally
-if (typeof window !== 'undefined') {
-  window.Buffer = window.Buffer || Buffer;
-}
-
-declare global {
-  interface Window {
-    ethereum: any;
-  }
-}
-
-export interface WalletData {
-  address: string;
-  privateKey: string;
-  mnemonic?: string;
-  createdAt: string;
-}
-
-export interface SessionData {
-  password: string;
-  expires: number;
-}
-||||||| constructed merge base
-=======
 import { KeyManager } from './keyManager';
 import { ethers } from 'ethers';
->>>>>>> Stashed changes
 
 export interface WalletResponse {
   address: string;

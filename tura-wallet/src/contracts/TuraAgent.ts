@@ -181,10 +181,6 @@ export const CONTRACT_CONFIG = {
  */
 export async function deployTuraAgent(signer: ethers.Signer): Promise<string> {
   try {
-<<<<<<< Updated upstream
-    // Create contract factory
-    const factory = new ethers.ContractFactory(TuraAgentABI, TuraAgentBytecode, signer);
-||||||| constructed merge base
     console.log('Starting contract deployment...');
     
     // Verify signer is connected
@@ -193,11 +189,10 @@ export async function deployTuraAgent(signer: ethers.Signer): Promise<string> {
     
     // Create contract factory with proper provider
     const factory = new ethers.ContractFactory(
-      TuraAgentABI,
-      TuraAgentBytecode,
+      TuraAgentContract.abi,
+      TuraAgentContract.bytecode,
       signer
     );
-=======
     console.log('Starting contract deployment...');
     
     // Verify signer is connected
@@ -254,38 +249,12 @@ export async function checkTuraBalance(
  * Get a Web3 provider for the Tura network
  * @returns Configured ethers provider
  */
-<<<<<<< Updated upstream
-export function getTuraProvider(): ethers.JsonRpcProvider {
-  return new ethers.JsonRpcProvider(CONTRACT_CONFIG.rpcEndpoint, {
-    chainId: CONTRACT_CONFIG.chainId,
-    name: 'Tura'
-  });
-||||||| constructed merge base
-export function getTuraProvider(): ethers.Provider {
-  // Check for window.ethereum first
-  if (typeof window !== 'undefined' && window.ethereum) {
-    return new ethers.BrowserProvider(window.ethereum);
-  }
-
-  // Use custom provider if available
-  const customProvider = (window as any).turaProvider;
-  if (customProvider) {
-    return customProvider;
-  }
-
-  // Fallback to JSON-RPC provider
-  return new ethers.JsonRpcProvider(
-    CONTRACT_CONFIG.rpcEndpoint,
-    {
-      chainId: CONTRACT_CONFIG.chainId,
-      name: 'Tura'
-    }
-  );
-=======
 export function getTuraProvider(): ethers.Provider {
   // Use HTTP provider with proxy
   return new ethers.JsonRpcProvider('/rpc', {
     chainId: CONTRACT_CONFIG.chainId,
+    name: 'Tura'
+  });
     name: 'Tura'
   });
 >>>>>>> Stashed changes
