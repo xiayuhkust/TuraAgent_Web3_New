@@ -18,8 +18,6 @@ export default function WalletContent() {
   const [showMnemonic, setShowMnemonic] = useState(false);
   const [showRestore, setShowRestore] = useState(false);
   const [showSignature, setShowSignature] = useState(false);
-  const [mnemonic, setMnemonic] = useState('');
-  const [restoreMnemonic, setRestoreMnemonic] = useState('');
   const [signatureDetails, setSignatureDetails] = useState<{
     from: string;
     to: string;
@@ -28,55 +26,45 @@ export default function WalletContent() {
     onReject: () => void;
   } | null>(null);
   const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
-  const [isCreatingWallet, setIsCreatingWallet] = useState(false);
+  const [isConnectingWallet, setIsConnectingWallet] = useState(false);
   const [isSigningTransaction, setIsSigningTransaction] = useState(false);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [isRestoringWallet, setIsRestoringWallet] = useState(false);
   const [lastBalanceUpdate, setLastBalanceUpdate] = useState<Date | null>(null);
-  const [walletManager] = useState(() => {
-    const manager = new WalletManager();
-    // Make wallet manager available globally for debugging
-    (window as any).walletManager = manager;
-    return manager;
-  });
+  const [walletService] = useState(() => new WalletService());
 
   useEffect(() => {
-    const checkStoredWallet = async () => {
+    const checkWalletConnection = async () => {
       try {
-        const storedAddress = localStorage.getItem('lastWalletAddress');
-        if (storedAddress) {
-          setAddress(storedAddress);
-          
-          const session = await walletManager.getSession();
-          if (session?.password) {
-            const walletData = await walletManager.getWalletData(storedAddress, session.password);
-            if (walletData) {
-              setIsLoggedIn(true);
-              const balance = await walletManager.getBalance(storedAddress);
-              setBalance(balance);
-              console.log('Restored wallet session:', {
-                address: storedAddress,
-                hasSession: true,
-                sessionExpires: new Date(session.expires).toLocaleString()
-              });
-            }
-          } else {
-            const balance = await walletManager.getBalance(storedAddress);
+        if (window.ethereum) {
+          const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+          if (accounts && accounts.length > 0) {
+            setAddress(accounts[0]);
+            setIsLoggedIn(true);
+            const balance = await walletService.getBalance(accounts[0]);
             setBalance(balance);
-            console.log('Found stored wallet (not logged in):', {
-              address: storedAddress,
-              hasSession: false
-            });
+            setLastBalanceUpdate(new Date());
           }
         }
       } catch (error) {
-        console.error('Failed to check stored wallet:', error);
+        console.error('Failed to check wallet connection:', error);
         setError('Failed to load wallet data');
       }
     };
 
-    checkStoredWallet();
-  }, [walletManager]);
+    checkWalletConnection();
+
+    // Listen for account changes
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', (accounts: string[]) => {
+        if (accounts.length > 0) {
+          setAddress(accounts[0]);
+          setIsLoggedIn(true);
+        } else {
+          setAddress('');
+          setIsLoggedIn(false);
+        }
+      });
+    }
+  }, [walletService]);
 
   const handleSend = async () => {
     if (isSigningTransaction) return;
@@ -89,9 +77,6 @@ export default function WalletContent() {
       const amount = prompt('Enter amount to send:');
       if (!amount) return;
 
-      const password = prompt('Enter your wallet password to confirm:');
-      if (!password) return;
-
       setSignatureDetails({
         from: address,
         to: toAddress,
@@ -99,13 +84,12 @@ export default function WalletContent() {
         onConfirm: async () => {
           try {
             setIsSigningTransaction(true);
-            const receipt = await walletManager.sendTransaction(
+            const receipt = await walletService.sendTransaction(
               address,
               toAddress,
-              amount,
-              password
+              amount
             );
-            const newBalance = await walletManager.getBalance(address);
+            const newBalance = await walletService.getBalance(address);
             setBalance(newBalance);
             setShowSignature(false);
             alert('Transaction successful! Hash: ' + receipt.transactionHash);
@@ -189,44 +173,20 @@ export default function WalletContent() {
               <Button
                 className="w-full relative"
                 onClick={async () => {
-                  if (isCreatingWallet) return;
+                  if (isConnectingWallet) return;
                   try {
                     setError('');
-                    setIsCreatingWallet(true);
+                    setIsConnectingWallet(true);
                     
-                    const password = prompt('Enter a secure password for your new wallet:');
-                    if (!password) {
-                      setIsCreatingWallet(false);
-                      return;
-                    }
+                    console.log('Connecting to MetaMask...');
+                    const account = await walletService.createAccount();
+                    console.log('Connected to wallet:', account.address);
 
-                    if (password.length < 8) {
-                      setError('Password must be at least 8 characters long');
-                      setIsCreatingWallet(false);
-                      return;
-                    }
-
-                    console.log('Creating new wallet...');
-                    const wallet = await walletManager.createWallet(password);
-                    console.log('Wallet created:', {
-                      address: wallet.address,
-                      hasMnemonic: !!wallet.mnemonic
-                    });
-
-                    setAddress(wallet.address);
-                    if (wallet.mnemonic) {
-                      setMnemonic(wallet.mnemonic);
-                    }
-                    setShowMnemonic(true);
+                    setAddress(account.address);
                     setIsLoggedIn(true);
                     
                     try {
-                      const balance = await Promise.race([
-                        walletManager.getBalance(wallet.address),
-                        new Promise<string>((_, reject) => 
-                          setTimeout(() => reject(new Error('Balance check timed out')), 10000)
-                        )
-                      ]);
+                      const balance = await walletService.getBalance(account.address);
                       setBalance(balance);
                       setLastBalanceUpdate(new Date());
                     } catch (e) {
@@ -234,56 +194,39 @@ export default function WalletContent() {
                       setBalance('0');
                     }
                   } catch (error) {
-                    console.error('Failed to create wallet:', error);
+                    console.error('Failed to connect wallet:', error);
                     const walletError = error as WalletError;
-                    setError('Failed to create wallet: ' + walletError.message);
+                    setError('Failed to connect wallet: ' + walletError.message);
                   } finally {
-                    setIsCreatingWallet(false);
+                    setIsConnectingWallet(false);
                   }
                 }}
-                disabled={isCreatingWallet}
-                aria-disabled={isCreatingWallet}
+                disabled={isConnectingWallet}
+                aria-disabled={isConnectingWallet}
               >
                 <div className="flex items-center justify-center w-full">
-                  {isCreatingWallet ? (
+                  {isConnectingWallet ? (
                     <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
-                    <Key className="mr-2 h-4 w-4" />
+                    <Wallet className="mr-2 h-4 w-4" />
                   )}
-                  <span>{isCreatingWallet ? 'Creating Wallet...' : 'Create New Wallet'}</span>
+                  <span>{isConnectingWallet ? 'Connecting...' : 'Connect MetaMask'}</span>
                 </div>
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => setShowRestore(true)}
-                disabled={isCreatingWallet}
-              >
-                <RotateCcw className="mr-2 h-4 w-4" />
-                Restore Wallet
               </Button>
             </div>
           ) : !isLoggedIn ? (
             <Button
               className="w-full relative"
               onClick={async () => {
-                if (isLoggingIn) return;
+                if (isConnectingWallet) return;
                 try {
                   setError('');
-                  setIsLoggingIn(true);
-                  const password = prompt('Enter your wallet password:');
-                  if (!password) {
-                    return;
-                  }
-                  await walletManager.login(address, password);
+                  setIsConnectingWallet(true);
+                  const account = await walletService.createAccount();
+                  setAddress(account.address);
                   setIsLoggedIn(true);
                   try {
-                    const balance = await Promise.race([
-                      walletManager.getBalance(address),
-                      new Promise<string>((_, reject) => 
-                        setTimeout(() => reject(new Error('Balance check timed out')), 10000)
-                      )
-                    ]);
+                    const balance = await walletService.getBalance(account.address);
                     setBalance(balance);
                     setLastBalanceUpdate(new Date());
                   } catch (error) {
@@ -291,21 +234,21 @@ export default function WalletContent() {
                   }
                 } catch (error) {
                   const walletError = error as WalletError;
-                  setError('Login failed: ' + walletError.message);
+                  setError('Connection failed: ' + walletError.message);
                 } finally {
-                  setIsLoggingIn(false);
+                  setIsConnectingWallet(false);
                 }
               }}
-              disabled={isLoggingIn}
-              aria-disabled={isLoggingIn}
+              disabled={isConnectingWallet}
+              aria-disabled={isConnectingWallet}
             >
               <div className="flex items-center justify-center w-full">
-                {isLoggingIn ? (
+                {isConnectingWallet ? (
                   <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  <Lock className="mr-2 h-4 w-4" />
+                  <Wallet className="mr-2 h-4 w-4" />
                 )}
-                <span>{isLoggingIn ? 'Logging in...' : 'Login to Wallet'}</span>
+                <span>{isConnectingWallet ? 'Connecting...' : 'Connect MetaMask'}</span>
               </div>
             </Button>
           ) : (
