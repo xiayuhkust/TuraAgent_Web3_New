@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Wallet, Send, RefreshCw, Lock, Key, RotateCcw } from 'lucide-react';
+import { Wallet, Send, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '../ui/card';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
-import WalletManager from '../../lib/wallet_manager';
+import { WalletService } from '../../lib/wallet';
 
 interface WalletError extends Error {
   message: string;
@@ -15,8 +14,6 @@ export default function WalletContent() {
   const [address, setAddress] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [_error, setError] = useState('');
-  const [showMnemonic, setShowMnemonic] = useState(false);
-  const [showRestore, setShowRestore] = useState(false);
   const [showSignature, setShowSignature] = useState(false);
   const [signatureDetails, setSignatureDetails] = useState<{
     from: string;
@@ -275,12 +272,7 @@ export default function WalletContent() {
                     setIsRefreshingBalance(true);
                     setError('');
                     
-                    const newBalance = await Promise.race([
-                      walletManager.getBalance(address),
-                      new Promise<string>((_, reject) => 
-                        setTimeout(() => reject(new Error('Balance refresh timed out')), 10000)
-                      )
-                    ]);
+                    const newBalance = await walletService.getBalance(address);
                     
                     setBalance(newBalance);
                     setLastBalanceUpdate(new Date());
@@ -312,113 +304,7 @@ export default function WalletContent() {
       </Card>
 
 
-      <Dialog open={showMnemonic} onOpenChange={setShowMnemonic}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Important: Backup Your Mnemonic Phrase</DialogTitle>
-            <DialogDescription className="space-y-4">
-              <p>Please write down these 12 words in order and keep them safe. They are the only way to recover your wallet if you lose access.</p>
-              <div className="grid grid-cols-3 gap-2 p-4 bg-muted rounded-lg">
-                {mnemonic.split(' ').map((word, index) => (
-                  <div key={index} className="flex items-center">
-                    <span className="text-muted-foreground mr-2">{index + 1}.</span>
-                    <span className="font-mono">{word}</span>
-                  </div>
-                ))}
-              </div>
-              <p className="text-destructive font-semibold">Warning: Never share your mnemonic phrase with anyone!</p>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowMnemonic(false)}>Close</Button>
-            <Button onClick={() => {
-              setShowMnemonic(false);
-              localStorage.setItem('lastWalletAddress', address);
-            }}>
-              I've Backed Up My Phrase
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      <Dialog open={showRestore} onOpenChange={setShowRestore}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Restore Wallet from Mnemonic</DialogTitle>
-            <DialogDescription className="space-y-4">
-              <p>Enter your 12-word mnemonic phrase to restore your wallet.</p>
-              <Input
-                placeholder="Enter your mnemonic phrase"
-                value={restoreMnemonic}
-                onChange={(e) => setRestoreMnemonic(e.target.value)}
-                className="font-mono"
-              />
-              <p className="text-sm text-muted-foreground">Words should be separated by spaces</p>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setShowRestore(false);
-              setRestoreMnemonic('');
-            }}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={async () => {
-                if (isRestoringWallet) return;
-                try {
-                  setError('');
-                  setIsRestoringWallet(true);
-                  
-                  if (!restoreMnemonic.trim()) {
-                    setError('Please enter your mnemonic phrase');
-                    setIsRestoringWallet(false);
-                    return;
-                  }
-
-                  const password = prompt('Enter a secure password for your restored wallet:');
-                  if (!password) {
-                    setIsRestoringWallet(false);
-                    return;
-                  }
-
-                  const wallet = await walletManager.importWallet(restoreMnemonic.trim(), password);
-                  setAddress(wallet.address);
-                  setShowRestore(false);
-                  setRestoreMnemonic('');
-
-                  try {
-                    const balance = await Promise.race([
-                      walletManager.getBalance(wallet.address),
-                      new Promise((_, reject) => 
-                        setTimeout(() => reject(new Error('Balance check timed out')), 10000)
-                      )
-                    ]) as string;
-                    setBalance(balance);
-                    setLastBalanceUpdate(new Date());
-                  } catch (e) {
-                    console.warn('Failed to get initial balance:', e);
-                    setBalance('0');
-                  }
-                } catch (error: any) {
-                  setError('Failed to restore wallet: ' + error.message);
-                } finally {
-                  setIsRestoringWallet(false);
-                }
-              }}
-              disabled={isRestoringWallet}
-              aria-disabled={isRestoringWallet}
-            >
-              <div className="flex items-center justify-center w-full">
-                {isRestoringWallet ? (
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
-                <span>{isRestoringWallet ? 'Restoring...' : 'Restore Wallet'}</span>
-              </div>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={showSignature} onOpenChange={setShowSignature}>
         <DialogContent>
