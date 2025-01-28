@@ -49,8 +49,8 @@ export default function WalletContent() {
           
           const session = await walletManager.getSession();
           if (session?.password) {
-            const walletData = await walletManager.getWalletData(storedAddress, session.password);
-            if (walletData) {
+            const privateKey = await walletManager.getPrivateKey(session.password);
+            if (privateKey) {
               setIsLoggedIn(true);
               const balance = await walletManager.getBalance(storedAddress);
               setBalance(balance);
@@ -275,7 +275,11 @@ export default function WalletContent() {
                   if (!password) {
                     return;
                   }
-                  await walletManager.login(address, password);
+                  await walletManager.getPrivateKey(password); // Verify password
+                  localStorage.setItem('walletSession', JSON.stringify({
+                    password,
+                    expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+                  }));
                   setIsLoggedIn(true);
                   try {
                     const balance = await Promise.race([

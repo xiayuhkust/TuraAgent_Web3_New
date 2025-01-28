@@ -1,4 +1,5 @@
 import { WalletService } from './wallet';
+<<<<<<< Updated upstream
 import * as bip39 from 'bip39';
 import { Buffer } from 'buffer';
 
@@ -24,6 +25,11 @@ export interface SessionData {
   password: string;
   expires: number;
 }
+||||||| constructed merge base
+=======
+import { KeyManager } from './keyManager';
+import { ethers } from 'ethers';
+>>>>>>> Stashed changes
 
 export interface WalletResponse {
   address: string;
@@ -58,6 +64,7 @@ export class WalletManagerImpl {
     this.walletService = new WalletService();
   }
 
+<<<<<<< Updated upstream
   private async _deriveKey(password: string): Promise<string> {
     const encoder = new TextEncoder();
     const data = encoder.encode(password);
@@ -126,7 +133,13 @@ export class WalletManagerImpl {
       throw new Error('Password must be at least 8 characters long');
     }
 
+||||||| constructed merge base
+  async createWallet(): Promise<WalletResponse> {
+=======
+  async createWallet(password: string): Promise<WalletResponse> {
+>>>>>>> Stashed changes
     try {
+<<<<<<< Updated upstream
       const account = await this.walletService.createAccount();
       
       // Generate mnemonic using bip39 with proper entropy
@@ -144,10 +157,30 @@ export class WalletManagerImpl {
       });
       
       const walletData: WalletData = {
+||||||| constructed merge base
+      const account = await this.walletService.createAccount();
+      return {
+=======
+      // Generate wallet with mnemonic
+      const wallet = ethers.Wallet.createRandom();
+      const account = await this.walletService.createAccount(wallet.privateKey);
+      
+      // Store encrypted private key
+      await KeyManager.storeKey(account.privateKey, password);
+      
+      return {
+>>>>>>> Stashed changes
         address: account.address,
+<<<<<<< Updated upstream
         privateKey: account.privateKey,
         mnemonic: mnemonic,
         createdAt: new Date().toISOString()
+||||||| constructed merge base
+        createdAt: new Date().toISOString()
+=======
+        createdAt: new Date().toISOString(),
+        mnemonic: wallet.mnemonic?.phrase
+>>>>>>> Stashed changes
       };
 
       const encrypted = await this._encrypt(walletData, password);
@@ -176,6 +209,7 @@ export class WalletManagerImpl {
     }
   }
 
+<<<<<<< Updated upstream
   async importWallet(mnemonic: string, password: string): Promise<WalletResponse> {
     try {
       if (!bip39.validateMnemonic(mnemonic)) {
@@ -264,6 +298,58 @@ export class WalletManagerImpl {
     return decrypted as WalletData;
   }
 
+||||||| constructed merge base
+=======
+  async getPrivateKey(password: string): Promise<string> {
+    const encryptedData = KeyManager.getStoredKey();
+    if (!encryptedData) {
+      throw new Error('No stored account found');
+    }
+    return KeyManager.decryptKey(encryptedData, password);
+  }
+
+  async getSession(): Promise<{ password: string; expires: string } | null> {
+    const session = localStorage.getItem('walletSession');
+    if (!session) return null;
+    return JSON.parse(session);
+  }
+
+  async login(password: string): Promise<void> {
+    try {
+      // Verify password by attempting to decrypt key
+      await this.getPrivateKey(password);
+      // Store session
+      localStorage.setItem('walletSession', JSON.stringify({
+        password,
+        expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
+      }));
+    } catch (error) {
+      throw new Error('Invalid password');
+    }
+  }
+
+  async importWallet(mnemonic: string, password: string): Promise<WalletResponse> {
+    try {
+      // Generate private key from mnemonic
+      const wallet = ethers.Wallet.fromPhrase(mnemonic);
+      const account = await this.walletService.createAccount(wallet.privateKey);
+      
+      // Store encrypted private key
+      await KeyManager.storeKey(account.privateKey, password);
+      
+      return {
+        address: account.address,
+        createdAt: new Date().toISOString()
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to import wallet: ${error.message}`);
+      }
+      throw new Error('Failed to import wallet');
+    }
+  }
+
+>>>>>>> Stashed changes
   async sendTransaction(fromAddress: string, toAddress: string, amount: string, password: string): Promise<TransactionReceipt> {
     try {
       const walletData = await this.getWalletData(fromAddress, password);
