@@ -367,7 +367,7 @@ export default function ChatPage() {
             <div className="p-2 bg-secondary rounded-lg flex flex-col items-start ml-4">
               <div className="text-xs text-muted-foreground">Account</div>
               <div className="font-mono text-sm break-all">
-                {chatAddress.slice(0,6)}...{chatAddress.slice(-4)}
+                {chatAddress.slice(0, 6)}...{chatAddress.slice(-4)}
               </div>
             </div>
           )}

@@ -1,40 +1,42 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.default = WalletContent;
-const react_1 = require("react");
-const lucide_react_1 = require("lucide-react");
-const card_1 = require("../ui/card");
-const button_1 = require("../ui/button");
-const input_1 = require("../ui/input");
-const dialog_1 = require("../ui/dialog");
-const wallet_manager_1 = __importDefault(require("../../lib/wallet_manager"));
-function WalletContent() {
-    const [balance, setBalance] = (0, react_1.useState)('0');
-    const [address, setAddress] = (0, react_1.useState)('');
-    const [isLoggedIn, setIsLoggedIn] = (0, react_1.useState)(false);
-    const [_error, setError] = (0, react_1.useState)('');
-    const [showMnemonic, setShowMnemonic] = (0, react_1.useState)(false);
-    const [showRestore, setShowRestore] = (0, react_1.useState)(false);
-    const [showSignature, setShowSignature] = (0, react_1.useState)(false);
-    const [mnemonic, setMnemonic] = (0, react_1.useState)('');
-    const [restoreMnemonic, setRestoreMnemonic] = (0, react_1.useState)('');
-    const [signatureDetails, setSignatureDetails] = (0, react_1.useState)(null);
-    const [isRefreshingBalance, setIsRefreshingBalance] = (0, react_1.useState)(false);
-    const [isCreatingWallet, setIsCreatingWallet] = (0, react_1.useState)(false);
-    const [isSigningTransaction, setIsSigningTransaction] = (0, react_1.useState)(false);
-    const [isLoggingIn, setIsLoggingIn] = (0, react_1.useState)(false);
-    const [isRestoringWallet, setIsRestoringWallet] = (0, react_1.useState)(false);
-    const [lastBalanceUpdate, setLastBalanceUpdate] = (0, react_1.useState)(null);
-    const [walletManager] = (0, react_1.useState)(() => {
-        const manager = new wallet_manager_1.default();
+import React, { useState, useEffect } from 'react';
+import { Wallet, RefreshCw, Key, RotateCcw, Lock, Send } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "../ui/card";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
+import WalletManager from '../../lib/wallet_manager';
+interface SignatureDetails {
+    from: string;
+    to: string;
+    amount: string;
+    onConfirm: () => Promise<void>;
+    onReject: () => void;
+}
+
+const WalletContent: React.FC = () => {
+    const [balance, setBalance] = useState('0');
+    const [address, setAddress] = useState('');
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [_error, setError] = useState('');
+    const [showMnemonic, setShowMnemonic] = useState(false);
+    const [showRestore, setShowRestore] = useState(false);
+    const [showSignature, setShowSignature] = useState(false);
+    const [mnemonic, setMnemonic] = useState('');
+    const [restoreMnemonic, setRestoreMnemonic] = useState('');
+    const [signatureDetails, setSignatureDetails] = useState<SignatureDetails | null>(null);
+    const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
+    const [isCreatingWallet, setIsCreatingWallet] = useState(false);
+    const [isSigningTransaction, setIsSigningTransaction] = useState(false);
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
+    const [isRestoringWallet, setIsRestoringWallet] = useState(false);
+    const [lastBalanceUpdate, setLastBalanceUpdate] = useState<Date | null>(null);
+    const [walletManager] = useState(() => {
+        const manager = new WalletManager();
         // Make wallet manager available globally for debugging
-        window.walletManager = manager;
+        (window as any).walletManager = manager;
         return manager;
     });
-    (0, react_1.useEffect)(() => {
+    useEffect(() => {
         const checkStoredWallet = async () => {
             try {
                 const storedAddress = localStorage.getItem('lastWalletAddress');
@@ -122,16 +124,16 @@ function WalletContent() {
         }
     };
     return (<div className="container mx-auto p-4">
-      <card_1.Card className="max-w-md mx-auto">
-        <card_1.CardHeader>
-          <card_1.CardTitle className="flex items-center gap-2">
-            <lucide_react_1.Wallet className="h-6 w-6"/>
+      <Card className="max-w-md mx-auto">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wallet className="h-6 w-6"/>
             Tura Wallet
-          </card_1.CardTitle>
-          <card_1.CardDescription>
+          </CardTitle>
+          <CardDescription>
             Manage your cryptocurrency securely
-          </card_1.CardDescription>
-        </card_1.CardHeader>
+          </CardDescription>
+        </CardHeader>
         
         <card_1.CardContent>
           <div className="space-y-4">

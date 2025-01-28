@@ -16,7 +16,6 @@ describe('Backend Contract Deployment', () => {
     // Create test wallet
     wallet = await walletService.createWallet();
     encryptedKeyData = await KeyManager.encryptKey(wallet.privateKey, TEST_PASSWORD);
-    // encryptedKeyData is already set from KeyManager.encryptKey
   });
 
   it('should successfully send encrypted key and deploy contract', async () => {

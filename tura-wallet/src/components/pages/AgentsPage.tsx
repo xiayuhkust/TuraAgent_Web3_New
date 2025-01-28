@@ -1,14 +1,21 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.default = AgentsPage;
-const react_1 = require("react");
-const lucide_react_1 = require("lucide-react");
-const button_1 = require("../ui/button");
-const card_1 = require("../ui/card");
-const dialog_1 = require("../ui/dialog");
-const tabs_1 = require("../ui/tabs");
+import React, { useState } from 'react';
+import { Plus, Bot } from "lucide-react";
+import { Button } from "../ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
 // Mock data - replace with actual data source later
-const availableAgents = [
+interface Agent {
+    name: string;
+    description: string;
+    contractAddress: string;
+    owner: string;
+    multiSigAddress: string;
+    feePerRequest: string;
+    status: string;
+}
+
+const availableAgents: Agent[] = [
     {
         name: 'Smart Contract Agent',
         description: 'Helps with smart contract deployment and interaction',
@@ -20,7 +27,19 @@ const availableAgents = [
     },
     // Add more mock agents as needed
 ];
-const availableWorkflows = [
+interface Workflow {
+    name: string;
+    description: string;
+    contractAddress: string;
+    owner: string;
+    requiredConfirmations: number;
+    turaToken: string;
+    usdtToken: string;
+    fee: string;
+    status: string;
+}
+
+const availableWorkflows: Workflow[] = [
     {
         name: 'Token Transfer',
         description: 'Automated token transfer workflow',
@@ -34,7 +53,15 @@ const availableWorkflows = [
     },
     // Add more mock workflows as needed
 ];
-const officialAgents = [
+interface OfficialAgent {
+    name: string;
+    description: string;
+    feePerRequest: string;
+    chainId: number;
+    status: string;
+}
+
+const officialAgents: OfficialAgent[] = [
     {
         name: 'Tura Official Agent',
         description: 'Official Tura network agent',
@@ -44,27 +71,27 @@ const officialAgents = [
     },
     // Add more official agents as needed
 ];
-function AgentsPage() {
-    const [showAgentStore, setShowAgentStore] = (0, react_1.useState)(false);
-    const [storeTab, setStoreTab] = (0, react_1.useState)('agents');
-    const [selectedAgents, setSelectedAgents] = (0, react_1.useState)([]);
-    const handleAddAgent = (contractAddress) => {
-        setSelectedAgents(prev => prev.includes(contractAddress)
-            ? prev.filter(addr => addr !== contractAddress)
+const AgentsPage: React.FC = () => {
+    const [showAgentStore, setShowAgentStore] = useState(false);
+    const [storeTab, setStoreTab] = useState('agents');
+    const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
+    const handleAddAgent = (contractAddress: string) => {
+        setSelectedAgents((prev: string[]) => prev.includes(contractAddress)
+            ? prev.filter((addr: string) => addr !== contractAddress)
             : [...prev, contractAddress]);
     };
     return (<div className="container mx-auto p-4">
-      <card_1.Card>
-        <card_1.CardHeader className="flex flex-row items-center justify-between">
-          <card_1.CardTitle>Available Agents</card_1.CardTitle>
-          <button_1.Button onClick={() => setShowAgentStore(true)}>
-            <lucide_react_1.Plus className="h-4 w-4 mr-2"/>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Available Agents</CardTitle>
+          <Button onClick={() => setShowAgentStore(true)}>
+            <Plus className="h-4 w-4 mr-2"/>
             Add Agent
-          </button_1.Button>
-        </card_1.CardHeader>
-        <card_1.CardContent>
+          </Button>
+        </CardHeader>
+        <CardContent>
           <div className="space-y-4">
-            {selectedAgents.length > 0 ? (selectedAgents.map(agentAddress => {
+            {selectedAgents.length > 0 ? (selectedAgents.map((agentAddress: string) => {
             const agent = availableAgents.find(a => a.contractAddress === agentAddress);
             if (!agent)
                 return null;
@@ -72,7 +99,7 @@ function AgentsPage() {
                     <div className="flex justify-between items-start gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
-                          <lucide_react_1.Bot className="h-4 w-4"/>
+                          <Bot className="h-4 w-4"/>
                           <h3 className="text-lg font-semibold">{agent.name}</h3>
                           <div className="px-2 py-1 bg-primary/10 text-primary text-sm rounded-full">
                             {agent.status}
@@ -97,26 +124,26 @@ function AgentsPage() {
                 No agents added. Click "Add Agent" to get started.
               </div>)}
           </div>
-        </card_1.CardContent>
-      </card_1.Card>
+        </CardContent>
+      </Card>
 
-      <dialog_1.Dialog open={showAgentStore} onOpenChange={setShowAgentStore}>
-        <dialog_1.DialogContent className="max-w-6xl h-[90vh] flex flex-col">
-          <dialog_1.DialogHeader>
-            <dialog_1.DialogTitle className="text-2xl font-bold">Agent Store</dialog_1.DialogTitle>
-            <dialog_1.DialogDescription>
+      <Dialog open={showAgentStore} onOpenChange={setShowAgentStore}>
+        <DialogContent className="max-w-6xl h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">Agent Store</DialogTitle>
+            <DialogDescription>
               Browse and add agents to your workspace
-            </dialog_1.DialogDescription>
-          </dialog_1.DialogHeader>
+            </DialogDescription>
+          </DialogHeader>
           <div className="flex-1 overflow-hidden">
-            <tabs_1.Tabs defaultValue="agents" value={storeTab} onValueChange={setStoreTab} className="h-full flex flex-col">
-              <tabs_1.TabsList className="w-full grid grid-cols-3">
-                <tabs_1.TabsTrigger value="agents" className="text-lg">Agents</tabs_1.TabsTrigger>
-                <tabs_1.TabsTrigger value="workflows" className="text-lg">Workflows</tabs_1.TabsTrigger>
-                <tabs_1.TabsTrigger value="official" className="text-lg">Official Agents</tabs_1.TabsTrigger>
-              </tabs_1.TabsList>
+            <Tabs defaultValue="agents" value={storeTab} onValueChange={setStoreTab} className="h-full flex flex-col">
+              <TabsList className="w-full grid grid-cols-3">
+                <TabsTrigger value="agents" className="text-lg">Agents</TabsTrigger>
+                <TabsTrigger value="workflows" className="text-lg">Workflows</TabsTrigger>
+                <TabsTrigger value="official" className="text-lg">Official Agents</TabsTrigger>
+              </TabsList>
               
-              <tabs_1.TabsContent value="agents" className="flex-1 p-4 overflow-auto">
+              <TabsContent value="agents" className="flex-1 p-4 overflow-auto">
                 <div className="space-y-4">
                   {availableAgents.map((agent) => (<div key={agent.contractAddress} className="p-6 border rounded-lg hover:border-primary transition-colors">
                       <div className="flex justify-between items-start gap-4">
@@ -143,9 +170,9 @@ function AgentsPage() {
                       </div>
                     </div>))}
                 </div>
-              </tabs_1.TabsContent>
+              </TabsContent>
 
-              <tabs_1.TabsContent value="workflows" className="flex-1 p-4 overflow-auto">
+              <TabsContent value="workflows" className="flex-1 p-4 overflow-auto">
                 <div className="space-y-4">
                   {availableWorkflows.map((workflow) => (<div key={workflow.contractAddress} className="p-6 border rounded-lg hover:border-primary transition-colors">
                       <div className="flex justify-between items-start gap-4">
@@ -174,9 +201,9 @@ function AgentsPage() {
                       </div>
                     </div>))}
                 </div>
-              </tabs_1.TabsContent>
+              </TabsContent>
 
-              <tabs_1.TabsContent value="official" className="flex-1 p-4 overflow-auto">
+              <TabsContent value="official" className="flex-1 p-4 overflow-auto">
                 <div className="space-y-4">
                   {officialAgents.map((agent) => (<div key={agent.name} className="p-6 border rounded-lg hover:border-primary transition-colors">
                       <div className="flex justify-between items-start gap-4">

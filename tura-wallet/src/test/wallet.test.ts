@@ -10,7 +10,7 @@ vi.mock('../lib/keyManager', () => ({
       salt: 'mock-salt',
       iv: 'mock-iv'
     }),
-    decryptKey: vi.fn().mockImplementation(async (_data, password) => {
+    decryptKey: vi.fn().mockImplementation(async (_data: any, password: string): Promise<string> => {
       if (password === 'testPassword123!') {
         // Return a valid private key format that matches our test account
         return '0x1234567890123456789012345678901234567890123456789012345678901234';
@@ -39,6 +39,7 @@ vi.mock('web3', () => {
     static providers: any;
 
     constructor(_provider: any) {
+      // Provider is stored internally but not used in tests
       this.eth = {
         accounts: {
           create: () => ({
@@ -49,7 +50,7 @@ vi.mock('web3', () => {
             address: '0x1234567890123456789012345678901234567890',
             privateKey: key
           }),
-          signTransaction: async (_tx: any, privateKey: string) => {
+          signTransaction: async (_tx: any, privateKey: string): Promise<{ rawTransaction: string; transactionHash: string }> => {
             if (!privateKey) {
               throw new Error('Password required for transaction signing');
             }
@@ -76,7 +77,7 @@ vi.mock('web3', () => {
       
       this.utils = {
         isAddress: (addr: string) => /^0x[a-fA-F0-9]{40}$/.test(addr),
-        fromWei: (_wei: string) => '1.0',
+        fromWei: (_wei: string): string => '1.0',
         toWei: (eth: string) => {
           if (eth === '0' || parseFloat(eth) <= 0) {
             throw new Error('Amount must be greater than 0');
@@ -112,7 +113,7 @@ describe('Wallet Integration Tests', () => {
       salt: 'mock-salt',
       iv: 'mock-iv'
     });
-    vi.mocked(KeyManager.decryptKey).mockImplementation(async (_data, password) => {
+    vi.mocked(KeyManager.decryptKey).mockImplementation(async (_data: any, password: string): Promise<string> => {
       if (password === 'testPassword123!') {
         return '0x1234567890123456789012345678901234567890123456789012345678901234';
       }
