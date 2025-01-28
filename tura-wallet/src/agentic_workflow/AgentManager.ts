@@ -265,71 +265,8 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
             let address: string = '';
             let deployedAddress: string;
 
-            // Check if using CustomProvider
-            if (provider instanceof ethers.JsonRpcProvider && !window.ethereum) {
-              // Get stored encrypted key
-              const encryptedData = KeyManager.getStoredKey();
-              if (!encryptedData) {
-                return "No wallet found. Please create a wallet first.";
-              }
-
-              // Show password dialog for key decryption and deploy contract
-              try {
-                const chatPage = (window as any).ChatPage;
-                if (!chatPage?.showSignatureDialog) {
-                  throw new Error('Chat interface not available');
-                }
-
-                deployedAddress = await new Promise<string>((resolve, reject) => {
-                  chatPage.showSignatureDialog({
-                    title: 'Deploy TuraAgent Contract',
-                    description: [
-                      '🔐 Contract Deployment Details:',
-                      '',
-                      '• Cost: 0.1 TURA',
-                      '• Network: Tura Testnet',
-                      '• Contract: TuraAgent',
-                      '',
-                      'Please enter your wallet password to sign and deploy the contract.',
-                      '',
-                      '⚠️ Make sure you have enough TURA to cover the deployment cost.'
-                    ].join('\n'),
-                    requirePassword: true,
-                    onConfirm: async (password: string) => {
-                      try {
-                        // Decrypt private key
-                        const privateKey = await KeyManager.decryptKey(encryptedData, password);
-                        if (!KeyManager.validatePrivateKey(privateKey)) {
-                          reject(new Error('Invalid wallet password'));
-                          return;
-                        }
-
-                        // Create wallet from private key
-                        const wallet = new ethers.Wallet(privateKey, provider);
-                        address = wallet.address;
-
-                        // Check TURA balance
-                        const hasSufficientBalance = await checkTuraBalance(provider, address);
-                        if (!hasSufficientBalance) {
-                          reject(new Error('Insufficient TURA balance'));
-                          return;
-                        }
-
-                        // Deploy contract
-                        deployedAddress = await deployTuraAgent(wallet);
-                        resolve(deployedAddress);
-                      } catch (error) {
-                        reject(error);
-                      }
-                    }
-                  });
-                });
-              } catch (error) {
-                throw error;
-              }
-            } else {
-              // Using MetaMask or other injected provider
-              try {
+            // Using MetaMask or other injected provider
+            try {
                 if (provider instanceof ethers.BrowserProvider) {
                   signer = await provider.getSigner();
                 } else {
@@ -378,7 +315,6 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
                 console.error('Failed to get signer:', error);
                 return "Failed to connect to wallet. Please make sure your wallet is connected and try again.";
               }
-            }
 
             // Contract address is now available from the promise above
             // Verify contract deployment
