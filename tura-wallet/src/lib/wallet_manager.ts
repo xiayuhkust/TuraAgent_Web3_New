@@ -32,56 +32,14 @@ export class WalletManagerImpl {
       throw new Error('Password must be at least 8 characters long');
     }
 
-||||||| constructed merge base
-  async createWallet(): Promise<WalletResponse> {
-=======
-  async createWallet(password: string): Promise<WalletResponse> {
->>>>>>> Stashed changes
     try {
-<<<<<<< Updated upstream
-      const account = await this.walletService.createAccount();
-      
-      // Generate mnemonic using bip39 with proper entropy
-      const entropy = new Uint8Array(16);
-      crypto.getRandomValues(entropy);
-      const mnemonic = bip39.entropyToMnemonic(
-        Buffer.from(entropy).toString('hex')
-      );
-      
-      console.log('Mnemonic generation successful:', {
-        hasEntropy: !!entropy,
-        entropyLength: entropy.length,
-        hasMnemonic: !!mnemonic,
-        mnemonicWordCount: mnemonic.split(' ').length
-      });
-      
-      const walletData: WalletData = {
-||||||| constructed merge base
-      const account = await this.walletService.createAccount();
-      return {
-=======
       // Generate wallet with mnemonic
       const wallet = ethers.Wallet.createRandom();
-      const account = await this.walletService.createAccount(wallet.privateKey);
+      const account = { address: wallet.address, privateKey: wallet.privateKey };
       
       // Store encrypted private key
-      await KeyManager.storeKey(account.privateKey, password);
+      await KeyManager.storeKey(wallet.privateKey, password);
       
-      return {
->>>>>>> Stashed changes
-        address: account.address,
-<<<<<<< Updated upstream
-        privateKey: account.privateKey,
-        mnemonic: mnemonic,
-        createdAt: new Date().toISOString()
-||||||| constructed merge base
-        createdAt: new Date().toISOString()
-=======
-        createdAt: new Date().toISOString(),
-        mnemonic: wallet.mnemonic?.phrase
->>>>>>> Stashed changes
-      };
-
       return {
         address: account.address,
         createdAt: new Date().toISOString(),
@@ -127,10 +85,10 @@ export class WalletManagerImpl {
     try {
       // Generate private key from mnemonic
       const wallet = ethers.Wallet.fromPhrase(mnemonic);
-      const account = await this.walletService.createAccount(wallet.privateKey);
+      const account = { address: wallet.address, privateKey: wallet.privateKey };
       
       // Store encrypted private key
-      await KeyManager.storeKey(account.privateKey, password);
+      await KeyManager.storeKey(wallet.privateKey, password);
       
       return {
         address: account.address,
