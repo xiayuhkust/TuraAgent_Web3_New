@@ -115,9 +115,9 @@ const AgentsPage: React.FC = () => {
                           </p>
                         </div>
                       </div>
-                      <button_1.Button variant="outline" size="sm" className="min-w-[100px]" onClick={() => handleAddAgent(agent.contractAddress)}>
+                      <Button variant="outline" size="sm" className="min-w-[100px]" onClick={() => handleAddAgent(agent.contractAddress)}>
                         Remove Agent
-                      </button_1.Button>
+                      </Button>
                     </div>
                   </div>);
         })) : (<div className="text-center py-8 text-muted-foreground">
@@ -164,9 +164,9 @@ const AgentsPage: React.FC = () => {
                             </p>
                           </div>
                         </div>
-                        <button_1.Button variant="outline" size="sm" className="min-w-[100px]" onClick={() => handleAddAgent(agent.contractAddress)}>
+                        <Button variant="outline" size="sm" className="min-w-[100px]" onClick={() => handleAddAgent(agent.contractAddress)}>
                           {selectedAgents.includes(agent.contractAddress) ? 'Remove Agent' : 'Add Agent'}
-                        </button_1.Button>
+                        </Button>
                       </div>
                     </div>))}
                 </div>
@@ -195,9 +195,9 @@ const AgentsPage: React.FC = () => {
                             </p>
                           </div>
                         </div>
-                        <button_1.Button variant="outline" size="sm" className="min-w-[100px]">
+                        <Button variant="outline" size="sm" className="min-w-[100px]">
                           Add Workflow
-                        </button_1.Button>
+                        </Button>
                       </div>
                     </div>))}
                 </div>
@@ -220,16 +220,16 @@ const AgentsPage: React.FC = () => {
                             <p>Chain ID: {agent.chainId}</p>
                           </div>
                         </div>
-                        <button_1.Button variant="outline" size="sm" className="min-w-[100px]">
+                        <Button variant="outline" size="sm" className="min-w-[100px]">
                           Add Agent
-                        </button_1.Button>
+                        </Button>
                       </div>
                     </div>))}
                 </div>
-              </tabs_1.TabsContent>
-            </tabs_1.Tabs>
+              </TabsContent>
+            </Tabs>
           </div>
-        </dialog_1.DialogContent>
-      </dialog_1.Dialog>
+        </DialogContent>
+      </Dialog>
     </div>);
 }
