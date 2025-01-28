@@ -193,19 +193,6 @@ export async function deployTuraAgent(signer: ethers.Signer): Promise<string> {
       TuraAgentContract.bytecode,
       signer
     );
-    console.log('Starting contract deployment...');
-    
-    // Verify signer is connected
-    const address = await signer.getAddress();
-    console.log('Deploying from address:', address);
-    
-    // Create contract factory with proper provider
-    const factory = new ethers.ContractFactory(
-      TuraAgentContract.abi,
-      TuraAgentContract.bytecode,
-      signer
-    );
->>>>>>> Stashed changes
     
     // Deploy contract with subscription fee
     console.log('Deploying TuraAgent contract...');
@@ -255,7 +242,4 @@ export function getTuraProvider(): ethers.Provider {
     chainId: CONTRACT_CONFIG.chainId,
     name: 'Tura'
   });
-    name: 'Tura'
-  });
->>>>>>> Stashed changes
 }
