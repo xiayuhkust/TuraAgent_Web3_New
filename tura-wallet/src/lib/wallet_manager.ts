@@ -108,12 +108,13 @@ export class WalletManagerImpl {
         throw new Error('Invalid password');
       }
 
-      return await this.walletService.sendTransaction(
+      const receipt = await this.walletService.sendTransaction(
         fromAddress,
         toAddress,
         amount,
         privateKey
       );
+      return receipt as TransactionReceipt;
     } catch (error) {
       if (error instanceof Error) {
         throw new Error(`Transaction failed: ${error.message}`);

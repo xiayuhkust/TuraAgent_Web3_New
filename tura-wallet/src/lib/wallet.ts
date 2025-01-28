@@ -13,6 +13,12 @@ export interface TransactionReceipt {
   gasUsed?: number;
 }
 
+export interface WalletAccount {
+  address: string;
+  privateKey: string;
+  encrypted_key?: string;
+}
+
 export class WalletService {
   private provider: ethers.JsonRpcProvider;
 
@@ -28,17 +34,31 @@ export class WalletService {
     this.provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.rpcUrl);
   }
 
-  private async setupWallet(privateKey: string) {
+  async createWallet(): Promise<WalletAccount> {
     try {
-      // Create wallet instance
-      const wallet = new ethers.Wallet(privateKey, this.provider);
+      // Generate new random wallet
+      const wallet = ethers.Wallet.createRandom();
       return {
         address: wallet.address,
         privateKey: wallet.privateKey
       };
     } catch (error) {
-      console.error('Failed to setup wallet:', error);
-      throw new Error('Failed to setup wallet: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      console.error('Failed to create wallet:', error);
+      throw new Error('Failed to create wallet: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+  }
+
+  async importWallet(privateKey: string): Promise<WalletAccount> {
+    try {
+      // Create wallet from private key
+      const wallet = new ethers.Wallet(privateKey);
+      return {
+        address: wallet.address,
+        privateKey: wallet.privateKey
+      };
+    } catch (error) {
+      console.error('Failed to import wallet:', error);
+      throw new Error('Failed to import wallet: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   }
 
@@ -65,7 +85,6 @@ export class WalletService {
   }
 
   async sendTransaction(fromAddress: string, toAddress: string, amount: string, password: string) {
-    const TIMEOUT_MS = 10000; // 10 second timeout
     
     try {
       // Validate addresses first

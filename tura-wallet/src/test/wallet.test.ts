@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { WalletService } from '../lib/wallet';
+import { WalletService, WalletAccount } from '../lib/wallet';
 import { KeyManager } from '../lib/keyManager';
-import Web3 from 'web3';
 
 // Mock KeyManager
 vi.mock('../lib/keyManager', () => ({
@@ -128,7 +127,7 @@ describe('Wallet Integration Tests', () => {
 
   describe('Account Management', () => {    
     it('should create new account', async () => {
-      const account = await walletService.createAccount();
+      const account = await walletService.createWallet();
       
       expect(account.address).toBeDefined();
       expect(account.address).toMatch(/^0x[a-fA-F0-9]{40}$/);
@@ -138,7 +137,7 @@ describe('Wallet Integration Tests', () => {
 
     it('should import existing account', async () => {
       const privateKey = '0x1234567890123456789012345678901234567890123456789012345678901234';
-      const account = await walletService.createAccount(privateKey);
+      const account = await walletService.importWallet(privateKey);
       
       expect(account.address).toBeDefined();
       expect(account.privateKey).toBe(privateKey);
@@ -147,10 +146,10 @@ describe('Wallet Integration Tests', () => {
 
   describe('Transaction Management', () => {
     const testPassword = 'testPassword123!';
-    let account: { address: string; privateKey: string };
+    let account: WalletAccount;
     
     beforeEach(async () => {
-      account = await walletService.createAccount();
+      account = await walletService.createWallet();
     });
 
     it('should send transaction with password', async () => {
@@ -217,10 +216,10 @@ describe('Wallet Integration Tests', () => {
 
   describe('Security and Key Management', () => {
     const testPassword = 'testPassword123!';
-    let account: { address: string; privateKey: string };
+    let account: WalletAccount;
     
     beforeEach(async () => {
-      account = await walletService.createAccount();
+      account = await walletService.createWallet();
     });
 
     it('should validate transaction signatures', async () => {

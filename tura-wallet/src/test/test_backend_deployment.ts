@@ -1,21 +1,21 @@
 import axios from 'axios';
 import { describe, it, expect, beforeAll } from 'vitest';
-import { Web3Service } from '../lib/web3_service';
+import { WalletService, WalletAccount } from '../lib/wallet';
 import { KeyManager } from '../lib/keyManager';
 
 describe('Backend Contract Deployment', () => {
   const TEST_PASSWORD = 'testPassword123';
   let encryptedKey: string;
-  let web3Service: Web3Service;
-  let keyManager: KeyManager;
+  let walletService: WalletService;
+  let wallet: WalletAccount;
 
   beforeAll(async () => {
     // Initialize services
-    web3Service = new Web3Service();
-    keyManager = new KeyManager();
+    walletService = new WalletService();
 
     // Create test wallet
-    const wallet = await web3Service.createWallet(TEST_PASSWORD);
+    wallet = await walletService.createWallet();
+    encryptedKey = await KeyManager.encryptKey(wallet.privateKey, TEST_PASSWORD);
     encryptedKey = wallet.encrypted_key;
   });
 
@@ -58,8 +58,8 @@ describe('Backend Contract Deployment', () => {
       });
       throw new Error('Should have failed with invalid password');
     } catch (error) {
-      expect(error.response.status).toBe(400);
-      expect(error.response.data.error).toContain('Failed to decrypt private key');
+      expect((error as any).response.status).toBe(400);
+      expect((error as any).response.data.error).toContain('Failed to decrypt private key');
     }
   });
 
@@ -70,8 +70,8 @@ describe('Backend Contract Deployment', () => {
       });
       throw new Error('Should have failed with missing parameters');
     } catch (error) {
-      expect(error.response.status).toBe(400);
-      expect(error.response.data.error).toContain('Missing required parameters');
+      expect((error as any).response.status).toBe(400);
+      expect((error as any).response.data.error).toContain('Missing required parameters');
     }
   });
 

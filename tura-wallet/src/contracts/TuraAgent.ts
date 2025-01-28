@@ -203,7 +203,11 @@ export async function deployTuraAgent(signer: ethers.Signer): Promise<string> {
     
     // Wait for deployment to complete
     console.log('Waiting for deployment transaction...');
-    const receipt = await contract.deployTransaction.wait();
+    const deployed = await contract.waitForDeployment();
+    const receipt = await deployed.deploymentTransaction()?.wait();
+    if (!receipt?.contractAddress) {
+      throw new Error('Contract deployment failed - no contract address in receipt');
+    }
     
     console.log('TuraAgent deployed to:', receipt.contractAddress);
     return receipt.contractAddress;
@@ -225,7 +229,7 @@ export async function checkTuraBalance(
 ): Promise<boolean> {
   try {
     const balance = await provider.getBalance(address);
-    return balance.gte(CONTRACT_CONFIG.subscriptionFee);
+    return balance >= BigInt(CONTRACT_CONFIG.subscriptionFee);
   } catch (error) {
     console.error('Balance check failed:', error);
     return false;

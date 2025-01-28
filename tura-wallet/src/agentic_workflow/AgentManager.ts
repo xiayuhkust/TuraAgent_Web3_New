@@ -10,7 +10,7 @@ import {
 // Using WalletManagerImpl for key management
 import { WalletManagerImpl } from '../lib/wallet_manager';
 import { AgentData } from '../types/agentTypes';
-import { readLocalAgents, saveLocalAgents, addAgent, getAgentsByOwner } from '../lib/agentStorage';
+import { addAgent, getAgentsByOwner } from '../lib/agentStorage';
 
 // Initialize DeepSeek client for intent recognition
 let openai: OpenAI | undefined;
@@ -225,13 +225,13 @@ Note: You must have a connected wallet with sufficient TURA balance (0.1 TURA) t
         return "Almost there! Please provide your GitHub and/or Twitter links (or type 'skip' to skip).";
 
       case 'collecting_socials':
-        let socialLinks = {};
+        let socialLinks: { github?: string; twitter?: string } = {};
         if (text.toLowerCase() !== 'skip') {
           // Basic URL validation
           const githubMatch = text.match(/github\.com\/[\w-]+/);
           const twitterMatch = text.match(/twitter\.com\/[\w-]+/);
-          if (githubMatch) socialLinks['github'] = githubMatch[0];
-          if (twitterMatch) socialLinks['twitter'] = twitterMatch[0];
+          if (githubMatch) socialLinks.github = githubMatch[0];
+          if (twitterMatch) socialLinks.twitter = twitterMatch[0];
         }
         this.registrationState.data = { 
           ...data, 
@@ -251,7 +251,7 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
         if (text.toLowerCase() === 'confirm') {
           // Reset state before deployment
           const registrationData = this.registrationState.data;
-          this.registrationState = { step: 'idle' };
+          this.registrationState = { step: 'idle', data: {} };
           
           try {
             // Get provider and signer
@@ -419,14 +419,14 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
             ].join('\n');
           }
         } else if (text.toLowerCase() === 'cancel') {
-          this.registrationState = { step: 'idle' };
+          this.registrationState = { step: 'idle', data: {} };
           return "Registration cancelled. Let me know if you'd like to try again!";
         } else {
           return "Please type 'confirm' to proceed with deployment or 'cancel' to abort.";
         }
 
       default:
-        this.registrationState = { step: 'idle' };
+        this.registrationState = { step: 'idle', data: {} };
         return "Something went wrong. Please start over by saying 'Deploy a new agent'.";
     }
   }
