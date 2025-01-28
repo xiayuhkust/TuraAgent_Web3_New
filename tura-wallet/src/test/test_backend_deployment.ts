@@ -5,7 +5,7 @@ import { KeyManager } from '../lib/keyManager';
 
 describe('Backend Contract Deployment', () => {
   const TEST_PASSWORD = 'testPassword123';
-  let encryptedKey: string;
+  let encryptedKeyData: { encryptedKey: string; salt: string; iv: string };
   let walletService: WalletService;
   let wallet: WalletAccount;
 
@@ -15,8 +15,8 @@ describe('Backend Contract Deployment', () => {
 
     // Create test wallet
     wallet = await walletService.createWallet();
-    encryptedKey = await KeyManager.encryptKey(wallet.privateKey, TEST_PASSWORD);
-    encryptedKey = wallet.encrypted_key;
+    encryptedKeyData = await KeyManager.encryptKey(wallet.privateKey, TEST_PASSWORD);
+    // encryptedKeyData is already set from KeyManager.encryptKey
   });
 
   it('should successfully send encrypted key and deploy contract', async () => {
@@ -32,7 +32,9 @@ describe('Backend Contract Deployment', () => {
 
     // Send deployment request to backend
     const response = await axios.post('http://localhost:5000/api/deploy', {
-      encrypted_key: encryptedKey,
+      encrypted_key: encryptedKeyData.encryptedKey,
+      salt: encryptedKeyData.salt,
+      iv: encryptedKeyData.iv,
       password: TEST_PASSWORD,
       constructorParams
     });
@@ -52,7 +54,9 @@ describe('Backend Contract Deployment', () => {
   it('should handle invalid password gracefully', async () => {
     try {
       await axios.post('http://localhost:5000/api/deploy', {
-        encrypted_key: encryptedKey,
+        encrypted_key: encryptedKeyData.encryptedKey,
+        salt: encryptedKeyData.salt,
+        iv: encryptedKeyData.iv,
         password: 'wrongPassword',
         constructorParams: {}
       });
@@ -78,7 +82,9 @@ describe('Backend Contract Deployment', () => {
   it('should handle constructor parameter variations', async () => {
     // Test with minimal constructor parameters
     const response = await axios.post('http://localhost:5000/api/deploy', {
-      encrypted_key: encryptedKey,
+      encrypted_key: encryptedKeyData.encryptedKey,
+      salt: encryptedKeyData.salt,
+      iv: encryptedKeyData.iv,
       password: TEST_PASSWORD,
       constructorParams: {} // Empty params should use defaults
     });
