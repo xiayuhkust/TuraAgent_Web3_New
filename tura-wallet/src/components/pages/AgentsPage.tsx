@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Bot, Plus } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Input } from '../ui/input';
+import { AgentManager } from '../../agentic_workflow/AgentManager';
 import {
   Dialog,
   DialogContent,
@@ -60,6 +62,42 @@ export default function AgentsPage() {
   const [showAgentStore, setShowAgentStore] = useState(false);
   const [storeTab, setStoreTab] = useState('agents');
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
+  const [password, setPassword] = useState('');
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [deploymentStatus, setDeploymentStatus] = useState<{
+    success?: string;
+    error?: string;
+  }>({});
+  
+  const handleTestDeploy = async () => {
+    const address = localStorage.getItem('lastWalletAddress');
+    if (!address) {
+      setDeploymentStatus({ error: 'Please connect your wallet first' });
+      return;
+    }
+    if (!password) {
+      setDeploymentStatus({ error: 'Please enter your wallet password' });
+      return;
+    }
+
+    setIsDeploying(true);
+    setDeploymentStatus({});
+    
+    try {
+      const agentManager = new AgentManager();
+      const contractAddress = await agentManager.deployTestAgent(address, password);
+      console.log('Test agent deployed at:', contractAddress);
+      setDeploymentStatus({ success: contractAddress });
+      setPassword('');
+    } catch (error) {
+      console.error('Test deployment failed:', error);
+      setDeploymentStatus({ 
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      });
+    } finally {
+      setIsDeploying(false);
+    }
+  };
 
   const handleAddAgent = (contractAddress: string) => {
     setSelectedAgents(prev => 
@@ -74,10 +112,37 @@ export default function AgentsPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Available Agents</CardTitle>
-          <Button onClick={() => setShowAgentStore(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Agent
-          </Button>
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Input
+                  type="password"
+                  placeholder="Wallet Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-48"
+                />
+                <Button 
+                  onClick={handleTestDeploy}
+                  disabled={isDeploying || !localStorage.getItem('lastWalletAddress')}
+                >
+                  {isDeploying ? 'Deploying...' : 'Test Deploy Agent'}
+                </Button>
+                <Button onClick={() => setShowAgentStore(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Agent
+                </Button>
+              </div>
+              {deploymentStatus.error && (
+                <span className="text-red-500 text-sm">{deploymentStatus.error}</span>
+              )}
+              {deploymentStatus.success && (
+                <span className="text-green-500 text-sm">
+                  Successfully deployed agent at: {deploymentStatus.success}
+                </span>
+              )}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
