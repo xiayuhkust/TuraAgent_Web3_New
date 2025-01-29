@@ -16,15 +16,14 @@ import { CONTRACT_CONFIG } from '../contracts/TuraAgent';
 // Initialize DeepSeek client for intent recognition
 let openai: OpenAI | undefined;
 try {
-  if (import.meta.env.VITE_DEEPSEEK_API_KEY) {
-    console.log('Initializing DeepSeek client for AgentManager');
+  if (import.meta.env.VITE_OPENAI_API_KEY) {
+    console.log('Initializing OpenAI client for AgentManager');
     openai = new OpenAI({
-      baseURL: 'https://api.deepseek.com/v1',
-      apiKey: import.meta.env.VITE_DEEPSEEK_API_KEY,
+      apiKey: import.meta.env.VITE_OPENAI_API_KEY,
       dangerouslyAllowBrowser: true
     });
   } else {
-    console.warn('DeepSeek API key not found - agent registration functionality will be limited');
+    console.warn('OpenAI API key not found - agent registration functionality will be limited');
   }
 } catch (error) {
   console.warn('Failed to initialize DeepSeek client:', error);
@@ -108,10 +107,10 @@ Remember: Always respond with exactly one category name in uppercase with unders
       let userIntent = 'GENERAL_HELP'; // Default fallback
       if (openai) {
         try {
-          console.log('Calling DeepSeek API for intent recognition');
+          console.log('Calling OpenAI API for intent recognition');
           const result = await openai.chat.completions.create({
             messages: conversationLog,
-            model: "deepseek-chat",
+            model: "gpt-3.5-turbo",
             temperature: 0,
             max_tokens: 15,
             presence_penalty: 0,
@@ -122,21 +121,26 @@ Remember: Always respond with exactly one category name in uppercase with unders
           userIntent = result.choices[0]?.message?.content?.trim() || userIntent;
           console.log('Detected intent:', userIntent);
         } catch (error) {
-          console.warn('DeepSeek API error - using fallback response:', error);
-          // If DeepSeek fails, try to match common deployment phrases
-          const deploymentPhrases = ['deploy', 'create agent', 'new agent'];
-          if (deploymentPhrases.some(phrase => text.toLowerCase().includes(phrase))) {
-            userIntent = 'DEPLOY_CONTRACT';
-            console.log('Fallback intent detection:', userIntent);
-          }
+          console.warn('OpenAI API error - using fallback response:', error);
+          const intentPhrases = {
+            DEPLOY_CONTRACT: ['deploy', 'create agent', 'new agent', 'deploy contract'],
+            LIST_AGENTS: ['show agents', 'list agents', 'my agents', 'view agents'],
+            CHECK_STATUS: ['status', 'check agent', 'deployment status'],
+            REGISTER_AGENT: ['register', 'add agent info', 'update agent']
+          };
+          userIntent = this.matchIntentFromText(text, intentPhrases);
+          console.log('Fallback intent detection:', userIntent);
         }
       } else {
-        // If no DeepSeek client, use basic phrase matching
-        const deploymentPhrases = ['deploy', 'create agent', 'new agent'];
-        if (deploymentPhrases.some(phrase => text.toLowerCase().includes(phrase))) {
-          userIntent = 'DEPLOY_CONTRACT';
-          console.log('Basic intent detection:', userIntent);
-        }
+        // If no OpenAI client, use basic phrase matching
+        const intentPhrases = {
+          DEPLOY_CONTRACT: ['deploy', 'create agent', 'new agent', 'deploy contract'],
+          LIST_AGENTS: ['show agents', 'list agents', 'my agents', 'view agents'],
+          CHECK_STATUS: ['status', 'check agent', 'deployment status'],
+          REGISTER_AGENT: ['register', 'add agent info', 'update agent']
+        };
+        userIntent = this.matchIntentFromText(text, intentPhrases);
+        console.log('Basic intent detection:', userIntent);
       }
 
       // Handle registration workflow state
@@ -521,6 +525,23 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
    * Check the status of agent deployments
    * TODO: Implement in step 004 with contract deployment
    */
+  /**
+   * Match user intent based on common phrases
+   */
+  private matchIntentFromText(text: string, intentPhrases: Record<string, string[]>): string {
+    const normalizedText = text.toLowerCase();
+    
+    for (const [intent, phrases] of Object.entries(intentPhrases)) {
+      if (phrases.some(phrase => normalizedText.includes(phrase))) {
+        console.log('Phrase matching found intent:', intent);
+        return intent;
+      }
+    }
+    
+    console.log('No matching phrases found, using default intent');
+    return 'GENERAL_HELP';
+  }
+
   /**
    * Verify a deployed contract by checking its bytecode and functionality
    * @param contractAddress The address of the deployed contract
