@@ -3,11 +3,10 @@ import { AlertTriangle, Mic, Send, Bot, RefreshCw } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
-import { ScrollArea } from '../ui/scroll-area';
-import { Badge } from '../ui/badge';
 
-import { Agent, OfficialAgent, WorkflowAgent, Message, SignatureDetails } from '../../types/agentTypes';
+import { ScrollArea } from '../ui/scroll-area';
+
+import { Agent, OfficialAgent, WorkflowAgent, Message } from '../../types/agentTypes';
 import { WalletAgent } from '../../agents/WalletAgent';
 
 function ChatPage() {
@@ -20,23 +19,15 @@ function ChatPage() {
   const [chatAddress, setChatAddress] = useState('');
   const [chatBalance, setChatBalance] = useState('0');
   const [activeAgent, setActiveAgent] = useState<Agent | OfficialAgent | WorkflowAgent | null>(null);
-  const [showSignatureDialog, setShowSignatureDialog] = useState(false);
-  const [password, setPassword] = useState('');
-  const [signatureDetails, setSignatureDetails] = useState<SignatureDetails | null>(null);
-  const [isWalletConnected, setIsWalletConnected] = useState(false);
-
   useEffect(() => {
     const storedAddress = localStorage.getItem('lastWalletAddress');
     if (storedAddress) {
       setChatAddress(storedAddress);
-      setIsWalletConnected(true);
     }
   }, []);
   
   const walletAgent = useRef<WalletAgent>(new WalletAgent());
-  const officialAgents = useRef<OfficialAgent[]>([]);
-  const agents = useRef<Agent[]>([]);
-  const workflows = useRef<WorkflowAgent[]>([]);
+  const officialAgents = useRef<OfficialAgent[]>([new WalletAgent()]);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -113,7 +104,7 @@ function ChatPage() {
           if (chatAddress) {
             try {
               setIsRefreshingBalance(true);
-              const balanceResponse = await walletAgent.processMessage('check balance');
+              const balanceResponse = await walletAgent.current.processMessage('check balance');
               const balanceMatch = balanceResponse.match(/contains (\d+(?:\.\d+)?)/);
               if (balanceMatch) {
                 setChatBalance(balanceMatch[1]);
@@ -365,91 +356,6 @@ function ChatPage() {
           </Button>
         </div>
       </CardContent>
-
-      <Dialog
-        open={showSignatureDialog}
-        onOpenChange={(open) => {
-          if (!open) {
-            setPassword('');
-          }
-          setShowSignatureDialog(open);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{signatureDetails?.title || 'Confirm Transaction'}</DialogTitle>
-            <DialogDescription className="whitespace-pre-wrap">
-              {signatureDetails?.description || 'Please confirm this transaction in your wallet.'}
-            </DialogDescription>
-          </DialogHeader>
-          
-          {signatureDetails?.requirePassword && (
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your wallet password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="col-span-3"
-                />
-              </div>
-            </div>
-          )}
-          
-          <DialogFooter className="flex justify-between">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setPassword('');
-                setShowSignatureDialog(false);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={async () => {
-                if (signatureDetails?.onConfirm) {
-                  try {
-                    if (signatureDetails.requirePassword && !password) {
-                      const agentKey = activeAgent?.name ?? 'unknown';
-                      setMessagesMap(prev => ({
-                        ...prev,
-                        [agentKey]: [...(prev[agentKey] || []), {
-                          id: Date.now().toString(),
-                          text: 'Error: Password is required',
-                          sender: 'error',
-                          timestamp: new Date().toISOString()
-                        }]
-                      }));
-                      return;
-                    }
-                    await signatureDetails.onConfirm(signatureDetails.requirePassword ? password : undefined);
-                    setPassword('');
-                    setShowSignatureDialog(false);
-                  } catch (error) {
-                    console.error('Transaction failed:', error);
-                    const agentKey = activeAgent?.name ?? 'unknown';
-                    setMessagesMap(prev => ({
-                      ...prev,
-                      [agentKey]: [...(prev[agentKey] || []), {
-                        id: Date.now().toString(),
-                        text: `Error: ${error instanceof Error ? error.message : 'Transaction failed'}`,
-                        sender: 'error',
-                        timestamp: new Date().toISOString()
-                      }]
-                    }));
-                  }
-                }
-              }}
-              disabled={signatureDetails?.requirePassword && !password}
-            >
-              Sign & Deploy
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 }
