@@ -14,10 +14,14 @@ interface Message {
 }
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesMap, setMessagesMap] = useState<Record<string, Message[]>>({});
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isWaitingForOpenAI, setIsWaitingForOpenAI] = useState(false);
+  const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
+  const [chatAddress, setChatAddress] = useState('');
+  const [chatBalance, setChatBalance] = useState('0');
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -40,16 +44,12 @@ export default function ChatPage() {
       timestamp: new Date().toISOString()
     };
 
-    setMessages(prev => [...prev, newMessage]);
+    const agentKey = activeAgent?.name ?? 'unknown';
+    setMessagesMap(prev => ({
+      ...prev,
+      [agentKey]: [...(prev[agentKey] || []), newMessage]
+    }));
     setInputText('');
-
-    // TODO: Implement agent response logic
-    const response: Message = {
-      id: (Date.now() + 1).toString(),
-      text: `Received: ${inputText}`,
-      sender: 'agent',
-      timestamp: new Date().toISOString()
-    };
 
       console.log('Processing message through agent:', {
         agent: activeAgent.name,
@@ -58,8 +58,8 @@ export default function ChatPage() {
       });
 
       // Clear any previous messages if switching agents
-      if (messages.length === 1 && messages[0].sender === 'agent') {
-        setMessages([]);
+      if (activeAgent && messagesMap[activeAgent.name]?.length === 1 && messagesMap[activeAgent.name][0].sender === 'agent') {
+        setMessagesMap(prev => ({ ...prev, [activeAgent.name]: [] }));
       }
       
       try {
@@ -82,62 +82,31 @@ export default function ChatPage() {
           ...prev,
           [agentKey]: [...(prev[agentKey] || []), response]
         }));
-      } catch (error) {
-        console.error('Error processing message:', error);
-        throw error;
-      }
-        
-      // Update UI state if needed
-      if (activeAgent.name === 'WalletAgent') {
-        console.log('Processing message through WalletAgent:', {
-          agent: activeAgent?.name || 'default',
-          message: inputText
-        });
-        const agentResponse = await walletAgent.processMessage(inputText);
-        console.log('Received agent response:', agentResponse);
-        
-        // Update UI state based on agent response
-        const storedAddress = localStorage.getItem('lastWalletAddress');
-        if (storedAddress !== chatAddress) {
-          setChatAddress(storedAddress || '');
-        }
-        
-        // Always refresh balance after agent response for faucet-related actions
-        if (chatAddress) {
-          try {
-            setIsRefreshingBalance(true);
-            const balanceResponse = await walletAgent.processMessage('check balance');
-            const balanceMatch = balanceResponse.match(/contains (\d+(?:\.\d+)?)/);
-            if (balanceMatch) {
-              setChatBalance(balanceMatch[1]);
+
+        // Update UI state if needed
+        if (activeAgent.name === 'WalletAgent') {
+          // Update UI state based on agent response
+          const storedAddress = localStorage.getItem('lastWalletAddress');
+          if (storedAddress !== chatAddress) {
+            setChatAddress(storedAddress || '');
+          }
+          
+          // Always refresh balance after agent response for faucet-related actions
+          if (chatAddress) {
+            try {
+              setIsRefreshingBalance(true);
+              const balanceResponse = await walletAgent.processMessage('check balance');
+              const balanceMatch = balanceResponse.match(/contains (\d+(?:\.\d+)?)/);
+              if (balanceMatch) {
+                setChatBalance(balanceMatch[1]);
+              }
+            } catch (error) {
+              console.error('Balance refresh failed:', error);
+            } finally {
+              setIsRefreshingBalance(false);
             }
-          } catch (error) {
-            console.error('Balance refresh failed:', error);
-          } finally {
-            setIsRefreshingBalance(false);
           }
         }
-
-        const response: Message = {
-          id: (Date.now() + 1).toString(),
-          text: agentResponse,
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        };
-
-        console.log('Adding response to messages:', response);
-        setMessages(prev => [...prev, response]);
-      } else if (activeAgent?.instance instanceof AgenticWorkflow) {
-        // Process message through agent's instance
-        const agentResponse = await activeAgent.instance.processMessage(inputText);
-        const response: Message = {
-          id: (Date.now() + 1).toString(),
-          text: agentResponse,
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        };
-        setMessages(prev => [...prev, response]);
-      }
     } catch (error: unknown) {
       console.error('Agent processing error:', error);
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -302,12 +271,17 @@ export default function ChatPage() {
       }, 15000);
     } catch (error) {
       console.error('Failed to start recording:', error);
-      setMessages(prev => [...prev, {
+      const errorMessage: Message = {
         id: Date.now().toString(),
         text: 'Failed to start recording. Please check your microphone permissions.',
         sender: 'error',
         timestamp: new Date().toISOString()
-      }]);
+      };
+      const agentKey = activeAgent?.name ?? 'unknown';
+      setMessagesMap(prev => ({
+        ...prev,
+        [agentKey]: [...(prev[agentKey] || []), errorMessage]
+      }));
     }
   };
 
@@ -337,12 +311,17 @@ export default function ChatPage() {
       setInputText(data.text);
     } catch (error) {
       console.error('Speech-to-text error:', error);
-      setMessages(prev => [...prev, {
+      const errorMessage: Message = {
         id: Date.now().toString(),
         text: 'Failed to convert speech to text. Please try again.',
         sender: 'error',
         timestamp: new Date().toISOString()
-      }]);
+      };
+      const agentKey = activeAgent?.name ?? 'unknown';
+      setMessagesMap(prev => ({
+        ...prev,
+        [agentKey]: [...(prev[agentKey] || []), errorMessage]
+      }));
     } finally {
       setIsLoading(false);
     }
