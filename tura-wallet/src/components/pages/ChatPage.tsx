@@ -120,7 +120,7 @@ export default function ChatPage() {
         return;
       }
 
-      const agentResponse = await activeAgent.instance.processMessage(inputText);
+      await activeAgent.instance.processMessage(inputText);
       
       if (activeAgent.name === 'WalletAgent') {
         const storedAddress = localStorage.getItem('lastWalletAddress');
