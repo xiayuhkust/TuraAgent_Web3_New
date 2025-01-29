@@ -135,7 +135,7 @@ const WalletContent: React.FC = () => {
           </CardDescription>
         </CardHeader>
         
-        <card_1.CardContent>
+        <CardContent>
           <div className="space-y-4">
             {address ? (<>
                 <div className="p-4 bg-secondary rounded-lg">
@@ -162,11 +162,11 @@ const WalletContent: React.FC = () => {
                 No wallet connected
               </div>)}
           </div>
-        </card_1.CardContent>
+        </CardContent>
         
-        <card_1.CardFooter className="flex flex-col gap-2">
+        <CardFooter className="flex flex-col gap-2">
           {!address ? (<div className="flex flex-col gap-2 w-full">
-              <button_1.Button className="w-full relative" onClick={async () => {
+              <Button className="w-full relative" onClick={async () => {
                 if (isCreatingWallet)
                     return;
                 try {
@@ -217,15 +217,15 @@ const WalletContent: React.FC = () => {
                 }
             }} disabled={isCreatingWallet} aria-disabled={isCreatingWallet}>
                 <div className="flex items-center justify-center w-full">
-                  {isCreatingWallet ? (<lucide_react_1.RefreshCw className="mr-2 h-4 w-4 animate-spin"/>) : (<lucide_react_1.Key className="mr-2 h-4 w-4"/>)}
+                  {isCreatingWallet ? (<RefreshCw className="mr-2 h-4 w-4 animate-spin"/>) : (<Key className="mr-2 h-4 w-4"/>)}
                   <span>{isCreatingWallet ? 'Creating Wallet...' : 'Create New Wallet'}</span>
                 </div>
-              </button_1.Button>
-              <button_1.Button variant="outline" className="w-full" onClick={() => setShowRestore(true)} disabled={isCreatingWallet}>
-                <lucide_react_1.RotateCcw className="mr-2 h-4 w-4"/>
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => setShowRestore(true)} disabled={isCreatingWallet}>
+                <RotateCcw className="mr-2 h-4 w-4"/>
                 Restore Wallet
-              </button_1.Button>
-            </div>) : !isLoggedIn ? (<button_1.Button className="w-full relative" onClick={async () => {
+              </Button>
+            </div>) : !isLoggedIn ? (<Button className="w-full relative" onClick={async () => {
                 if (isLoggingIn)
                     return;
                 try {
@@ -262,15 +262,15 @@ const WalletContent: React.FC = () => {
                 }
             }} disabled={isLoggingIn} aria-disabled={isLoggingIn}>
               <div className="flex items-center justify-center w-full">
-                {isLoggingIn ? (<lucide_react_1.RefreshCw className="mr-2 h-4 w-4 animate-spin"/>) : (<lucide_react_1.Lock className="mr-2 h-4 w-4"/>)}
+                {isLoggingIn ? (<RefreshCw className="mr-2 h-4 w-4 animate-spin"/>) : (<Lock className="mr-2 h-4 w-4"/>)}
                 <span>{isLoggingIn ? 'Logging in...' : 'Login to Wallet'}</span>
               </div>
-            </button_1.Button>) : (<>
-              <button_1.Button className="w-full" onClick={handleSend} disabled={isSigningTransaction} aria-disabled={isSigningTransaction}>
-                {isSigningTransaction ? (<lucide_react_1.RefreshCw className="mr-2 h-4 w-4 animate-spin"/>) : (<lucide_react_1.Send className="mr-2 h-4 w-4"/>)}
+            </Button>) : (<>
+              <Button className="w-full" onClick={handleSend} disabled={isSigningTransaction} aria-disabled={isSigningTransaction}>
+                {isSigningTransaction ? (<RefreshCw className="mr-2 h-4 w-4 animate-spin"/>) : (<Send className="mr-2 h-4 w-4"/>)}
                 <span>{isSigningTransaction ? 'Sending...' : 'Send TURA'}</span>
-              </button_1.Button>
-              <button_1.Button variant="outline" className="w-full relative" onClick={async () => {
+              </Button>
+              <Button variant="outline" className="w-full relative" onClick={async () => {
                 if (isRefreshingBalance)
                     return;
                 try {
@@ -298,20 +298,20 @@ const WalletContent: React.FC = () => {
                 }
             }} disabled={isRefreshingBalance} aria-disabled={isRefreshingBalance}>
                 <div className="flex items-center justify-center w-full">
-                  <lucide_react_1.RefreshCw className={`mr-2 h-4 w-4 ${isRefreshingBalance ? 'animate-spin' : ''}`}/>
+                  <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshingBalance ? 'animate-spin' : ''}`}/>
                   <span>{isRefreshingBalance ? 'Refreshing...' : 'Refresh Balance'}</span>
                 </div>
-              </button_1.Button>
+              </Button>
             </>)}
-        </card_1.CardFooter>
-      </card_1.Card>
+        </CardFooter>
+      </Card>
 
 
-      <dialog_1.Dialog open={showMnemonic} onOpenChange={setShowMnemonic}>
-        <dialog_1.DialogContent>
-          <dialog_1.DialogHeader>
-            <dialog_1.DialogTitle>Important: Backup Your Mnemonic Phrase</dialog_1.DialogTitle>
-            <dialog_1.DialogDescription className="space-y-4">
+      <Dialog open={showMnemonic} onOpenChange={setShowMnemonic}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Important: Backup Your Mnemonic Phrase</DialogTitle>
+            <DialogDescription className="space-y-4">
               <p>Please write down these 12 words in order and keep them safe. They are the only way to recover your wallet if you lose access.</p>
               <div className="grid grid-cols-3 gap-2 p-4 bg-muted rounded-lg">
                 {mnemonic.split(' ').map((word, index) => (<div key={index} className="flex items-center">
@@ -320,38 +320,38 @@ const WalletContent: React.FC = () => {
                   </div>))}
               </div>
               <p className="text-destructive font-semibold">Warning: Never share your mnemonic phrase with anyone!</p>
-            </dialog_1.DialogDescription>
-          </dialog_1.DialogHeader>
-          <dialog_1.DialogFooter>
-            <button_1.Button variant="outline" onClick={() => setShowMnemonic(false)}>Close</button_1.Button>
-            <button_1.Button onClick={() => {
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowMnemonic(false)}>Close</Button>
+            <Button onClick={() => {
             setShowMnemonic(false);
             localStorage.setItem('lastWalletAddress', address);
         }}>
               I've Backed Up My Phrase
-            </button_1.Button>
-          </dialog_1.DialogFooter>
-        </dialog_1.DialogContent>
-      </dialog_1.Dialog>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      <dialog_1.Dialog open={showRestore} onOpenChange={setShowRestore}>
-        <dialog_1.DialogContent>
-          <dialog_1.DialogHeader>
-            <dialog_1.DialogTitle>Restore Wallet from Mnemonic</dialog_1.DialogTitle>
-            <dialog_1.DialogDescription className="space-y-4">
+      <Dialog open={showRestore} onOpenChange={setShowRestore}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Restore Wallet from Mnemonic</DialogTitle>
+            <DialogDescription className="space-y-4">
               <p>Enter your 12-word mnemonic phrase to restore your wallet.</p>
-              <input_1.Input placeholder="Enter your mnemonic phrase" value={restoreMnemonic} onChange={(e) => setRestoreMnemonic(e.target.value)} className="font-mono"/>
+              <Input placeholder="Enter your mnemonic phrase" value={restoreMnemonic} onChange={(e) => setRestoreMnemonic(e.target.value)} className="font-mono"/>
               <p className="text-sm text-muted-foreground">Words should be separated by spaces</p>
-            </dialog_1.DialogDescription>
-          </dialog_1.DialogHeader>
-          <dialog_1.DialogFooter>
-            <button_1.Button variant="outline" onClick={() => {
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
             setShowRestore(false);
             setRestoreMnemonic('');
         }}>
               Cancel
-            </button_1.Button>
-            <button_1.Button onClick={async () => {
+            </Button>
+            <Button onClick={async () => {
             if (isRestoringWallet)
                 return;
             try {
@@ -392,19 +392,19 @@ const WalletContent: React.FC = () => {
             }
         }} disabled={isRestoringWallet} aria-disabled={isRestoringWallet}>
               <div className="flex items-center justify-center w-full">
-                {isRestoringWallet ? (<lucide_react_1.RefreshCw className="mr-2 h-4 w-4 animate-spin"/>) : null}
+                {isRestoringWallet ? (<RefreshCw className="mr-2 h-4 w-4 animate-spin"/>) : null}
                 <span>{isRestoringWallet ? 'Restoring...' : 'Restore Wallet'}</span>
               </div>
-            </button_1.Button>
-          </dialog_1.DialogFooter>
-        </dialog_1.DialogContent>
-      </dialog_1.Dialog>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      <dialog_1.Dialog open={showSignature} onOpenChange={setShowSignature}>
-        <dialog_1.DialogContent>
-          <dialog_1.DialogHeader>
-            <dialog_1.DialogTitle>Confirm Transaction</dialog_1.DialogTitle>
-            <dialog_1.DialogDescription className="space-y-4">
+      <Dialog open={showSignature} onOpenChange={setShowSignature}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Transaction</DialogTitle>
+            <DialogDescription className="space-y-4">
               <p>Please review and confirm this transaction on the Tura network (Chain ID: 1337):</p>
               <div className="space-y-2 p-4 bg-muted rounded-lg">
                 <div className="grid grid-cols-[auto,1fr] gap-2">
@@ -424,16 +424,16 @@ const WalletContent: React.FC = () => {
               <p className="text-sm text-muted-foreground">
                 Make sure you trust this site and understand what you're signing.
               </p>
-            </dialog_1.DialogDescription>
-          </dialog_1.DialogHeader>
-          <dialog_1.DialogFooter>
-            <button_1.Button variant="outline" onClick={() => {
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
             signatureDetails?.onReject();
             setShowSignature(false);
         }} disabled={isSigningTransaction}>
               Reject
-            </button_1.Button>
-            <button_1.Button onClick={async () => {
+            </Button>
+            <Button onClick={async () => {
             if (signatureDetails?.onConfirm) {
                 try {
                     setIsSigningTransaction(true);
@@ -444,11 +444,11 @@ const WalletContent: React.FC = () => {
                 }
             }
         }} disabled={isSigningTransaction}>
-              {isSigningTransaction ? (<lucide_react_1.RefreshCw className="mr-2 h-4 w-4 animate-spin"/>) : null}
+              {isSigningTransaction ? (<RefreshCw className="mr-2 h-4 w-4 animate-spin"/>) : null}
               {isSigningTransaction ? 'Signing...' : 'Sign'}
-            </button_1.Button>
-          </dialog_1.DialogFooter>
-        </dialog_1.DialogContent>
-      </dialog_1.Dialog>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>);
 }
