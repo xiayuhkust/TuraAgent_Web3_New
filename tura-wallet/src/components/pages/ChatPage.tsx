@@ -56,29 +56,70 @@ export default function ChatPage() {
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isWaitingForDeepseek, setIsWaitingForDeepseek] = useState(false);
-  const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(officialAgents[0]); // Default to WalletAgent
+  const [isWaitingForOpenAI, setIsWaitingForOpenAI] = useState(false);
+  // Initialize with AgentManager for deployment functionality
+  const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(() => {
+    // Initialize with AgentManager
+    const agentManager = officialAgents.find(agent => agent.name === 'AgentManager');
+    if (!agentManager) {
+      console.error('AgentManager not found in officialAgents');
+      return null;
+    }
+    console.log('Initializing with agent:', agentManager.name);
+    return agentManager;
+  });
+
+  // Effect to handle agent switching
+  useEffect(() => {
+    if (activeAgent) {
+      console.log('Active agent changed:', {
+        name: activeAgent.name,
+        instance: activeAgent.instance ? 'present' : 'missing'
+      });
+    }
+  }, [activeAgent]);
   const [chatAddress, setChatAddress] = useState('');
   const [chatBalance, setChatBalance] = useState('0');
   const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
   const [lastMessageTime, setLastMessageTime] = useState<number>(Date.now());
-  const [walletAgent] = useState(() => (officialAgents[0].instance as WalletAgent));
+  const [walletAgent] = useState(() => {
+    const agent = officialAgents.find(agent => agent.name === 'WalletAgent');
+    return agent?.instance as WalletAgent;
+  });
   
-  // Initialize messages with welcome message
+  // Initialize messages with welcome message based on active agent
+  // Initialize chat with welcome message
   useEffect(() => {
     const initializeChat = async () => {
-      if (messages.length === 0) {
-        const welcomeMessage: Message = {
-          id: Date.now().toString(),
-          text: 'Welcome! I am your WalletAgent. I can help you create a wallet, check your balance, or request test tokens. How can I assist you today?',
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        };
-        setMessages([welcomeMessage]);
+      if (messages.length === 0 && activeAgent?.instance) {
+        console.log('Initializing chat with agent:', activeAgent.name);
+        try {
+          // Get welcome message from agent instance
+          const welcomeResponse = await activeAgent.instance.processMessage('help');
+          const welcomeMessage: Message = {
+            id: Date.now().toString(),
+            text: welcomeResponse,
+            sender: 'agent',
+            timestamp: new Date().toISOString()
+          };
+          setMessages([welcomeMessage]);
+        } catch (error) {
+          console.error('Failed to get welcome message:', error);
+          // Fallback welcome message
+          const fallbackMessage: Message = {
+            id: Date.now().toString(),
+            text: activeAgent.name === 'AgentManager'
+              ? 'Welcome! I am the AgentManager. I can help you deploy and manage TuraAgent contracts. How can I assist you today?'
+              : 'Welcome! I am your WalletAgent. I can help you create a wallet, check your balance, or request test tokens. How can I assist you today?',
+            sender: 'agent',
+            timestamp: new Date().toISOString()
+          };
+          setMessages([fallbackMessage]);
+        }
       }
     };
     initializeChat();
-  }, []);
+  }, [activeAgent]);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -97,14 +138,6 @@ export default function ChatPage() {
           if (balanceMatch) {
             setChatBalance(balanceMatch[1]);
           }
-        } else {
-          const welcomeResponse = await walletAgent.processMessage('help');
-          setMessages(prev => [...prev, {
-            id: Date.now().toString(),
-            text: welcomeResponse,
-            sender: 'agent',
-            timestamp: new Date().toISOString()
-          }]);
         }
       } catch (error) {
         console.error('Failed to initialize chat:', error);
@@ -158,10 +191,46 @@ export default function ChatPage() {
     setLastMessageTime(Date.now());
 
     try {
-      setIsWaitingForDeepseek(true);
-      // Process message through WalletAgent
-      if (!activeAgent || activeAgent.name === 'WalletAgent') {
-        console.log('Processing message through WalletAgent:', inputText);
+      setIsWaitingForOpenAI(true);
+      // Process message through appropriate agent
+      if (!activeAgent || !activeAgent.instance) {
+        throw new Error('No active agent available');
+      }
+
+      console.log('Processing message through agent:', {
+        agent: activeAgent.name,
+        instance: activeAgent.instance.constructor.name,
+        message: inputText
+      });
+
+      // Clear any previous messages if switching agents
+      if (messages.length === 1 && messages[0].sender === 'agent') {
+        setMessages([]);
+      }
+      
+      try {
+        // Get agent response
+        const agentResponse = await activeAgent.instance.processMessage(inputText);
+        console.log('Received agent response:', agentResponse);
+        
+        // Create message object
+        const response: Message = {
+          id: Date.now().toString(),
+          text: agentResponse,
+          sender: 'agent',
+          timestamp: new Date().toISOString()
+        };
+
+        // Add response to chat
+        console.log('Adding response to messages:', response);
+        setMessages(prev => [...prev, response]);
+        
+        // Update UI state if needed
+        if (activeAgent.name === 'WalletAgent') {
+        console.log('Processing message through WalletAgent:', {
+          agent: activeAgent?.name || 'default',
+          message: inputText
+        });
         const agentResponse = await walletAgent.processMessage(inputText);
         console.log('Received agent response:', agentResponse);
         
@@ -218,7 +287,7 @@ export default function ChatPage() {
       };
       setMessages(prev => [...prev, errorResponse]);
     } finally {
-      setIsWaitingForDeepseek(false);
+      setIsWaitingForOpenAI(false);
     }
   };
 
@@ -691,10 +760,10 @@ export default function ChatPage() {
             </div>
           </ScrollArea>
           
-          {isWaitingForDeepseek && (
+          {isWaitingForOpenAI && (
             <div className="flex items-center justify-center py-2">
               <div className="animate-pulse text-sm text-muted-foreground">
-                Waiting for DeepSeek response...
+                Waiting for OpenAI response...
               </div>
             </div>
           )}
@@ -703,7 +772,7 @@ export default function ChatPage() {
               variant="outline"
               size="icon"
               onClick={isRecording ? stopRecording : startRecording}
-              disabled={isLoading || isWaitingForDeepseek}
+              disabled={isLoading || isWaitingForOpenAI}
               className={isRecording ? 'text-destructive' : ''}
             >
               <Mic className="h-4 w-4" />
@@ -713,12 +782,12 @@ export default function ChatPage() {
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              disabled={isLoading || isWaitingForDeepseek}
+              disabled={isLoading || isWaitingForOpenAI}
             />
             <Button 
               onClick={handleSendMessage} 
-              disabled={isLoading || isWaitingForDeepseek}
-              className={isWaitingForDeepseek ? 'opacity-50' : ''}
+              disabled={isLoading || isWaitingForOpenAI}
+              className={isWaitingForOpenAI ? 'opacity-50' : ''}
             >
               <Send className="h-4 w-4" />
             </Button>
