@@ -25,6 +25,11 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    cors: true,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+    },
+    allowedHosts: ['frontend-deploy-app-tunnel-xuzsroun.devinapps.com'],
     proxy: {
       '/rpc': {
         target: 'https://43.135.26.222:8088',
