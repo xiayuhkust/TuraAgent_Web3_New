@@ -13,7 +13,7 @@ interface SignatureDetails {
     onReject: () => void;
 }
 
-const WalletContent: React.FC = () => {
+export const WalletContent: React.FC = () => {
     const [balance, setBalance] = useState('0');
     const [address, setAddress] = useState('');
     const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -103,7 +103,7 @@ const WalletContent: React.FC = () => {
                     catch (error) {
                         console.error('Transaction failed:', error);
                         const walletError = error;
-                        setError('Transaction failed: ' + walletError.message);
+                        setError('Transaction failed: ' + (walletError as Error).message);
                         setShowSignature(false);
                     }
                     finally {
@@ -120,7 +120,7 @@ const WalletContent: React.FC = () => {
         catch (error) {
             console.error('Transaction failed:', error);
             const walletError = error;
-            setError('Transaction failed: ' + walletError.message);
+            setError('Transaction failed: ' + (walletError as Error).message);
         }
     };
     return (<div className="container mx-auto p-4">
@@ -199,7 +199,7 @@ const WalletContent: React.FC = () => {
                             walletManager.getBalance(wallet.address),
                             new Promise((_, reject) => setTimeout(() => reject(new Error('Balance check timed out')), 10000))
                         ]);
-                        setBalance(balance);
+                        setBalance(balance.toString());
                         setLastBalanceUpdate(new Date());
                     }
                     catch (e) {
@@ -210,7 +210,7 @@ const WalletContent: React.FC = () => {
                 catch (error) {
                     console.error('Failed to create wallet:', error);
                     const walletError = error;
-                    setError('Failed to create wallet: ' + walletError.message);
+                    setError('Failed to create wallet: ' + (walletError as Error).message);
                 }
                 finally {
                     setIsCreatingWallet(false);
@@ -246,7 +246,7 @@ const WalletContent: React.FC = () => {
                             walletManager.getBalance(address),
                             new Promise((_, reject) => setTimeout(() => reject(new Error('Balance check timed out')), 10000))
                         ]);
-                        setBalance(balance);
+                        setBalance(balance.toString());
                         setLastBalanceUpdate(new Date());
                     }
                     catch (error) {
@@ -255,7 +255,7 @@ const WalletContent: React.FC = () => {
                 }
                 catch (error) {
                     const walletError = error;
-                    setError('Login failed: ' + walletError.message);
+                    setError('Login failed: ' + (walletError as Error).message);
                 }
                 finally {
                     setIsLoggingIn(false);
@@ -280,7 +280,7 @@ const WalletContent: React.FC = () => {
                         walletManager.getBalance(address),
                         new Promise((_, reject) => setTimeout(() => reject(new Error('Balance refresh timed out')), 10000))
                     ]);
-                    setBalance(newBalance);
+                    setBalance(newBalance.toString());
                     setLastBalanceUpdate(new Date());
                     const successMessage = 'Balance updated successfully';
                     setError(successMessage);
@@ -290,7 +290,7 @@ const WalletContent: React.FC = () => {
                 }
                 catch (error) {
                     const walletError = error;
-                    setError('Failed to refresh balance: ' + walletError.message);
+                    setError('Failed to refresh balance: ' + (walletError as Error).message);
                     console.error('Balance refresh failed:', error);
                 }
                 finally {
@@ -376,7 +376,7 @@ const WalletContent: React.FC = () => {
                         walletManager.getBalance(wallet.address),
                         new Promise((_, reject) => setTimeout(() => reject(new Error('Balance check timed out')), 10000))
                     ]);
-                    setBalance(balance);
+                    setBalance(balance.toString());
                     setLastBalanceUpdate(new Date());
                 }
                 catch (e) {
@@ -385,7 +385,7 @@ const WalletContent: React.FC = () => {
                 }
             }
             catch (error) {
-                setError('Failed to restore wallet: ' + error.message);
+                setError('Failed to restore wallet: ' + (error as Error).message);
             }
             finally {
                 setIsRestoringWallet(false);
@@ -452,3 +452,5 @@ const WalletContent: React.FC = () => {
       </Dialog>
     </div>);
 }
+
+export default WalletContent;

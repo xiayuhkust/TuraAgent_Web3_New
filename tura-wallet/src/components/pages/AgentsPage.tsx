@@ -71,7 +71,7 @@ const officialAgents: OfficialAgent[] = [
     },
     // Add more official agents as needed
 ];
-const AgentsPage: React.FC = () => {
+export const AgentsPage: React.FC = () => {
     const [showAgentStore, setShowAgentStore] = useState(false);
     const [storeTab, setStoreTab] = useState('agents');
     const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
@@ -233,3 +233,5 @@ const AgentsPage: React.FC = () => {
       </Dialog>
     </div>);
 }
+
+export default AgentsPage;
