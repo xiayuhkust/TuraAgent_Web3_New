@@ -36,8 +36,8 @@ export class WalletService {
       nativeCurrency: CHAIN_CONFIG.nativeCurrency
     });
 
-    // Initialize with HTTP provider first
-    let provider = new Web3.providers.HttpProvider(CHAIN_CONFIG.rpcUrl);
+    // Initialize Web3 with HTTPS endpoint
+    const provider = new Web3.providers.HttpProvider(CHAIN_CONFIG.rpcUrl);
     this.web3 = new Web3(provider);
     
     // Then try to detect and setup MetaMask or use CustomProvider
@@ -218,17 +218,22 @@ export class WalletService {
 
   async getBalance(address: string) {
     try {
-      // Validate address format
+      console.log('Getting balance for address:', address);
+      console.log('Web3 provider:', this.web3.currentProvider);
+      console.log('Chain ID:', await this.web3.eth.getChainId());
+      
       if (!this.web3.utils.isAddress(address)) {
         throw new Error('Invalid Ethereum address format');
       }
       
-      // For testing: Return mock balance with simulated delay
-      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
-      const mockBalance = '1.0'; // Simulated 1 TURA balance
-      console.log('Balance for', address, ':', mockBalance, 'TURA (mock for testing)');
+      console.log('Fetching balance...');
+      const balanceWei = await this.web3.eth.getBalance(address);
+      console.log('Raw balance (Wei):', balanceWei);
       
-      return mockBalance;
+      const balanceEther = this.web3.utils.fromWei(balanceWei, 'ether');
+      console.log('Converted balance (TURA):', balanceEther);
+      
+      return balanceEther;
     } catch (error) {
       console.error('Failed to get balance:', error);
       if (error instanceof Error) {

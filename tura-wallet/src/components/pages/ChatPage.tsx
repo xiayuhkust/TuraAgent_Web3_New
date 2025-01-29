@@ -90,6 +90,7 @@ export default function ChatPage() {
         const storedAddress = localStorage.getItem('lastWalletAddress');
         if (storedAddress) {
           setChatAddress(storedAddress);
+          // Check wallet session through WalletAgent
           const response = await walletAgent.processMessage('check balance');
           const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
           if (balanceMatch) {
@@ -117,18 +118,21 @@ export default function ChatPage() {
 
     initializeChat();
 
-    // Set up balance refresh interval after faucet transactions
+    // Set up balance refresh interval for transactions and deployments
     const refreshInterval = setInterval(async () => {
-      const timeSinceLastMessage = Date.now() - lastMessageTime;
-      // Only refresh if there was a message in the last 30 seconds
-      if (timeSinceLastMessage < 30000 && chatAddress) {
-        const response = await walletAgent.processMessage('check balance');
-        const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
-        if (balanceMatch) {
-          setChatBalance(balanceMatch[1]);
+      // Refresh more frequently right after a message (every 2s for first 30s)
+      if (chatAddress) {
+        try {
+          const response = await walletAgent.processMessage('check balance');
+          const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
+          if (balanceMatch) {
+            setChatBalance(balanceMatch[1]);
+          }
+        } catch (error) {
+          console.error('Balance refresh failed:', error);
         }
       }
-    }, 5000); // Check every 5 seconds
+    }, Date.now() - lastMessageTime < 30000 ? 2000 : 5000);
 
     return () => clearInterval(refreshInterval);
   }, [walletAgent, lastMessageTime, chatAddress]);
@@ -516,6 +520,9 @@ export default function ChatPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Chat Interface */}
+
 
       <CardContent className="flex h-full gap-4">
         {/* AgenticWorkflow Sidebar */}

@@ -161,7 +161,7 @@ export class WalletManagerImpl {
         expires: Date.now() + (5 * 60 * 1000)
       };
       const encryptedSession = await this._encrypt(sessionData, 'session');
-      sessionStorage.setItem(this.sessionKey, encryptedSession);
+      localStorage.setItem(this.sessionKey, encryptedSession);
 
       return {
         address: account.address,
@@ -233,7 +233,7 @@ export class WalletManagerImpl {
       };
       
       const encryptedSession = await this._encrypt(sessionData, 'session');
-      sessionStorage.setItem(this.sessionKey, encryptedSession);
+      localStorage.setItem(this.sessionKey, encryptedSession);
       
       return {
         address: walletData.address,
@@ -298,12 +298,12 @@ export class WalletManagerImpl {
 
   async getSession(): Promise<SessionData | null> {
     try {
-      if (!window.sessionStorage) {
-        console.warn('Session storage not available');
+      if (!window.localStorage) {
+        console.warn('Local storage not available');
         return null;
       }
 
-      const encrypted = sessionStorage.getItem(this.sessionKey);
+      const encrypted = localStorage.getItem(this.sessionKey);
       if (!encrypted) {
         return null;
       }
