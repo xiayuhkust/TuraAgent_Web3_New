@@ -206,7 +206,7 @@ export class WalletService {
       // Get and verify chain ID
       const currentChainId = await this.web3.eth.getChainId();
       console.log('Current chain ID:', currentChainId);
-      if (currentChainId !== CHAIN_CONFIG.chainId) {
+      if (Number(currentChainId) !== CHAIN_CONFIG.chainId) {
         throw new Error(`Wrong chain ID. Expected ${CHAIN_CONFIG.chainId}, got ${currentChainId}`);
       }
       
