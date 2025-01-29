@@ -37,18 +37,26 @@ export default defineConfig({
           });
           proxy.on('proxyReq', (proxyReq, req, _res) => {
             console.log('Proxying:', req.method, req.url, '=>', proxyReq.path);
-            // Add required headers for JSON-RPC
-            proxyReq.setHeader('Content-Type', 'application/json');
-            proxyReq.setHeader('Accept', 'application/json');
+            if (req.body) {
+              const bodyData = JSON.stringify(req.body);
+              proxyReq.setHeader('Content-Type', 'application/json');
+              proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+              proxyReq.write(bodyData);
+            }
           });
-          proxy.on('proxyRes', (proxyRes) => {
-            console.log('Received response:', {
-              status: proxyRes.statusCode,
-              headers: proxyRes.headers
-            });
+          proxy.on('proxyRes', (proxyRes, req, res) => {
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+            console.log('Response:', proxyRes.statusCode);
           });
         }
       }
+    },
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type'
     }
   }
 })
