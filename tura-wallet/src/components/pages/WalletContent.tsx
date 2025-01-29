@@ -195,11 +195,11 @@ export const WalletContent: React.FC = () => {
                     setShowMnemonic(true);
                     setIsLoggedIn(true);
                     try {
-                        const balance = await Promise.race([
+                        const balance = await Promise.race<string>([
                             walletManager.getBalance(wallet.address),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('Balance check timed out')), 10000))
+                            new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Balance check timed out')), 10000))
                         ]);
-                        setBalance(balance.toString());
+                        setBalance(balance);
                         setLastBalanceUpdate(new Date());
                     }
                     catch (e) {
@@ -242,11 +242,11 @@ export const WalletContent: React.FC = () => {
                     }));
                     setIsLoggedIn(true);
                     try {
-                        const balance = await Promise.race([
+                        const balance = await Promise.race<string>([
                             walletManager.getBalance(address),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('Balance check timed out')), 10000))
+                            new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Balance check timed out')), 10000))
                         ]);
-                        setBalance(balance.toString());
+                        setBalance(balance);
                         setLastBalanceUpdate(new Date());
                     }
                     catch (error) {
@@ -276,11 +276,11 @@ export const WalletContent: React.FC = () => {
                 try {
                     setIsRefreshingBalance(true);
                     setError('');
-                    const newBalance = await Promise.race([
+                    const newBalance = await Promise.race<string>([
                         walletManager.getBalance(address),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('Balance refresh timed out')), 10000))
+                        new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Balance refresh timed out')), 10000))
                     ]);
-                    setBalance(newBalance.toString());
+                    setBalance(newBalance);
                     setLastBalanceUpdate(new Date());
                     const successMessage = 'Balance updated successfully';
                     setError(successMessage);
@@ -372,11 +372,11 @@ export const WalletContent: React.FC = () => {
                 setShowRestore(false);
                 setRestoreMnemonic('');
                 try {
-                    const balance = await Promise.race([
+                    const balance = await Promise.race<string>([
                         walletManager.getBalance(wallet.address),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('Balance check timed out')), 10000))
+                        new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Balance check timed out')), 10000))
                     ]);
-                    setBalance(balance.toString());
+                    setBalance(balance);
                     setLastBalanceUpdate(new Date());
                 }
                 catch (e) {
