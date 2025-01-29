@@ -26,25 +26,51 @@ export default defineConfig({
     host: true,
     port: 5173,
     proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('API proxy error:', err);
+          });
+          proxy.on('proxyRes', (_proxyRes: any, _req: any, res: any) => {
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+          });
+        }
+      },
       '/rpc': {
         target: 'https://43.135.26.222:8088',
         changeOrigin: true,
         secure: false,
+        ws: true,
         rewrite: (path) => path.replace(/^\/rpc/, ''),
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
             console.log('proxy error', err);
           });
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
+          proxy.on('proxyReq', (proxyReq: any, req: any, _res: any) => {
             console.log('Proxying:', req.method, req.url, '=>', proxyReq.path);
-            if (req.body) {
-              const bodyData = JSON.stringify(req.body);
-              proxyReq.setHeader('Content-Type', 'application/json');
-              proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
-              proxyReq.write(bodyData);
-            }
+            let body = '';
+            req.on('data', (chunk: Buffer) => {
+              body += chunk.toString();
+            });
+            req.on('end', () => {
+              if (body) {
+                proxyReq.setHeader('Content-Type', 'application/json');
+                proxyReq.setHeader('Content-Length', Buffer.byteLength(body));
+                proxyReq.write(body);
+              }
+            });
           });
-          proxy.on('proxyRes', (proxyRes, req, res) => {
+          proxy.on('proxyRes', (proxyRes: any, _req: any, res: any) => {
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
             res.setHeader('Access-Control-Allow-Headers', 'Content-Type');

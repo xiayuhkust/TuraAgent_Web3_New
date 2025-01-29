@@ -67,13 +67,31 @@ export default function ChatPage() {
   useEffect(() => {
     const initializeChat = async () => {
       if (messages.length === 0) {
-        const welcomeMessage: Message = {
-          id: Date.now().toString(),
-          text: 'Welcome! I am your WalletAgent. I can help you create a wallet, check your balance, or request test tokens. How can I assist you today?',
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        };
-        setMessages([welcomeMessage]);
+        try {
+          const response = await fetch('/api/process-message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: 'help' })
+          });
+          const { intent } = await response.json();
+          const welcomeText = intent === 'GENERAL_HELP' ? 
+            'Welcome! Type "help" for available commands.' : 
+            '❌ Service unavailable';
+          setMessages([{
+            id: Date.now().toString(),
+            text: welcomeText,
+            sender: intent === 'GENERAL_HELP' ? 'agent' : 'error',
+            timestamp: new Date().toISOString()
+          }]);
+        } catch (error) {
+          console.error('Failed to get welcome message:', error);
+          setMessages([{
+            id: Date.now().toString(),
+            text: '❌ Service unavailable',
+            sender: 'error',
+            timestamp: new Date().toISOString()
+          }]);
+        }
       }
     };
     initializeChat();
@@ -108,7 +126,7 @@ export default function ChatPage() {
         console.error('Failed to initialize chat:', error);
         setMessages(prev => [...prev, {
           id: Date.now().toString(),
-          text: 'There was an error initializing the chat. Please try refreshing the page.',
+          text: '❌ Chat initialization failed. Please refresh the page.',
           sender: 'error',
           timestamp: new Date().toISOString()
         }]);
@@ -182,7 +200,9 @@ export default function ChatPage() {
         const response: Message = {
           id: (Date.now() + 1).toString(),
           text: agentResponse,
-          sender: 'agent',
+          sender: agentResponse.includes('❌') || 
+                 agentResponse.includes('DeepSeek API error') || 
+                 agentResponse.includes('Failed to') ? 'error' : 'agent',
           timestamp: new Date().toISOString()
         };
 
@@ -193,7 +213,9 @@ export default function ChatPage() {
         const response: Message = {
           id: (Date.now() + 1).toString(),
           text: agentResponse,
-          sender: 'agent',
+          sender: agentResponse.includes('❌') || 
+                 agentResponse.includes('DeepSeek API error') || 
+                 agentResponse.includes('Failed to') ? 'error' : 'agent',
           timestamp: new Date().toISOString()
         };
         setMessages(prev => [...prev, response]);
@@ -203,7 +225,7 @@ export default function ChatPage() {
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: `Error: ${message}`,
+        text: `❌ ${message}`,
         sender: 'error',
         timestamp: new Date().toISOString()
       };
@@ -348,7 +370,7 @@ export default function ChatPage() {
       }
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
-        text: 'Failed to start recording. Please check your microphone permissions.',
+        text: `❌ Recording failed: ${errorMessage}`,
         sender: 'error',
         timestamp: new Date().toISOString()
       }]);
@@ -383,7 +405,7 @@ export default function ChatPage() {
       console.error('Speech-to-text error:', error);
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
-        text: 'Failed to convert speech to text. Please try again.',
+        text: `❌ Speech-to-text failed: ${error instanceof Error ? error.message : 'Please try again'}`,
         sender: 'error',
         timestamp: new Date().toISOString()
       }]);
@@ -453,9 +475,9 @@ export default function ChatPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{signatureDetails?.title || 'Confirm Transaction'}</DialogTitle>
+            <DialogTitle>{signatureDetails?.title || 'Sign Transaction'}</DialogTitle>
             <DialogDescription className="whitespace-pre-wrap">
-              {signatureDetails?.description || 'Please confirm this transaction in your wallet.'}
+              {signatureDetails?.description || 'Please confirm this transaction.'}
             </DialogDescription>
           </DialogHeader>
           {signatureDetails?.requirePassword && (
@@ -466,7 +488,7 @@ export default function ChatPage() {
                   type="password"
                   placeholder="Enter your wallet password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                   className="col-span-3"
                 />
               </div>
@@ -489,7 +511,7 @@ export default function ChatPage() {
                     if (signatureDetails.requirePassword && !password) {
                       setMessages(prev => [...prev, {
                         id: Date.now().toString(),
-                        text: 'Error: Password is required',
+                        text: '❌ Password required',
                         sender: 'error',
                         timestamp: new Date().toISOString()
                       }]);
@@ -502,7 +524,7 @@ export default function ChatPage() {
                     console.error('Transaction failed:', error);
                     setMessages(prev => [...prev, {
                       id: Date.now().toString(),
-                      text: `Error: ${error instanceof Error ? error.message : 'Transaction failed'}`,
+                      text: `❌ ${error instanceof Error ? error.message : 'Transaction failed'}`,
                       sender: 'error',
                       timestamp: new Date().toISOString()
                     }]);
@@ -511,7 +533,7 @@ export default function ChatPage() {
               }}
               disabled={signatureDetails?.requirePassword && !password}
             >
-              Sign & Deploy
+              Sign &amp; Deploy
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -539,7 +561,7 @@ export default function ChatPage() {
                         setActiveAgent(agent);
                         setMessages(prev => [...prev, {
                           id: Date.now().toString(),
-                          text: `Connected to ${agent.name}`,
+                          text: `✅ ${agent.name} selected`,
                           sender: 'agent',
                           timestamp: new Date().toISOString()
                         }]);
@@ -580,7 +602,7 @@ export default function ChatPage() {
                         setActiveAgent(agent);
                         setMessages(prev => [...prev, {
                           id: Date.now().toString(),
-                          text: `Connected to ${agent.name}`,
+                          text: `✅ ${agent.name} selected`,
                           sender: 'agent',
                           timestamp: new Date().toISOString()
                         }]);
@@ -621,7 +643,7 @@ export default function ChatPage() {
                         setActiveAgent(workflow);
                         setMessages(prev => [...prev, {
                           id: Date.now().toString(),
-                          text: `Connected to ${workflow.name}`,
+                          text: `✅ ${workflow.name} selected`,
                           sender: 'agent',
                           timestamp: new Date().toISOString()
                         }]);
@@ -690,10 +712,10 @@ export default function ChatPage() {
               <Mic className="h-4 w-4" />
             </Button>
             <Input
-              placeholder="Type your message..."
+              placeholder="Type a message..."
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInputText(e.target.value)}
+              onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleSendMessage()}
               disabled={isLoading}
             />
             <Button onClick={handleSendMessage} disabled={isLoading}>
