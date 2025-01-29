@@ -56,6 +56,7 @@ export default function ChatPage() {
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isWaitingForDeepseek, setIsWaitingForDeepseek] = useState(false);
   const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(officialAgents[0]); // Default to WalletAgent
   const [chatAddress, setChatAddress] = useState('');
   const [chatBalance, setChatBalance] = useState('0');
@@ -157,6 +158,7 @@ export default function ChatPage() {
     setLastMessageTime(Date.now());
 
     try {
+      setIsWaitingForDeepseek(true);
       // Process message through WalletAgent
       if (!activeAgent || activeAgent.name === 'WalletAgent') {
         console.log('Processing message through WalletAgent:', inputText);
@@ -215,6 +217,8 @@ export default function ChatPage() {
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, errorResponse]);
+    } finally {
+      setIsWaitingForDeepseek(false);
     }
   };
 
@@ -687,12 +691,19 @@ export default function ChatPage() {
             </div>
           </ScrollArea>
           
+          {isWaitingForDeepseek && (
+            <div className="flex items-center justify-center py-2">
+              <div className="animate-pulse text-sm text-muted-foreground">
+                Waiting for DeepSeek response...
+              </div>
+            </div>
+          )}
           <div className="flex gap-2 mt-4">
             <Button
               variant="outline"
               size="icon"
               onClick={isRecording ? stopRecording : startRecording}
-              disabled={isLoading}
+              disabled={isLoading || isWaitingForDeepseek}
               className={isRecording ? 'text-destructive' : ''}
             >
               <Mic className="h-4 w-4" />
@@ -702,9 +713,13 @@ export default function ChatPage() {
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              disabled={isLoading}
+              disabled={isLoading || isWaitingForDeepseek}
             />
-            <Button onClick={handleSendMessage} disabled={isLoading}>
+            <Button 
+              onClick={handleSendMessage} 
+              disabled={isLoading || isWaitingForDeepseek}
+              className={isWaitingForDeepseek ? 'opacity-50' : ''}
+            >
               <Send className="h-4 w-4" />
             </Button>
           </div>
