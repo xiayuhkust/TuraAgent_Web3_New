@@ -9,6 +9,7 @@ import { Badge } from '../ui/badge';
 import { officialAgents, agents, workflows } from '../../stores/agent-store';
 import { Agent, OfficialAgent, Workflow } from '../../types/agentTypes';
 import { WalletAgent } from '../../agentic_workflow/WalletAgent';
+import WalletContent from '../pages/WalletContent.tsx';
 import {
   Dialog,
   DialogContent,
