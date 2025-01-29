@@ -22,6 +22,9 @@ interface Message {
   text: string;
   sender: 'user' | 'agent' | 'error';
   timestamp: string;
+  agentId?: string;
+  agentName?: string;
+  agentType?: 'official' | 'community' | 'workflow';
 }
 
 export default function ChatPage() {
@@ -37,6 +40,15 @@ export default function ChatPage() {
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
   const [password, setPassword] = useState('');
   const [signatureDetails, setSignatureDetails] = useState<SignatureDetails | null>(null);
+  const [isWalletConnected, setIsWalletConnected] = useState(false);
+
+  useEffect(() => {
+    const storedAddress = localStorage.getItem('lastWalletAddress');
+    if (storedAddress) {
+      setChatAddress(storedAddress);
+      setIsWalletConnected(true);
+    }
+  }, []);
   
   const walletAgent = useRef<WalletAgent>(new WalletAgent());
   const officialAgents = useRef<OfficialAgent[]>([]);
@@ -55,13 +67,16 @@ export default function ChatPage() {
   }, [messagesMap, activeAgent]);
 
   const handleSendMessage = async () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || !activeAgent) return;
 
     const newMessage: Message = {
       id: Date.now().toString(),
       text: inputText,
       sender: 'user',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      agentId: activeAgent.id,
+      agentName: activeAgent.name,
+      agentType: activeAgent instanceof WalletAgent ? 'official' : 'workflow'
     };
 
     const agentKey = activeAgent?.name ?? 'unknown';
@@ -711,6 +726,90 @@ export default function ChatPage() {
           </Button>
         </div>
       </CardContent>
+
+      {/* Signature Dialog */}
+      <Dialog
+        open={showSignatureDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPassword('');
+          }
+          setShowSignatureDialog(open);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{signatureDetails?.title || 'Confirm Transaction'}</DialogTitle>
+            <DialogDescription className="whitespace-pre-wrap">
+              {signatureDetails?.description || 'Please confirm this transaction in your wallet.'}
+            </DialogDescription>
+          </DialogHeader>
+          {signatureDetails?.requirePassword && (
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your wallet password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="col-span-3"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex justify-between">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPassword('');
+                setShowSignatureDialog(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (signatureDetails?.onConfirm) {
+                  try {
+                    if (signatureDetails.requirePassword && !password) {
+                      const agentKey = activeAgent?.name ?? 'unknown';
+                      setMessagesMap(prev => ({
+                        ...prev,
+                        [agentKey]: [...(prev[agentKey] || []), {
+                          id: Date.now().toString(),
+                          text: 'Error: Password is required',
+                          sender: 'error',
+                          timestamp: new Date().toISOString()
+                        }]
+                      }));
+                      return;
+                    }
+                    await signatureDetails.onConfirm(signatureDetails.requirePassword ? password : undefined);
+                    setPassword('');
+                    setShowSignatureDialog(false);
+                  } catch (error) {
+                    console.error('Transaction failed:', error);
+                    const agentKey = activeAgent?.name ?? 'unknown';
+                    setMessagesMap(prev => ({
+                      ...prev,
+                      [agentKey]: [...(prev[agentKey] || []), {
+                        id: Date.now().toString(),
+                        text: `Error: ${error instanceof Error ? error.message : 'Transaction failed'}`,
+                        sender: 'error',
+                        timestamp: new Date().toISOString()
+                      }]
+                    }));
+                  }
+                }
+              }}
+              disabled={signatureDetails?.requirePassword && !password}
+            >
+              Sign & Deploy
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
