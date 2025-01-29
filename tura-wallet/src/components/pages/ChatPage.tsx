@@ -335,7 +335,25 @@ export default function ChatPage() {
           {activeAgent ? activeAgent.name : 'Chat'}
           
           {activeAgent?.name === 'AgentManager' && !chatAddress && (
-            <div className="ml-4 p-2 bg-yellow-100 text-yellow-800 rounded-lg flex items-center gap-2">
+            <div 
+              className="ml-4 p-2 bg-yellow-100 text-yellow-800 rounded-lg flex items-center gap-2 cursor-pointer hover:bg-yellow-200 transition-colors" 
+              onClick={() => {
+                const walletAgent = officialAgents.find(a => a.name === 'WalletAgent');
+                if (walletAgent) {
+                  setActiveAgent(walletAgent);
+                  const welcomeMessage: Message = {
+                    id: Date.now().toString(),
+                    text: 'Welcome to WalletAgent! I can help you create or connect your wallet.',
+                    sender: 'agent',
+                    timestamp: new Date().toISOString()
+                  };
+                  setMessagesMap({
+                    ...messagesMap,
+                    [walletAgent.name]: [welcomeMessage]
+                  });
+                }
+              }}
+            >
               <AlertTriangle className="h-4 w-4" />
               Please connect your wallet via WalletAgent to access all features
             </div>
@@ -382,7 +400,6 @@ export default function ChatPage() {
             </div>
           )}
         </CardTitle>
-=======
         <CardTitle className="flex items-center gap-2">
           <Bot className="h-6 w-6" />
           {activeAgent ? activeAgent.name : 'Chat'}
@@ -552,158 +569,10 @@ export default function ChatPage() {
       </Dialog>
 
       {/* Chat Interface */}
-      <CardContent className="flex h-full gap-4">
-        {/* AgenticWorkflow Sidebar */}
-        <div className="w-[30%] border-r pr-4">
-          <ScrollArea className="h-full">
-            <div className="space-y-6">
-              {/* Official Agents */}
-              <div className="space-y-2">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <Bot className="h-4 w-4" />
-                  Official Agents
-                </h3>
-                <div className="space-y-2">
-                  {officialAgents.map(agent => (
-                    <div
-                      key={agent.name}
-                      className={`p-3 rounded-lg hover:bg-secondary/80 cursor-pointer transition-colors ${
-                        activeAgent?.name === agent.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
-                      }`}
-                      onClick={() => {
-                        setActiveAgent(agent);
-                        const welcomeMessage = {
-                          id: Date.now().toString(),
-                          text: `Connected to ${agent.name}`,
-                          sender: 'agent',
-                          timestamp: new Date().toISOString()
-                        };
-                        setMessagesMap(prev => ({
-                          ...prev,
-                          [agent.name]: [welcomeMessage]
-                        }));
-                      }}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="font-medium flex items-center gap-2">
-                          <Wallet className="h-4 w-4" />
-                          {agent.name}
-                        </div>
-                        <Badge variant="secondary" className="text-xs">
-                          {agent.status}
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-muted-foreground">{agent.description}</div>
-                      <div className="text-xs text-muted-foreground mt-2">
-                        Fee: {agent.feePerRequest}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Community Agents */}
-              <div className="space-y-2">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <Bot className="h-4 w-4" />
-                  Community Agents
-                </h3>
-                <div className="space-y-2">
-                  {agents.map(agent => (
-                    <div
-                      key={agent.contractAddress}
-                      className={`p-3 rounded-lg hover:bg-secondary/80 cursor-pointer transition-colors ${
-                        activeAgent?.name === agent.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
-                      }`}
-                      onClick={() => {
-                        setActiveAgent(agent);
-                        const welcomeMessage = {
-                          id: Date.now().toString(),
-                          text: `Connected to ${agent.name}`,
-                          sender: 'agent',
-                          timestamp: new Date().toISOString()
-                        };
-                        setMessagesMap(prev => ({
-                          ...prev,
-                          [agent.name]: [welcomeMessage]
-                        }));
-                      }}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="font-medium">{agent.name}</div>
-                        <Badge variant="secondary" className="text-xs">
-                          {agent.status}
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-muted-foreground">{agent.description}</div>
-                      <div className="text-xs font-mono mt-2">
-                        Contract: {agent.contractAddress.slice(0, 6)}...{agent.contractAddress.slice(-4)}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Fee: {agent.feePerRequest}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Workflows */}
-              <div className="space-y-2">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <Code2 className="h-4 w-4" />
-                  Workflows
-                </h3>
-                <div className="space-y-2">
-                  {workflows.map(workflow => (
-                    <div
-                      key={workflow.contractAddress}
-                      className={`p-3 rounded-lg hover:bg-secondary/80 cursor-pointer transition-colors ${
-                        activeAgent?.name === workflow.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
-                      }`}
-                      onClick={() => {
-                        setActiveAgent(workflow);
-                        const welcomeMessage = {
-                          id: Date.now().toString(),
-                          text: `Connected to ${workflow.name}`,
-                          sender: 'agent',
-                          timestamp: new Date().toISOString()
-                        };
-                        setMessagesMap(prev => ({
-                          ...prev,
-                          [workflow.name]: [welcomeMessage]
-                        }));
-                      }}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="font-medium">{workflow.name}</div>
-                        <Badge variant="secondary" className="text-xs">
-                          {workflow.status}
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-muted-foreground">{workflow.description}</div>
-                      <div className="text-xs font-mono mt-2">
-                        Contract: {workflow.contractAddress.slice(0, 6)}...{workflow.contractAddress.slice(-4)}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Fee: {workflow.fee} • Confirmations: {workflow.requiredConfirmations}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </ScrollArea>
-        </div>
-
-        {/* Chat Area */}
-        <div className="flex-1 flex flex-col">
-          <ScrollArea className="flex-1 pr-4">
-            <div className="space-y-4">
-              {(activeAgent && messagesMap[activeAgent.name] ? messagesMap[activeAgent.name] : []).map((message) => (
-=======
-      {/* Signature Dialog */}
-      <Dialog 
-        open={showSignatureDialog} 
+      <CardContent className="flex flex-col h-full">
+        <ScrollArea className="flex-1 pr-4">
+          <div className="space-y-4">
+            {(activeAgent && messagesMap[activeAgent.name] ? messagesMap[activeAgent.name] : []).map((message) => (
         onOpenChange={(open) => {
           if (!open) {
             setPassword('');
