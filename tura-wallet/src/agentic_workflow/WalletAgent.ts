@@ -13,6 +13,7 @@ export class WalletAgent extends AgenticWorkflow {
   private readonly MIN_BALANCE: number;
   private readonly FAUCET_AMOUNT: number;
   private readonly FAUCET_PASSWORD: string;
+  private readonly sessionKey: string = 'wallet_session';
   // No need for intent categories or mapping
 
   constructor() {
