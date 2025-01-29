@@ -29,7 +29,7 @@ export default defineConfig({
     headers: {
       'Access-Control-Allow-Origin': '*',
     },
-    allowedHosts: ['.devinapps.com'],
+    allowedHosts: ['frontend-deploy-app-tunnel-xuzsroun.devinapps.com'],
     proxy: {
       '/rpc': {
         target: 'https://43.135.26.222:8088',
