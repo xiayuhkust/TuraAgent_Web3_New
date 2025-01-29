@@ -29,7 +29,10 @@ export class CustomProvider {
     this.eventHandlers = new Map();
     this.accounts = [];
     this.connected = false;
-    this.provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.rpcUrl);
+    this.provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.rpcUrl, {
+      chainId: CHAIN_CONFIG.chainId,
+      name: CHAIN_CONFIG.chainName
+    });
     
     // Initialize event handler sets
     ['accountsChanged', 'chainChanged', 'connect', 'disconnect'].forEach(event => {
@@ -53,7 +56,10 @@ export class CustomProvider {
     }
     
     // Reset provider state
-    this.provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.rpcUrl);
+    this.provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.rpcUrl, {
+      chainId: CHAIN_CONFIG.chainId,
+      name: CHAIN_CONFIG.chainName
+    });
     
     // Emit events
     this.emit('accountsChanged', []);

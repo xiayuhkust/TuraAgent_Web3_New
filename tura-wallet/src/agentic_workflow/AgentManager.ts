@@ -10,6 +10,8 @@ import {
 import { KeyManager } from '../lib/keyManager';
 import { AgentData } from '../types/agentTypes';
 import { addAgent, getAgentsByOwner } from '../lib/agentStorage';
+import WalletManagerImpl from '../lib/wallet_manager';
+import { CONTRACT_CONFIG } from '../contracts/TuraAgent';
 
 // Initialize DeepSeek client for intent recognition
 let openai: OpenAI | undefined;
@@ -266,10 +268,20 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
 
             // Check if using CustomProvider
             if (provider instanceof ethers.JsonRpcProvider && !window.ethereum) {
-              // Get stored encrypted key
+              // Get stored encrypted key and verify wallet session
               const encryptedData = KeyManager.getStoredKey();
-              if (!encryptedData) {
-                return "No wallet found. Please create a wallet first.";
+              const walletManager = new WalletManagerImpl();
+              const session = await walletManager.getSession();
+              const walletAddress = localStorage.getItem('lastWalletAddress');
+              
+              if (!encryptedData || !session || !walletAddress) {
+                return "No wallet found or session expired. Please create a wallet or log in first.";
+              }
+
+              // Verify TURA balance before proceeding
+              const balance = await provider.getBalance(walletAddress);
+              if (balance < CONTRACT_CONFIG.subscriptionFee) {
+                return `Insufficient balance. Contract deployment requires ${ethers.formatEther(CONTRACT_CONFIG.subscriptionFee)} TURA.`;
               }
 
               // Show password dialog for key decryption and deploy contract
@@ -305,10 +317,10 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
 
                         // Create wallet from private key
                         const wallet = new ethers.Wallet(privateKey, provider);
-                        address = wallet.address;
+                        const walletAddress = wallet.address;
 
                         // Check TURA balance
-                        const hasSufficientBalance = await checkTuraBalance(provider, address);
+                        const hasSufficientBalance = await checkTuraBalance(provider, walletAddress);
                         if (!hasSufficientBalance) {
                           reject(new Error('Insufficient TURA balance'));
                           return;
