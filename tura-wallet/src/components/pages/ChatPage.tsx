@@ -1,33 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
-import { AlertTriangle, Mic, Send, Bot, Code2, Wallet, RefreshCw } from 'lucide-react';
-import { AgenticWorkflow } from '../../agentic_workflow/AgenticWorkflow';
+import { AlertTriangle, Mic, Send, Bot, RefreshCw } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+
+import { Agent, OfficialAgent, WorkflowAgent, Message, SignatureDetails } from '../../types/agentTypes';
 import { WalletAgent } from '../../agents/WalletAgent';
-import { Agent, OfficialAgent, WorkflowAgent } from '../../types/agentTypes';
 
-interface SignatureDetails {
-  title?: string;
-  description?: string;
-  requirePassword?: boolean;
-  onConfirm?: (password?: string) => Promise<void>;
-}
-
-interface Message {
-  id: string;
-  text: string;
-  sender: 'user' | 'agent' | 'error';
-  timestamp: string;
-  agentId?: string;
-  agentName?: string;
-  agentType?: 'official' | 'community' | 'workflow';
-}
-
-export default function ChatPage() {
+function ChatPage() {
   const [messagesMap, setMessagesMap] = useState<Record<string, Message[]>>({});
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -259,7 +242,7 @@ export default function ChatPage() {
             <div 
               className="ml-4 p-2 bg-yellow-100 text-yellow-800 rounded-lg flex items-center gap-2 cursor-pointer hover:bg-yellow-200 transition-colors" 
               onClick={() => {
-                const walletAgent = officialAgents.find(a => a.name === 'WalletAgent');
+                const walletAgent = officialAgents.current.find(a => a.name === 'WalletAgent');
                 if (walletAgent) {
                   setActiveAgent(walletAgent);
                   const welcomeMessage: Message = {
@@ -302,77 +285,7 @@ export default function ChatPage() {
                     if (isRefreshingBalance) return;
                     try {
                       setIsRefreshingBalance(true);
-                      const response = await walletAgent.processMessage('check balance');
-                      const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
-                      if (balanceMatch) {
-                        setChatBalance(balanceMatch[1]);
-                      }
-                    } catch (error) {
-                      console.error('Balance refresh failed:', error);
-                    } finally {
-                      setIsRefreshingBalance(false);
-                    }
-                  }}
-                  disabled={isRefreshingBalance}
-                >
-                  <RefreshCw className={`h-3 w-3 ${isRefreshingBalance ? 'animate-spin' : ''}`} />
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardTitle>
-        <CardTitle className="flex items-center gap-2">
-          <Bot className="h-6 w-6" />
-          {activeAgent ? activeAgent.name : 'Chat'}
-          
-          {activeAgent?.name === 'AgentManager' && !chatAddress && (
-            <div 
-              className="ml-4 p-2 bg-yellow-100 text-yellow-800 rounded-lg flex items-center gap-2 cursor-pointer hover:bg-yellow-200 transition-colors" 
-              onClick={() => {
-                const walletAgent = officialAgents.find(a => a.name === 'WalletAgent');
-                if (walletAgent) {
-                  setActiveAgent(walletAgent);
-                  const welcomeMessage: Message = {
-                    id: Date.now().toString(),
-                    text: 'Welcome to WalletAgent! I can help you create or connect your wallet.',
-                    sender: 'agent',
-                    timestamp: new Date().toISOString()
-                  };
-                  setMessagesMap({
-                    ...messagesMap,
-                    [walletAgent.name]: [welcomeMessage]
-                  });
-                }
-              }}
-            >
-              <AlertTriangle className="h-4 w-4" />
-              Please connect your wallet via WalletAgent to access all features
-            </div>
-          )}
-          
-          {chatAddress && (
-            <div className="p-2 bg-secondary rounded-lg flex flex-col items-start ml-4">
-              <div className="text-xs text-muted-foreground">Account</div>
-              <div className="font-mono text-sm break-all">
-                {chatAddress.slice(0,6)}...{chatAddress.slice(-4)}
-              </div>
-            </div>
-          )}
-
-          {chatAddress && (
-            <div className="p-2 bg-secondary rounded-lg flex flex-col items-start ml-2">
-              <div className="text-xs text-muted-foreground">Balance</div>
-              <div className="text-sm font-bold flex items-center gap-2">
-                {chatBalance} TURA
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-4 w-4 p-0"
-                  onClick={async () => {
-                    if (isRefreshingBalance) return;
-                    try {
-                      setIsRefreshingBalance(true);
-                      const response = await walletAgent.processMessage('check balance');
+                      const response = await walletAgent.current.processMessage('check balance');
                       const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
                       if (balanceMatch) {
                         setChatBalance(balanceMatch[1]);
@@ -403,281 +316,6 @@ export default function ChatPage() {
                   message.sender === 'user' ? 'justify-end' : 'justify-start'
                 }`}
               >
-                    if (signatureDetails.requirePassword && !password) {
-                      const agentKey = activeAgent?.name ?? 'unknown';
-                      setMessagesMap(prev => ({
-                        ...prev,
-                        [agentKey]: [...(prev[agentKey] || []), {
-                          id: Date.now().toString(),
-                          text: 'Error: Password is required',
-                          sender: 'error',
-                          timestamp: new Date().toISOString()
-                        }]
-                      }));
-                      return;
-                    }
-                    await signatureDetails.onConfirm(signatureDetails.requirePassword ? password : undefined);
-                    setPassword('');
-                    setShowSignatureDialog(false);
-                  } catch (error) {
-                    console.error('Transaction failed:', error);
-                    const agentKey = activeAgent?.name ?? 'unknown';
-                    setMessagesMap(prev => ({
-                      ...prev,
-                      [agentKey]: [...(prev[agentKey] || []), {
-                        id: Date.now().toString(),
-                        text: `Error: ${error instanceof Error ? error.message : 'Transaction failed'}`,
-                        sender: 'error',
-                        timestamp: new Date().toISOString()
-                      }]
-                    }));
-                  }
-                }
-              }}
-              disabled={signatureDetails?.requirePassword && !password}
-            >
-              Sign & Deploy
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Chat Interface */}
-      <CardContent className="flex flex-col h-full">
-        <ScrollArea className="flex-1 pr-4">
-          <div className="space-y-4">
-            {(activeAgent && messagesMap[activeAgent.name] ? messagesMap[activeAgent.name] : []).map((message) => (
-        onOpenChange={(open) => {
-          if (!open) {
-            setPassword('');
-          }
-          setShowSignatureDialog(open);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{signatureDetails?.title || 'Confirm Transaction'}</DialogTitle>
-            <DialogDescription className="whitespace-pre-wrap">
-              {signatureDetails?.description || 'Please confirm this transaction in your wallet.'}
-            </DialogDescription>
-          </DialogHeader>
-          {signatureDetails?.requirePassword && (
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your wallet password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="col-span-3"
-                />
-              </div>
-            </div>
-          )}
-          <DialogFooter className="flex justify-between">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setPassword('');
-                setShowSignatureDialog(false);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={async () => {
-                if (signatureDetails?.onConfirm) {
-                  try {
-                    if (signatureDetails.requirePassword && !password) {
-                      const agentKey = activeAgent?.name ?? 'unknown';
-                      setMessagesMap(prev => ({
-                        ...prev,
-                        [agentKey]: [...(prev[agentKey] || []), {
-                          id: Date.now().toString(),
-                          text: 'Error: Password is required',
-                          sender: 'error',
-                          timestamp: new Date().toISOString()
-                        }]
-                      }));
-                      return;
-                    }
-                    await signatureDetails.onConfirm(signatureDetails.requirePassword ? password : undefined);
-                    setPassword('');
-                    setShowSignatureDialog(false);
-                  } catch (error) {
-                    console.error('Transaction failed:', error);
-                    const agentKey = activeAgent?.name ?? 'unknown';
-                    setMessagesMap(prev => ({
-                      ...prev,
-                      [agentKey]: [...(prev[agentKey] || []), {
-                        id: Date.now().toString(),
-                        text: `Error: ${error instanceof Error ? error.message : 'Transaction failed'}`,
-                        sender: 'error',
-                        timestamp: new Date().toISOString()
-                      }]
-                    }));
-                  }
-                }
-              }}
-              disabled={signatureDetails?.requirePassword && !password}
-            >
-              Sign & Deploy
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Chat Interface */}
-      <CardContent className="flex h-full gap-4">
-        {/* AgenticWorkflow Sidebar */}
-        <div className="w-[30%] border-r pr-4">
-          <ScrollArea className="h-full">
-            <div className="space-y-6">
-              {/* Official Agents */}
-              <div className="space-y-2">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <Bot className="h-4 w-4" />
-                  Official Agents
-                </h3>
-                <div className="space-y-2">
-                  {officialAgents.map(agent => (
-                    <div
-                      key={agent.name}
-                      className={`p-3 rounded-lg hover:bg-secondary/80 cursor-pointer transition-colors ${
-                        activeAgent?.name === agent.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
-                      }`}
-                      onClick={() => {
-                        setActiveAgent(agent);
-                        const welcomeMessage: Message = {
-                          id: Date.now().toString(),
-                          text: `Connected to ${agent.name}`,
-                          sender: 'agent',
-                          timestamp: new Date().toISOString()
-                        };
-                        setMessagesMap({
-                          ...messagesMap,
-                          [agent.name]: [welcomeMessage]
-                        });
-                      }}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="font-medium flex items-center gap-2">
-                          <Wallet className="h-4 w-4" />
-                          {agent.name}
-                        </div>
-                        <Badge variant="secondary" className="text-xs">
-                          {agent.status}
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-muted-foreground">{agent.description}</div>
-                      <div className="text-xs text-muted-foreground mt-2">
-                        Fee: {agent.feePerRequest}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Community Agents */}
-              <div className="space-y-2">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <Bot className="h-4 w-4" />
-                  Community Agents
-                </h3>
-                <div className="space-y-2">
-                  {agents.map(agent => (
-                    <div
-                      key={agent.contractAddress}
-                      className={`p-3 rounded-lg hover:bg-secondary/80 cursor-pointer transition-colors ${
-                        activeAgent?.name === agent.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
-                      }`}
-                      onClick={() => {
-                        setActiveAgent(agent);
-                        const welcomeMessage: Message = {
-                          id: Date.now().toString(),
-                          text: `Connected to ${agent.name}`,
-                          sender: 'agent',
-                          timestamp: new Date().toISOString()
-                        };
-                        setMessagesMap({
-                          ...messagesMap,
-                          [agent.name]: [welcomeMessage]
-                        });
-                      }}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="font-medium">{agent.name}</div>
-                        <Badge variant="secondary" className="text-xs">
-                          {agent.status}
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-muted-foreground">{agent.description}</div>
-                      <div className="text-xs font-mono mt-2">
-                        Contract: {agent.contractAddress.slice(0, 6)}...{agent.contractAddress.slice(-4)}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Fee: {agent.feePerRequest}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Workflows */}
-              <div className="space-y-2">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <Code2 className="h-4 w-4" />
-                  Workflows
-                </h3>
-                <div className="space-y-2">
-                  {workflows.map(workflow => (
-                    <div
-                      key={workflow.contractAddress}
-                      className={`p-3 rounded-lg hover:bg-secondary/80 cursor-pointer transition-colors ${
-                        activeAgent?.name === workflow.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
-                      }`}
-                      onClick={() => {
-                        setActiveAgent(workflow);
-                        const welcomeMessage: Message = {
-                          id: Date.now().toString(),
-                          text: `Connected to ${workflow.name}`,
-                          sender: 'agent',
-                          timestamp: new Date().toISOString()
-                        };
-                        setMessagesMap({
-                          ...messagesMap,
-                          [workflow.name]: [welcomeMessage]
-                        });
-                      }}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="font-medium">{workflow.name}</div>
-                        <Badge variant="secondary" className="text-xs">
-                          {workflow.status}
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-muted-foreground">{workflow.description}</div>
-                      <div className="text-xs font-mono mt-2">
-                        Contract: {workflow.contractAddress.slice(0, 6)}...{workflow.contractAddress.slice(-4)}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Fee: {workflow.fee} • Confirmations: {workflow.requiredConfirmations}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </ScrollArea>
-        </div>
-
-        {/* Chat Area */}
-        <div className="flex-1 flex flex-col">
-          <ScrollArea className="flex-1 pr-4">
-            <div className="space-y-4">
-              {(activeAgent && messagesMap[activeAgent.name] ? messagesMap[activeAgent.name] : []).map((message) => (
->>>>>>> 26edb5a2 (feat: hide wallet/workflow tabs, separate agent dialogues, show wallet notification)
                 <div
                   className={`rounded-lg px-4 py-2 max-w-[80%] ${
                     message.sender === 'user'
@@ -699,12 +337,13 @@ export default function ChatPage() {
           <Button
             variant="ghost"
             size="icon"
-            className={`shrink-0 ${isRecording ? 'text-destructive' : ''}`}
+            className={isRecording ? 'text-destructive' : ''}
             onClick={isRecording ? stopRecording : startRecording}
-            disabled={isLoading || !activeAgent}
+            disabled={isLoading || isWaitingForOpenAI}
           >
-            <Mic className="h-5 w-5" />
+            <Mic className="h-4 w-4" />
           </Button>
+          
           <Input
             placeholder="Type your message..."
             value={inputText}
@@ -715,19 +354,18 @@ export default function ChatPage() {
                 handleSendMessage();
               }
             }}
-            disabled={isLoading || !activeAgent}
+            disabled={isLoading || isWaitingForOpenAI || !activeAgent}
           />
+          
           <Button
-            className="shrink-0"
             onClick={handleSendMessage}
-            disabled={!inputText.trim() || isLoading || !activeAgent}
+            disabled={!inputText.trim() || isLoading || isWaitingForOpenAI || !activeAgent}
           >
-            <Send className="h-5 w-5" />
+            <Send className="h-4 w-4" />
           </Button>
         </div>
       </CardContent>
 
-      {/* Signature Dialog */}
       <Dialog
         open={showSignatureDialog}
         onOpenChange={(open) => {
@@ -744,6 +382,7 @@ export default function ChatPage() {
               {signatureDetails?.description || 'Please confirm this transaction in your wallet.'}
             </DialogDescription>
           </DialogHeader>
+          
           {signatureDetails?.requirePassword && (
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
@@ -758,6 +397,7 @@ export default function ChatPage() {
               </div>
             </div>
           )}
+          
           <DialogFooter className="flex justify-between">
             <Button
               variant="outline"
@@ -813,3 +453,5 @@ export default function ChatPage() {
     </Card>
   );
 }
+
+export default ChatPage;
