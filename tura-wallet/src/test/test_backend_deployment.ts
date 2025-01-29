@@ -1,21 +1,21 @@
 import axios from 'axios';
 import { describe, it, expect, beforeAll } from 'vitest';
-import { WalletService, WalletAccount } from '../lib/wallet';
+import { ethers } from 'ethers';
 import { KeyManager } from '../lib/keyManager';
+import { WalletService } from '../lib/wallet';
 
 describe('Backend Contract Deployment', () => {
   const TEST_PASSWORD = 'testPassword123';
-  let encryptedKeyData: { encryptedKey: string; salt: string; iv: string };
+  let wallet: ethers.Wallet;
   let walletService: WalletService;
-  let wallet: WalletAccount;
 
   beforeAll(async () => {
     // Initialize services
     walletService = new WalletService();
 
     // Create test wallet
-    wallet = await walletService.createWallet();
-    encryptedKeyData = await KeyManager.encryptKey(wallet.privateKey, TEST_PASSWORD);
+    wallet = ethers.Wallet.createRandom();
+    await KeyManager.storeKey(wallet.privateKey, TEST_PASSWORD);
   });
 
   it('should successfully send encrypted key and deploy contract', async () => {

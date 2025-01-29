@@ -1,4 +1,4 @@
-import { Buffer } from 'buffer';
+import { ethers } from 'ethers';
 
 export class KeyManager {
   private static readonly keyPrefix = 'encrypted_key_';
@@ -51,8 +51,13 @@ export class KeyManager {
   }
 
   private static getAddressFromPrivateKey(privateKey: string): string {
-    // This is a placeholder - in production we would use ethers.js to derive the address
-    // For now we store with a dummy address that will be replaced when actually using the key
-    return '0x0000000000000000000000000000000000000000';
+    const wallet = new ethers.Wallet(privateKey);
+    return wallet.address;
+  }
+
+  static async getStoredKey(): Promise<string | null> {
+    const keys = Object.keys(localStorage).filter(key => key.startsWith(this.keyPrefix));
+    if (keys.length === 0) return null;
+    return keys[0].slice(this.keyPrefix.length);
   }
 }
