@@ -26,7 +26,7 @@ interface Message {
 }
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesMap, setMessagesMap] = useState<Record<string, Message[]>>({});
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
   const [signatureDetails, setSignatureDetails] = useState<{
     title: string;
@@ -91,7 +91,8 @@ export default function ChatPage() {
   // Initialize chat with welcome message
   useEffect(() => {
     const initializeChat = async () => {
-      if (messages.length === 0 && activeAgent?.instance) {
+      const agentKey = activeAgent?.name ?? 'unknown';
+      if ((!messagesMap[agentKey] || messagesMap[agentKey].length === 0) && activeAgent?.instance) {
         console.log('Initializing chat with agent:', activeAgent.name);
         try {
           // Get welcome message from agent instance
@@ -102,7 +103,7 @@ export default function ChatPage() {
             sender: 'agent',
             timestamp: new Date().toISOString()
           };
-          setMessages([welcomeMessage]);
+          setMessagesMap({ [agentKey]: [welcomeMessage] });
         } catch (error) {
           console.error('Failed to get welcome message:', error);
           // Fallback welcome message
@@ -114,7 +115,7 @@ export default function ChatPage() {
             sender: 'agent',
             timestamp: new Date().toISOString()
           };
-          setMessages([fallbackMessage]);
+          setMessagesMap({ [agentKey]: [fallbackMessage] });
         }
       }
     };
@@ -141,12 +142,16 @@ export default function ChatPage() {
         }
       } catch (error) {
         console.error('Failed to initialize chat:', error);
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          text: 'There was an error initializing the chat. Please try refreshing the page.',
-          sender: 'error',
-          timestamp: new Date().toISOString()
-        }]);
+        const agentKey = activeAgent?.name ?? 'unknown';
+        setMessagesMap(prev => ({
+          ...prev,
+          [agentKey]: [...(prev[agentKey] || []), {
+            id: Date.now().toString(),
+            text: 'There was an error initializing the chat. Please try refreshing the page.',
+            sender: 'error',
+            timestamp: new Date().toISOString()
+          }]
+        }));
       }
     };
 
@@ -186,7 +191,11 @@ export default function ChatPage() {
       timestamp: new Date().toISOString()
     };
 
-    setMessages(prev => [...prev, newMessage]);
+    const agentKey = activeAgent?.name ?? 'unknown';
+    setMessagesMap(prev => ({
+      ...prev,
+      [agentKey]: [...(prev[agentKey] || []), newMessage]
+    }));
     setInputText('');
     setLastMessageTime(Date.now());
 
@@ -223,10 +232,18 @@ export default function ChatPage() {
 
         // Add response to chat
         console.log('Adding response to messages:', response);
-        setMessages(prev => [...prev, response]);
+        const agentKey = activeAgent.name;
+        setMessagesMap(prev => ({
+          ...prev,
+          [agentKey]: [...(prev[agentKey] || []), response]
+        }));
+      } catch (error) {
+        console.error('Error processing message:', error);
+        throw error;
+      }
         
-        // Update UI state if needed
-        if (activeAgent.name === 'WalletAgent') {
+      // Update UI state if needed
+      if (activeAgent.name === 'WalletAgent') {
         console.log('Processing message through WalletAgent:', {
           agent: activeAgent?.name || 'default',
           message: inputText
@@ -285,7 +302,11 @@ export default function ChatPage() {
         sender: 'error',
         timestamp: new Date().toISOString()
       };
-      setMessages(prev => [...prev, errorResponse]);
+      const agentKey = activeAgent?.name ?? 'unknown';
+      setMessagesMap(prev => ({
+        ...prev,
+        [agentKey]: [...(prev[agentKey] || []), errorResponse]
+      }));
     } finally {
       setIsWaitingForOpenAI(false);
     }
@@ -426,12 +447,16 @@ export default function ChatPage() {
         default:
           errorMessage += 'Please check your microphone settings.';
       }
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        text: 'Failed to start recording. Please check your microphone permissions.',
-        sender: 'error',
-        timestamp: new Date().toISOString()
-      }]);
+      const agentKey = activeAgent?.name ?? 'unknown';
+      setMessagesMap(prev => ({
+        ...prev,
+        [agentKey]: [...(prev[agentKey] || []), {
+          id: Date.now().toString(),
+          text: 'Failed to start recording. Please check your microphone permissions.',
+          sender: 'error',
+          timestamp: new Date().toISOString()
+        }]
+      }));
     }
   };
 
@@ -461,12 +486,16 @@ export default function ChatPage() {
       setInputText(data.text);
     } catch (error) {
       console.error('Speech-to-text error:', error);
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        text: 'Failed to convert speech to text. Please try again.',
-        sender: 'error',
-        timestamp: new Date().toISOString()
-      }]);
+      const agentKey = activeAgent?.name ?? 'unknown';
+      setMessagesMap(prev => ({
+        ...prev,
+        [agentKey]: [...(prev[agentKey] || []), {
+          id: Date.now().toString(),
+          text: 'Failed to convert speech to text. Please try again.',
+          sender: 'error',
+          timestamp: new Date().toISOString()
+        }]
+      }));
     } finally {
       setIsLoading(false);
     }
@@ -478,6 +507,13 @@ export default function ChatPage() {
         <CardTitle className="flex items-center gap-2">
           <Bot className="h-6 w-6" />
           {activeAgent ? activeAgent.name : 'Chat'}
+          
+          {activeAgent?.name === 'AgentManager' && !chatAddress && (
+            <div className="ml-4 p-2 bg-yellow-100 text-yellow-800 rounded-lg flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Please connect your wallet via WalletAgent to access all features
+            </div>
+          )}
           
           {chatAddress && (
             <div className="p-2 bg-secondary rounded-lg flex flex-col items-start ml-4">
@@ -567,12 +603,16 @@ export default function ChatPage() {
                 if (signatureDetails?.onConfirm) {
                   try {
                     if (signatureDetails.requirePassword && !password) {
-                      setMessages(prev => [...prev, {
-                        id: Date.now().toString(),
-                        text: 'Error: Password is required',
-                        sender: 'error',
-                        timestamp: new Date().toISOString()
-                      }]);
+                      const agentKey = activeAgent?.name ?? 'unknown';
+                      setMessagesMap(prev => ({
+                        ...prev,
+                        [agentKey]: [...(prev[agentKey] || []), {
+                          id: Date.now().toString(),
+                          text: 'Error: Password is required',
+                          sender: 'error',
+                          timestamp: new Date().toISOString()
+                        }]
+                      }));
                       return;
                     }
                     await signatureDetails.onConfirm(signatureDetails.requirePassword ? password : undefined);
@@ -580,12 +620,16 @@ export default function ChatPage() {
                     setShowSignatureDialog(false);
                   } catch (error) {
                     console.error('Transaction failed:', error);
-                    setMessages(prev => [...prev, {
-                      id: Date.now().toString(),
-                      text: `Error: ${error instanceof Error ? error.message : 'Transaction failed'}`,
-                      sender: 'error',
-                      timestamp: new Date().toISOString()
-                    }]);
+                    const agentKey = activeAgent?.name ?? 'unknown';
+                    setMessagesMap(prev => ({
+                      ...prev,
+                      [agentKey]: [...(prev[agentKey] || []), {
+                        id: Date.now().toString(),
+                        text: `Error: ${error instanceof Error ? error.message : 'Transaction failed'}`,
+                        sender: 'error',
+                        timestamp: new Date().toISOString()
+                      }]
+                    }));
                   }
                 }
               }}
@@ -618,12 +662,16 @@ export default function ChatPage() {
                       }`}
                       onClick={() => {
                         setActiveAgent(agent);
-                        setMessages(prev => [...prev, {
+                        const welcomeMessage = {
                           id: Date.now().toString(),
                           text: `Connected to ${agent.name}`,
                           sender: 'agent',
                           timestamp: new Date().toISOString()
-                        }]);
+                        };
+                        setMessagesMap(prev => ({
+                          ...prev,
+                          [agent.name]: [welcomeMessage]
+                        }));
                       }}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -659,12 +707,16 @@ export default function ChatPage() {
                       }`}
                       onClick={() => {
                         setActiveAgent(agent);
-                        setMessages(prev => [...prev, {
+                        const welcomeMessage = {
                           id: Date.now().toString(),
                           text: `Connected to ${agent.name}`,
                           sender: 'agent',
                           timestamp: new Date().toISOString()
-                        }]);
+                        };
+                        setMessagesMap(prev => ({
+                          ...prev,
+                          [agent.name]: [welcomeMessage]
+                        }));
                       }}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -700,12 +752,16 @@ export default function ChatPage() {
                       }`}
                       onClick={() => {
                         setActiveAgent(workflow);
-                        setMessages(prev => [...prev, {
+                        const welcomeMessage = {
                           id: Date.now().toString(),
                           text: `Connected to ${workflow.name}`,
                           sender: 'agent',
                           timestamp: new Date().toISOString()
-                        }]);
+                        };
+                        setMessagesMap(prev => ({
+                          ...prev,
+                          [workflow.name]: [welcomeMessage]
+                        }));
                       }}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -733,7 +789,7 @@ export default function ChatPage() {
         <div className="flex-1 flex flex-col">
           <ScrollArea className="flex-1 pr-4">
             <div className="space-y-4">
-              {messages.map((message) => (
+              {(activeAgent && messagesMap[activeAgent.name] ? messagesMap[activeAgent.name] : []).map((message) => (
                 <div
                   key={message.id}
                   className={`flex ${
