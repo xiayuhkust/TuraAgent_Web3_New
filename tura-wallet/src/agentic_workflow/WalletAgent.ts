@@ -65,6 +65,11 @@ export class WalletAgent extends AgenticWorkflow {
         return this.initiateWalletCreation();
       }
       
+      if (text_lower.includes('logout') || text_lower.includes('sign out')) {
+        localStorage.removeItem(this.sessionKey);
+        return "You have been logged out successfully. Your session has been cleared.";
+      }
+
       if (text_lower.includes('balance') || (text_lower.includes('check') && text_lower.includes('wallet'))) {
         return this.handleBalanceCheck();
       }
