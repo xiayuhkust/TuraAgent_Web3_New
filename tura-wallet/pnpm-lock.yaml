@@ -120,7 +120,7 @@ importers:
         specifier: ^7.1.5
         version: 7.1.5
       ethers:
-        specifier: ^6.9.0
+        specifier: ^6.13.5
         version: 6.13.5
       input-otp:
         specifier: ^1.4.2

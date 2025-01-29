@@ -7,7 +7,6 @@ import {
   checkTuraBalance,
   getTuraProvider
 } from '../contracts/TuraAgent';
-import { KeyManager } from '../lib/keyManager';
 import { WalletManagerImpl } from '../lib/wallet_manager';
 import { AgentData } from '../types/agentTypes';
 import { addAgent, getAgentsByOwner } from '../lib/agentStorage';

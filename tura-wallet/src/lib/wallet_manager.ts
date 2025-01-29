@@ -127,25 +127,27 @@ export class WalletManagerImpl {
     }
 
     try {
-      const account = await this.walletService.createAccount();
-      
-      // Generate mnemonic using bip39 with proper entropy
       const entropy = new Uint8Array(16);
       crypto.getRandomValues(entropy);
       const mnemonic = bip39.entropyToMnemonic(
         Buffer.from(entropy).toString('hex')
       );
       
-      console.log('Mnemonic generation successful:', {
+      const seed = await bip39.mnemonicToSeed(mnemonic);
+      const privateKey = '0x' + Buffer.from(seed).slice(0, 32).toString('hex');
+      const account = await this.walletService.createAccount();
+      
+      console.log('Wallet creation successful:', {
         hasEntropy: !!entropy,
         entropyLength: entropy.length,
         hasMnemonic: !!mnemonic,
-        mnemonicWordCount: mnemonic.split(' ').length
+        mnemonicWordCount: mnemonic.split(' ').length,
+        hasPrivateKey: !!privateKey
       });
       
       const walletData: WalletData = {
         address: account.address,
-        privateKey: account.privateKey,
+        privateKey: privateKey,
         mnemonic: mnemonic,
         createdAt: new Date().toISOString()
       };
@@ -185,11 +187,11 @@ export class WalletManagerImpl {
       // Generate private key from mnemonic
       const seed = await bip39.mnemonicToSeed(mnemonic);
       const privateKey = '0x' + Buffer.from(seed).slice(0, 32).toString('hex');
-      const account = await this.walletService.createAccount(privateKey);
+      const account = await this.walletService.createAccount();
 
       const walletData: WalletData = {
         address: account.address,
-        privateKey: account.privateKey,
+        privateKey: privateKey,
         mnemonic: mnemonic,
         createdAt: new Date().toISOString()
       };
@@ -274,8 +276,7 @@ export class WalletManagerImpl {
       return await this.walletService.sendTransaction(
         fromAddress,
         toAddress,
-        amount,
-        walletData.privateKey
+        amount
       );
     } catch (error) {
       if (error instanceof Error) {
