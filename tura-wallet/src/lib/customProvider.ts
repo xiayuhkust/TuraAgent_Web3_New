@@ -36,7 +36,7 @@ export class CustomProvider {
       {
         chainId: CHAIN_CONFIG.chainId,
         name: CHAIN_CONFIG.chainName,
-        ensAddress: null
+        ensAddress: undefined
       }
     );
     
