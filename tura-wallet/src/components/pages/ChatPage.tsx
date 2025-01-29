@@ -8,6 +8,7 @@ import { Badge } from '../ui/badge';
 import { officialAgents, agents, workflows } from '../../stores/agent-store';
 import { Agent, OfficialAgent, Workflow } from '../../types/agentTypes';
 import { WalletAgent } from '../../agentic_workflow/WalletAgent';
+import { AgenticWorkflow } from '../../agentic_workflow/AgenticWorkflow';
 
 interface Message {
   id: string;
@@ -105,30 +106,28 @@ export default function ChatPage() {
 
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
-
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      text: inputText,
-      sender: 'user',
-      timestamp: new Date().toISOString()
-    };
-
-    setMessages(prev => [...prev, newMessage]);
     setInputText('');
     setLastMessageTime(Date.now());
 
     try {
-      // Process message through WalletAgent
-      if (!activeAgent || activeAgent.name === 'WalletAgent') {
-        const agentResponse = await walletAgent.processMessage(inputText);
-        
-        // Update UI state based on agent response
+      if (!activeAgent?.instance) {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          text: "No agent selected or agent instance not available",
+          sender: 'error',
+          timestamp: new Date().toISOString()
+        }]);
+        return;
+      }
+
+      const agentResponse = await activeAgent.instance.processMessage(inputText);
+      
+      if (activeAgent.name === 'WalletAgent') {
         const storedAddress = localStorage.getItem('lastWalletAddress');
         if (storedAddress !== chatAddress) {
           setChatAddress(storedAddress || '');
         }
         
-        // Always refresh balance after agent response for faucet-related actions
         if (chatAddress) {
           try {
             setIsRefreshingBalance(true);
@@ -143,25 +142,15 @@ export default function ChatPage() {
             setIsRefreshingBalance(false);
           }
         }
-
-        const response: Message = {
-          id: (Date.now() + 1).toString(),
-          text: agentResponse,
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        };
-
-        setMessages(prev => [...prev, response]);
-      } else {
-        // Handle other agents' messages here
-        const response: Message = {
-          id: (Date.now() + 1).toString(),
-          text: `Agent ${activeAgent.name} received: ${inputText}`,
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        };
-        setMessages(prev => [...prev, response]);
       }
+
+      const agentMessages = activeAgent.instance.getMessages();
+      setMessages(agentMessages.map(msg => ({
+        id: Date.now().toString(),
+        text: msg.text,
+        sender: msg.sender,
+        timestamp: msg.timestamp
+      })));
     } catch (error: unknown) {
       console.error('Agent processing error:', error);
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -425,12 +414,22 @@ export default function ChatPage() {
                       }`}
                       onClick={() => {
                         setActiveAgent(agent);
-                        setMessages(prev => [...prev, {
-                          id: Date.now().toString(),
-                          text: `Connected to ${agent.name}`,
-                          sender: 'agent',
-                          timestamp: new Date().toISOString()
-                        }]);
+                        if (agent.instance) {
+                          const agentMessages = (agent.instance as AgenticWorkflow).getMessages();
+                          setMessages(agentMessages.map(msg => ({
+                            id: Date.now().toString(),
+                            text: msg.text,
+                            sender: msg.sender,
+                            timestamp: msg.timestamp
+                          })));
+                        } else {
+                          setMessages([{
+                            id: Date.now().toString(),
+                            text: `Connected to ${agent.name}`,
+                            sender: 'agent',
+                            timestamp: new Date().toISOString()
+                          }]);
+                        }
                       }}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -466,12 +465,22 @@ export default function ChatPage() {
                       }`}
                       onClick={() => {
                         setActiveAgent(agent);
-                        setMessages(prev => [...prev, {
-                          id: Date.now().toString(),
-                          text: `Connected to ${agent.name}`,
-                          sender: 'agent',
-                          timestamp: new Date().toISOString()
-                        }]);
+                        if (agent.instance) {
+                          const agentMessages = (agent.instance as AgenticWorkflow).getMessages();
+                          setMessages(agentMessages.map(msg => ({
+                            id: Date.now().toString(),
+                            text: msg.text,
+                            sender: msg.sender,
+                            timestamp: msg.timestamp
+                          })));
+                        } else {
+                          setMessages([{
+                            id: Date.now().toString(),
+                            text: `Connected to ${agent.name}`,
+                            sender: 'agent',
+                            timestamp: new Date().toISOString()
+                          }]);
+                        }
                       }}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -507,12 +516,22 @@ export default function ChatPage() {
                       }`}
                       onClick={() => {
                         setActiveAgent(workflow);
-                        setMessages(prev => [...prev, {
-                          id: Date.now().toString(),
-                          text: `Connected to ${workflow.name}`,
-                          sender: 'agent',
-                          timestamp: new Date().toISOString()
-                        }]);
+                        if (workflow.instance) {
+                          const workflowMessages = (workflow.instance as AgenticWorkflow).getMessages();
+                          setMessages(workflowMessages.map(msg => ({
+                            id: Date.now().toString(),
+                            text: msg.text,
+                            sender: msg.sender,
+                            timestamp: msg.timestamp
+                          })));
+                        } else {
+                          setMessages([{
+                            id: Date.now().toString(),
+                            text: `Connected to ${workflow.name}`,
+                            sender: 'agent',
+                            timestamp: new Date().toISOString()
+                          }]);
+                        }
                       }}
                     >
                       <div className="flex items-center justify-between mb-1">
