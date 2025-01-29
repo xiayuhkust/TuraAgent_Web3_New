@@ -31,12 +31,25 @@ export default function WalletContent() {
   useEffect(() => {
     const checkWalletConnection = async () => {
       try {
-        if (window.ethereum) {
-          const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-          if (accounts && accounts.length > 0) {
-            setAddress(accounts[0]);
-            setIsLoggedIn(true);
-            const balance = await walletService.getBalance(accounts[0]);
+        const storedAddress = localStorage.getItem('lastWalletAddress');
+        if (storedAddress) {
+          setAddress(storedAddress);
+          
+          const session = await walletManager.getSession();
+          if (session?.password) {
+            const privateKey = await walletManager.getPrivateKey(session.password);
+            if (privateKey) {
+              setIsLoggedIn(true);
+              const balance = await walletManager.getBalance(storedAddress);
+              setBalance(balance);
+              console.log('Restored wallet session:', {
+                address: storedAddress,
+                hasSession: true,
+                sessionExpires: new Date(session.expires).toLocaleString()
+              });
+            }
+          } else {
+            const balance = await walletManager.getBalance(storedAddress);
             setBalance(balance);
             setLastBalanceUpdate(new Date());
           }
@@ -218,9 +231,16 @@ export default function WalletContent() {
                 if (isConnectingWallet) return;
                 try {
                   setError('');
-                  setIsConnectingWallet(true);
-                  const account = await walletService.createAccount();
-                  setAddress(account.address);
+                  setIsLoggingIn(true);
+                  const password = prompt('Enter your wallet password:');
+                  if (!password) {
+                    return;
+                  }
+                  await walletManager.getPrivateKey(password); // Verify password
+                  localStorage.setItem('walletSession', JSON.stringify({
+                    password,
+                    expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+                  }));
                   setIsLoggedIn(true);
                   try {
                     const balance = await walletService.getBalance(account.address);

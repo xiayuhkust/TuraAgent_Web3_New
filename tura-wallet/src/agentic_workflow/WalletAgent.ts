@@ -2,6 +2,7 @@ import { OpenAI } from 'openai';
 import type { ChatCompletionCreateParams } from 'openai/resources/chat/completions';
 import WalletManager from '../lib/wallet_manager';
 import { AgenticWorkflow } from './AgenticWorkflow';
+import { AgentManager } from './AgentManager';
 
 type ChatMessage = ChatCompletionCreateParams['messages'][number];
 
@@ -105,7 +106,25 @@ export class WalletAgent extends AgenticWorkflow {
     await super.processMessage(text);
     
     try {
-      console.log('Processing message:', text);
+      console.log('WalletAgent processing message:', { 
+        text, 
+        isWaitingForPassword: this.isWaitingForPassword,
+        isWaitingForFaucetConfirmation: this.isWaitingForFaucetConfirmation
+      });
+
+      // Handle faucet confirmation if waiting
+      if (this.isWaitingForFaucetConfirmation) {
+        console.log('Processing faucet confirmation response:', text);
+        const normalizedResponse = text.toLowerCase().trim();
+        if (normalizedResponse === 'yes' || normalizedResponse === 'y') {
+          console.log('Faucet confirmation received, distributing tokens...');
+          return await this.distributeFaucetTokens();
+        } else {
+          console.log('Faucet request declined');
+          this.isWaitingForFaucetConfirmation = false;
+          return "Okay, I won't send you any test tokens. Let me know if you change your mind!";
+        }
+      }
 
       // Handle password input if waiting
       if (this.isWaitingForPassword) {
@@ -285,25 +304,55 @@ Remember: Always respond with exactly one category name in uppercase with unders
       }
 
       // Map normalized intent to wallet operations using normalized categories
+      // First check for password input if we're waiting for it
+      if (this.isWaitingForPassword) {
+        return await this.handleCreateWallet(text);
+      }
+
+      // Check for direct wallet creation commands
+      if (text.toLowerCase().includes('create') && text.toLowerCase().includes('wallet')) {
+        return this.initiateWalletCreation();
+      }
+
+      // Check for agent deployment intent or ongoing registration
+      const agentManager = new AgentManager();
+      const registrationState = agentManager.getRegistrationState();
+      if (registrationState.step !== 'idle' || 
+          (text.toLowerCase().includes('deploy') && text.toLowerCase().includes('agent'))) {
+        console.log('Delegating to AgentManager - registration state:', registrationState);
+        return await agentManager.processMessage(text);
+      }
+
       switch (normalizedCompletion) {
         case 'CREATE_WALLET':
+        case 'CREATE_A_WALLET':
+        case 'NEW_WALLET':
+        case 'SETUP_WALLET':
+        case 'MAKE_WALLET':
+        case 'WALLET_CREATION':
           return this.initiateWalletCreation();
         
         case 'ACCOUNT_INFO':
+        case 'CHECK_BALANCE':
+        case 'VIEW_BALANCE':
+        case 'GET_BALANCE':
+        case 'SHOW_BALANCE':
+        case 'WALLET_INFO':
           return await this.handleBalanceCheck();
         
         case 'TRANSFER_TURA':
+        case 'SEND_TURA':
+        case 'TRANSFER_TOKENS':
+        case 'SEND_MONEY':
+        case 'SEND_TOKENS':
           return await this.handleTransferRequest(text);
         
         case 'FAUCET_REQUEST':
-          if (this.isWaitingForFaucetConfirmation) {
-            if (text.toLowerCase().includes('yes')) {
-              return await this.distributeFaucetTokens();
-            } else {
-              this.isWaitingForFaucetConfirmation = false;
-              return "Okay, I won't send you any test tokens. Let me know if you change your mind!";
-            }
-          }
+        case 'GET_TOKENS':
+        case 'REQUEST_TOKENS':
+        case 'NEED_TOKENS':
+        case 'LOW_BALANCE':
+        case 'FAUCET':
           return await this.handleFaucetRequest();
         
         default:
@@ -349,6 +398,11 @@ Note: Make sure to remember this password as you'll need it to access your walle
       }
 
       const wallet = await this.walletManager.createWallet(password);
+      // Store session
+      localStorage.setItem('walletSession', JSON.stringify({
+        password,
+        expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      }));
       localStorage.setItem('lastWalletAddress', wallet.address);
       
       // Reset password waiting state
