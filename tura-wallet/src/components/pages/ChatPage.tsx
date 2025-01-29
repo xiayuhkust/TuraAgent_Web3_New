@@ -522,8 +522,6 @@ export default function ChatPage() {
       </Dialog>
 
       {/* Chat Interface */}
-
-
       <CardContent className="flex h-full gap-4">
         {/* AgenticWorkflow Sidebar */}
         <div className="w-[30%] border-r pr-4">
