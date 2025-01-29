@@ -124,120 +124,6 @@ export default function ChatPage() {
     } finally {
       setIsWaitingForOpenAI(false);
     }
-=======
-      console.log('Processing message through agent:', {
-        agent: activeAgent.name,
-        instance: activeAgent.instance.constructor.name,
-        message: inputText
-      });
-
-      // Clear any previous messages if switching agents
-      if (activeAgent && messagesMap[activeAgent.name]?.length === 1 && messagesMap[activeAgent.name][0].sender === 'agent') {
-        setMessagesMap(prev => ({ ...prev, [activeAgent.name]: [] }));
-      }
-      
-      try {
-        // Get agent response
-        const agentResponse = await activeAgent.instance.processMessage(inputText);
-        console.log('Received agent response:', agentResponse);
-        
-        // Create message object
-        const response: Message = {
-          id: Date.now().toString(),
-          text: agentResponse,
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        };
-
-        // Add response to chat
-        console.log('Adding response to messages:', response);
-        const agentKey = activeAgent.name;
-        setMessagesMap(prev => ({
-          ...prev,
-          [agentKey]: [...(prev[agentKey] || []), response]
-        }));
-      } catch (error) {
-        console.error('Error processing message:', error);
-        throw error;
-      }
-        
-      // Update UI state if needed
-      if (activeAgent.name === 'WalletAgent') {
-        console.log('Processing message through WalletAgent:', {
-          agent: activeAgent?.name || 'default',
-          message: inputText
-        });
-        const agentResponse = await walletAgent.processMessage(inputText);
-        console.log('Received agent response:', agentResponse);
-        
-        // Update UI state based on agent response
-        const storedAddress = localStorage.getItem('lastWalletAddress');
-        if (storedAddress !== chatAddress) {
-          setChatAddress(storedAddress || '');
-        }
-        
-        // Always refresh balance after agent response for faucet-related actions
-        if (chatAddress) {
-          try {
-            setIsRefreshingBalance(true);
-            const balanceResponse = await walletAgent.processMessage('check balance');
-            const balanceMatch = balanceResponse.match(/contains (\d+(?:\.\d+)?)/);
-            if (balanceMatch) {
-              setChatBalance(balanceMatch[1]);
-            }
-          } catch (error) {
-            console.error('Balance refresh failed:', error);
-          } finally {
-            setIsRefreshingBalance(false);
-          }
-        }
-
-        const response: Message = {
-          id: (Date.now() + 1).toString(),
-          text: agentResponse,
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        };
-
-        console.log('Adding response to messages:', response);
-        const agentKey = activeAgent.name;
-        setMessagesMap(prev => ({
-          ...prev,
-          [agentKey]: [...(prev[agentKey] || []), response]
-        }));
-      } else if (activeAgent?.instance instanceof AgenticWorkflow) {
-        // Process message through agent's instance
-        const agentResponse = await activeAgent.instance.processMessage(inputText);
-        const response: Message = {
-          id: (Date.now() + 1).toString(),
-          text: agentResponse,
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        };
-        const agentKey = activeAgent.name;
-        setMessagesMap(prev => ({
-          ...prev,
-          [agentKey]: [...(prev[agentKey] || []), response]
-        }));
-      }
-    } catch (error: unknown) {
-      console.error('Agent processing error:', error);
-      const message = error instanceof Error ? error.message : 'Unknown error occurred';
-      const errorResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        text: `Error: ${message}`,
-        sender: 'error',
-        timestamp: new Date().toISOString()
-      };
-      const agentKey = activeAgent?.name ?? 'unknown';
-      setMessagesMap(prev => ({
-        ...prev,
-        [agentKey]: [...(prev[agentKey] || []), errorResponse]
-      }));
-    } finally {
-      setIsWaitingForOpenAI(false);
-    }
->>>>>>> 26edb5a2 (feat: hide wallet/workflow tabs, separate agent dialogues, show wallet notification)
   };
 
   const startRecording = async () => {
@@ -470,65 +356,18 @@ export default function ChatPage() {
             </div>
           )}
         </CardTitle>
->>>>>>> 26edb5a2 (feat: hide wallet/workflow tabs, separate agent dialogues, show wallet notification)
       </CardHeader>
-<<<<<<< HEAD
+
       <CardContent className="flex flex-col h-full">
         <ScrollArea className="flex-1 pr-4">
           <div className="space-y-4">
-            {messages.map((message) => (
+            {(activeAgent && messagesMap[activeAgent.name] ? messagesMap[activeAgent.name] : []).map((message) => (
               <div
                 key={message.id}
                 className={`flex ${
                   message.sender === 'user' ? 'justify-end' : 'justify-start'
                 }`}
               >
-||||||| parent of 26edb5a2 (feat: hide wallet/workflow tabs, separate agent dialogues, show wallet notification)
-      {/* Signature Dialog */}
-      <Dialog 
-        open={showSignatureDialog} 
-        onOpenChange={(open) => {
-          if (!open) {
-            setPassword('');
-          }
-          setShowSignatureDialog(open);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{signatureDetails?.title || 'Confirm Transaction'}</DialogTitle>
-            <DialogDescription className="whitespace-pre-wrap">
-              {signatureDetails?.description || 'Please confirm this transaction in your wallet.'}
-            </DialogDescription>
-          </DialogHeader>
-          {signatureDetails?.requirePassword && (
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your wallet password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="col-span-3"
-                />
-              </div>
-            </div>
-          )}
-          <DialogFooter className="flex justify-between">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setPassword('');
-                setShowSignatureDialog(false);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={async () => {
-                if (signatureDetails?.onConfirm) {
-                  try {
                     if (signatureDetails.requirePassword && !password) {
                       const agentKey = activeAgent?.name ?? 'unknown';
                       setMessagesMap(prev => ({
@@ -805,7 +644,7 @@ export default function ChatPage() {
               {(activeAgent && messagesMap[activeAgent.name] ? messagesMap[activeAgent.name] : []).map((message) => (
 >>>>>>> 26edb5a2 (feat: hide wallet/workflow tabs, separate agent dialogues, show wallet notification)
                 <div
-                  className={`max-w-[80%] rounded-lg p-3 ${
+                  className={`rounded-lg px-4 py-2 max-w-[80%] ${
                     message.sender === 'user'
                       ? 'bg-primary text-primary-foreground'
                       : message.sender === 'error'
@@ -813,36 +652,42 @@ export default function ChatPage() {
                       : 'bg-secondary'
                   }`}
                 >
-                  <div>{message.text}</div>
-                  <div className="text-xs opacity-70 mt-1">
-                    {new Date(message.timestamp).toLocaleTimeString()}
-                  </div>
+                  {message.text}
                 </div>
               </div>
             ))}
             <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
-        
-        <div className="flex gap-2 mt-4">
+
+        <div className="flex items-center gap-2 pt-4">
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
+            className={`shrink-0 ${isRecording ? 'text-destructive' : ''}`}
             onClick={isRecording ? stopRecording : startRecording}
-            disabled={isLoading}
-            className={isRecording ? 'text-destructive' : ''}
+            disabled={isLoading || !activeAgent}
           >
-            <Mic className="h-4 w-4" />
+            <Mic className="h-5 w-5" />
           </Button>
           <Input
             placeholder="Type your message..."
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-            disabled={isLoading}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+              }
+            }}
+            disabled={isLoading || !activeAgent}
           />
-          <Button onClick={handleSendMessage} disabled={isLoading}>
-            <Send className="h-4 w-4" />
+          <Button
+            className="shrink-0"
+            onClick={handleSendMessage}
+            disabled={!inputText.trim() || isLoading || !activeAgent}
+          >
+            <Send className="h-5 w-5" />
           </Button>
         </div>
       </CardContent>
