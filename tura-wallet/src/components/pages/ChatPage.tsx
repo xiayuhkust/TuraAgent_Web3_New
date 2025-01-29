@@ -159,7 +159,9 @@ export default function ChatPage() {
     try {
       // Process message through WalletAgent
       if (!activeAgent || activeAgent.name === 'WalletAgent') {
+        console.log('Processing message through WalletAgent:', inputText);
         const agentResponse = await walletAgent.processMessage(inputText);
+        console.log('Received agent response:', agentResponse);
         
         // Update UI state based on agent response
         const storedAddress = localStorage.getItem('lastWalletAddress');
@@ -190,6 +192,7 @@ export default function ChatPage() {
           timestamp: new Date().toISOString()
         };
 
+        console.log('Adding response to messages:', response);
         setMessages(prev => [...prev, response]);
       } else if (activeAgent?.instance instanceof AgenticWorkflow) {
         // Process message through agent's instance

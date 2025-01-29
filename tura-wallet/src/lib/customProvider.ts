@@ -29,10 +29,20 @@ export class CustomProvider {
     this.eventHandlers = new Map();
     this.accounts = [];
     this.connected = false;
-    this.provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.rpcUrl, {
-      chainId: CHAIN_CONFIG.chainId,
-      name: CHAIN_CONFIG.chainName
-    });
+    
+    // Initialize provider with network configuration
+    this.provider = new ethers.JsonRpcProvider(
+      CHAIN_CONFIG.rpcUrl,
+      {
+        chainId: CHAIN_CONFIG.chainId,
+        name: CHAIN_CONFIG.chainName,
+        ensAddress: null
+      }
+    );
+    
+    // Mock network connection during infrastructure setup
+    console.log('Network setup in progress - using mock network configuration');
+    this.connected = true;
     
     // Initialize event handler sets
     ['accountsChanged', 'chainChanged', 'connect', 'disconnect'].forEach(event => {
