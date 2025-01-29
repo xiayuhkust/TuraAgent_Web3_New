@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Send, Bot, Code2, Wallet, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Mic, Send, Bot, Code2, Wallet, RefreshCw } from 'lucide-react';
 import { AgenticWorkflow } from '../../agentic_workflow/AgenticWorkflow';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -178,8 +178,10 @@ export default function ChatPage() {
 
   // Scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (activeAgent && messagesMap[activeAgent.name]?.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messagesMap, activeAgent]);
 
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
@@ -213,8 +215,8 @@ export default function ChatPage() {
       });
 
       // Clear any previous messages if switching agents
-      if (messages.length === 1 && messages[0].sender === 'agent') {
-        setMessages([]);
+      if (activeAgent && messagesMap[activeAgent.name]?.length === 1 && messagesMap[activeAgent.name][0].sender === 'agent') {
+        setMessagesMap(prev => ({ ...prev, [activeAgent.name]: [] }));
       }
       
       try {
@@ -281,7 +283,11 @@ export default function ChatPage() {
         };
 
         console.log('Adding response to messages:', response);
-        setMessages(prev => [...prev, response]);
+        const agentKey = activeAgent.name;
+        setMessagesMap(prev => ({
+          ...prev,
+          [agentKey]: [...(prev[agentKey] || []), response]
+        }));
       } else if (activeAgent?.instance instanceof AgenticWorkflow) {
         // Process message through agent's instance
         const agentResponse = await activeAgent.instance.processMessage(inputText);
@@ -291,7 +297,11 @@ export default function ChatPage() {
           sender: 'agent',
           timestamp: new Date().toISOString()
         };
-        setMessages(prev => [...prev, response]);
+        const agentKey = activeAgent.name;
+        setMessagesMap(prev => ({
+          ...prev,
+          [agentKey]: [...(prev[agentKey] || []), response]
+        }));
       }
     } catch (error: unknown) {
       console.error('Agent processing error:', error);
@@ -509,7 +519,25 @@ export default function ChatPage() {
           {activeAgent ? activeAgent.name : 'Chat'}
           
           {activeAgent?.name === 'AgentManager' && !chatAddress && (
-            <div className="ml-4 p-2 bg-yellow-100 text-yellow-800 rounded-lg flex items-center gap-2">
+            <div 
+              className="ml-4 p-2 bg-yellow-100 text-yellow-800 rounded-lg flex items-center gap-2 cursor-pointer hover:bg-yellow-200 transition-colors" 
+              onClick={() => {
+                const walletAgent = officialAgents.find(a => a.name === 'WalletAgent');
+                if (walletAgent) {
+                  setActiveAgent(walletAgent);
+                  const welcomeMessage: Message = {
+                    id: Date.now().toString(),
+                    text: 'Welcome to WalletAgent! I can help you create or connect your wallet.',
+                    sender: 'agent',
+                    timestamp: new Date().toISOString()
+                  };
+                  setMessagesMap({
+                    ...messagesMap,
+                    [walletAgent.name]: [welcomeMessage]
+                  });
+                }
+              }}
+            >
               <AlertTriangle className="h-4 w-4" />
               Please connect your wallet via WalletAgent to access all features
             </div>
@@ -662,16 +690,16 @@ export default function ChatPage() {
                       }`}
                       onClick={() => {
                         setActiveAgent(agent);
-                        const welcomeMessage = {
+                        const welcomeMessage: Message = {
                           id: Date.now().toString(),
                           text: `Connected to ${agent.name}`,
                           sender: 'agent',
                           timestamp: new Date().toISOString()
                         };
-                        setMessagesMap(prev => ({
-                          ...prev,
+                        setMessagesMap({
+                          ...messagesMap,
                           [agent.name]: [welcomeMessage]
-                        }));
+                        });
                       }}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -707,16 +735,16 @@ export default function ChatPage() {
                       }`}
                       onClick={() => {
                         setActiveAgent(agent);
-                        const welcomeMessage = {
+                        const welcomeMessage: Message = {
                           id: Date.now().toString(),
                           text: `Connected to ${agent.name}`,
                           sender: 'agent',
                           timestamp: new Date().toISOString()
                         };
-                        setMessagesMap(prev => ({
-                          ...prev,
+                        setMessagesMap({
+                          ...messagesMap,
                           [agent.name]: [welcomeMessage]
-                        }));
+                        });
                       }}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -752,16 +780,16 @@ export default function ChatPage() {
                       }`}
                       onClick={() => {
                         setActiveAgent(workflow);
-                        const welcomeMessage = {
+                        const welcomeMessage: Message = {
                           id: Date.now().toString(),
                           text: `Connected to ${workflow.name}`,
                           sender: 'agent',
                           timestamp: new Date().toISOString()
                         };
-                        setMessagesMap(prev => ({
-                          ...prev,
+                        setMessagesMap({
+                          ...messagesMap,
                           [workflow.name]: [welcomeMessage]
-                        }));
+                        });
                       }}
                     >
                       <div className="flex items-center justify-between mb-1">
