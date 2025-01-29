@@ -5,6 +5,17 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { ScrollArea } from '../ui/scroll-area';
+import { Badge } from '../ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import { WalletAgent } from '../../agents/WalletAgent';
+import { Agent, OfficialAgent, WorkflowAgent } from '../../types/agentTypes';
+
+interface SignatureDetails {
+  title?: string;
+  description?: string;
+  requirePassword?: boolean;
+  onConfirm?: (password?: string) => Promise<void>;
+}
 
 interface Message {
   id: string;
@@ -22,6 +33,15 @@ export default function ChatPage() {
   const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
   const [chatAddress, setChatAddress] = useState('');
   const [chatBalance, setChatBalance] = useState('0');
+  const [activeAgent, setActiveAgent] = useState<Agent | OfficialAgent | WorkflowAgent | null>(null);
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false);
+  const [password, setPassword] = useState('');
+  const [signatureDetails, setSignatureDetails] = useState<SignatureDetails | null>(null);
+  
+  const walletAgent = useRef<WalletAgent>(new WalletAgent());
+  const officialAgents = useRef<OfficialAgent[]>([]);
+  const agents = useRef<Agent[]>([]);
+  const workflows = useRef<WorkflowAgent[]>([]);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
