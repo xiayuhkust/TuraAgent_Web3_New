@@ -39,6 +39,18 @@ export class AgentManager extends AgenticWorkflow {
     data: Partial<AgentData>;
   } = { step: 'idle', data: {} };
 
+  private intentCache: Record<string, string> = {
+    'deploy': 'DEPLOY_CONTRACT',
+    'create agent': 'DEPLOY_CONTRACT',
+    'new agent': 'DEPLOY_CONTRACT',
+    'show agents': 'LIST_AGENTS',
+    'list agents': 'LIST_AGENTS',
+    'my agents': 'LIST_AGENTS',
+    'check status': 'CHECK_STATUS',
+    'agent status': 'CHECK_STATUS',
+    'help': 'GENERAL_HELP'
+  };
+
   constructor() {
     super("AgentManager", "Deploy and register TuraAgent contracts with metadata collection");
   }
@@ -59,42 +71,19 @@ export class AgentManager extends AgenticWorkflow {
       // System message for intent recognition
       const systemMessage = {
         role: 'system' as const,
-        content: `You are an agent registration assistant that classifies user messages into exactly one category. Respond with ONLY the category name in uppercase with underscores, no other text.
+        content: `Classify user messages into exactly one category. Respond with ONLY the category name:
 
-Valid categories:
-DEPLOY_CONTRACT - User wants to deploy a new TuraAgent contract (costs 0.1 TURA)
-REGISTER_AGENT - User wants to register agent metadata only
-CHECK_STATUS - User wants to check deployment/registration status
-LIST_AGENTS - User wants to list registered agents
-GENERAL_HELP - Other inquiries or unclear intent
+DEPLOY_CONTRACT - Deploy new TuraAgent contract (0.1 TURA)
+REGISTER_AGENT - Register agent metadata
+CHECK_STATUS - Check deployment status
+LIST_AGENTS - List registered agents
+GENERAL_HELP - Other inquiries
 
-Example mappings:
-"I want to deploy an agent" -> DEPLOY_CONTRACT
-"Create a new agent" -> DEPLOY_CONTRACT
-"Deploy contract" -> DEPLOY_CONTRACT
-"Set up an agent" -> DEPLOY_CONTRACT
+Priority: DEPLOY_CONTRACT > REGISTER_AGENT > CHECK_STATUS > LIST_AGENTS > GENERAL_HELP
 
-"Register my agent" -> REGISTER_AGENT
-"Add agent info" -> REGISTER_AGENT
-"Update agent details" -> REGISTER_AGENT
-"Save agent metadata" -> REGISTER_AGENT
+Example: "deploy agent" -> DEPLOY_CONTRACT
 
-"Show my agents" -> LIST_AGENTS
-"List all agents" -> LIST_AGENTS
-"What agents do I have?" -> LIST_AGENTS
-"Display registered agents" -> LIST_AGENTS
-
-"Check agent status" -> CHECK_STATUS
-"Is my agent deployed?" -> CHECK_STATUS
-"Deployment status" -> CHECK_STATUS
-"Agent status" -> CHECK_STATUS
-
-For unclear or multiple intents -> GENERAL_HELP
-
-Priority order (highest to lowest):
-DEPLOY_CONTRACT > REGISTER_AGENT > CHECK_STATUS > LIST_AGENTS > GENERAL_HELP
-
-Remember: Always respond with exactly one category name in uppercase with underscores, no other text.`
+Respond with only the category name in uppercase with underscores.`
       };
 
       // Prepare conversation context
@@ -103,9 +92,15 @@ Remember: Always respond with exactly one category name in uppercase with unders
         { role: 'user' as const, content: text }
       ];
 
-      // Get intent classification from DeepSeek
+      // Check cache first for common intents
       let userIntent = 'GENERAL_HELP'; // Default fallback
-      if (openai) {
+      const lowerText = text.toLowerCase();
+      const cachedIntent = Object.entries(this.intentCache).find(([key]) => lowerText.includes(key))?.[1];
+      
+      if (cachedIntent) {
+        console.log('Using cached intent:', cachedIntent);
+        userIntent = cachedIntent;
+      } else if (openai) {
         try {
           console.log('Calling OpenAI API for intent recognition');
           const result = await openai.chat.completions.create({
