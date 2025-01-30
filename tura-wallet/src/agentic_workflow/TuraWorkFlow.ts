@@ -11,24 +11,22 @@ export enum TuraWorkFlowState {
 }
 
 export class TuraWorkFlow extends AgenticWorkflow {
-  private state: TuraWorkFlowState;
-  private walletAgent: IWalletAgent;
+  private state: TuraWorkFlowState = TuraWorkFlowState.IDLE;
+  private walletAgent: IWalletAgent = new WalletAgent();
   private readonly MIN_BALANCE = 1.0;
 
   constructor() {
     super('TuraWorkFlow', 'Automated workflow for agent registration');
-    this.walletAgent = new WalletAgent();
-    this.state = TuraWorkFlowState.IDLE;
   }
 
-  async processMessage(message: string): Promise<string> {
+  override async processMessage(message: string): Promise<string> {
     console.log('TuraWorkFlow processing message:', { message, currentState: this.state });
     
     const normalizedMessage = message.toLowerCase();
     
     if (normalizedMessage === 'start workflow' || normalizedMessage === 'start wf') {
       console.log('Starting workflow from IDLE state');
-      return this.startWorkflow();
+      return await this.startWorkflow();
     }
 
     switch (this.state) {
@@ -42,20 +40,25 @@ export class TuraWorkFlow extends AgenticWorkflow {
           }
           return result;
         }
-        return this.handleWalletCheck();
+        return await this.handleWalletCheck();
 
       case TuraWorkFlowState.CHECKING_BALANCE:
-        return this.handleBalanceCheck();
+        return await this.handleBalanceCheck();
 
       case TuraWorkFlowState.GETTING_FAUCET:
         console.log('Handling faucet request');
-        return this.handleBalanceCheck();
+        const faucetResult = await this.walletAgent.processMessage('request faucet');
+        if (faucetResult.includes('Success')) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          return await this.handleBalanceCheck();
+        }
+        return faucetResult;
 
       case TuraWorkFlowState.DEPLOYING_CONTRACT:
-        return this.handleContractDeployment(message);
+        return await this.handleContractDeployment(message);
 
       case TuraWorkFlowState.REGISTERING_AGENT:
-        return this.handleAgentRegistration(message);
+        return await this.handleAgentRegistration(message);
 
       default:
         console.log('In IDLE state, waiting for start command');
@@ -64,7 +67,6 @@ export class TuraWorkFlow extends AgenticWorkflow {
   }
 
   private async startWorkflow(): Promise<string> {
-    console.log('Starting workflow, checking wallet...');
     this.state = TuraWorkFlowState.CHECKING_WALLET;
     const hasWallet = await this.walletAgent.hasWallet();
     
@@ -72,22 +74,19 @@ export class TuraWorkFlow extends AgenticWorkflow {
       return await this.walletAgent.processMessage('create wallet');
     }
     
-    return this.handleWalletCheck();
+    return await this.handleWalletCheck();
   }
 
   private async handleWalletCheck(): Promise<string> {
     try {
       const hasWallet = await this.walletAgent.hasWallet();
-      console.log('Wallet check result:', hasWallet);
-      
       if (!hasWallet) {
         return 'No wallet found. Please create a new wallet by typing "create wallet".';
       }
       
       this.state = TuraWorkFlowState.CHECKING_BALANCE;
-      return this.handleBalanceCheck();
+      return await this.handleBalanceCheck();
     } catch (error) {
-      console.error('Wallet check error:', error);
       this.state = TuraWorkFlowState.IDLE;
       return `Error checking wallet: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
@@ -96,7 +95,6 @@ export class TuraWorkFlow extends AgenticWorkflow {
   private async handleBalanceCheck(): Promise<string> {
     try {
       const balance = await this.walletAgent.getBalance();
-      console.log('Balance check result:', balance);
       
       if (balance < this.MIN_BALANCE) {
         this.state = TuraWorkFlowState.GETTING_FAUCET;
@@ -106,7 +104,6 @@ export class TuraWorkFlow extends AgenticWorkflow {
       this.state = TuraWorkFlowState.DEPLOYING_CONTRACT;
       return 'Ready to deploy contract. Type "y" to confirm deployment or "n" to cancel.';
     } catch (error) {
-      console.error('Balance check error:', error);
       this.state = TuraWorkFlowState.IDLE;
       return `Error checking balance: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
@@ -119,14 +116,7 @@ export class TuraWorkFlow extends AgenticWorkflow {
     }
 
     try {
-      let privateKey: string;
-      try {
-        privateKey = await this.walletAgent.getDecryptedKey();
-      } catch (error) {
-        this.state = TuraWorkFlowState.IDLE;
-        return `Failed to get wallet key: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      }
-
+      const privateKey = await this.walletAgent.getDecryptedKey();
       const response = await fetch('/api/v1/deploy-mytoken', {
         method: 'POST',
         headers: { 
@@ -161,7 +151,7 @@ export class TuraWorkFlow extends AgenticWorkflow {
     }
   }
 
-  private async handleAgentRegistration(_message: string): Promise<string> {
+  private async handleAgentRegistration(message: string): Promise<string> {
     this.state = TuraWorkFlowState.IDLE;
     return "Agent registration completed successfully.";
   }
