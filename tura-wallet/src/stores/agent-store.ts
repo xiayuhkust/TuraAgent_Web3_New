@@ -82,4 +82,31 @@ export const getWorkflow = (address: string): Workflow | undefined =>
 export const getAllAgents = (): (Agent | OfficialAgent)[] => [...officialAgents, ...agents];
 
 // Function to validate contract addresses
+// Storage for deployed MyToken contracts
+export interface MyTokenContract {
+  name: string;
+  symbol: string;
+  contractAddress: string;
+  owner: string;
+  initialSupply: string;
+  chainId: number;
+  status: 'VALID' | 'PENDING' | 'INVALID';
+  deploymentTimestamp: number;
+}
+
+export const myTokens: MyTokenContract[] = [];
+
+// Helper functions for MyToken contracts
+export const addMyToken = (token: MyTokenContract) => {
+  if (!isValidAddress(token.contractAddress)) return false;
+  myTokens.push(token);
+  return true;
+};
+
+export const getMyToken = (address: string): MyTokenContract | undefined =>
+  myTokens.find(token => token.contractAddress.toLowerCase() === address.toLowerCase());
+
+export const getMyTokensByOwner = (owner: string): MyTokenContract[] =>
+  myTokens.filter(token => token.owner.toLowerCase() === owner.toLowerCase());
+
 export const isValidAddress = (address: string): boolean => /^0x[a-fA-F0-9]{40}$/.test(address);
