@@ -86,6 +86,9 @@ export default function ChatPage() {
     const agent = officialAgents.find(agent => agent.name === 'WalletAgent');
     return agent?.instance as WalletAgent;
   });
+
+  const responseCache = useRef<Record<string, {response: string; timestamp: number}>>({});
+  const CACHE_TTL = 30000; // 30 seconds cache TTL
   
   // Initialize messages with welcome message based on active agent
   useEffect(() => {
@@ -133,17 +136,28 @@ export default function ChatPage() {
 
   // Initialize chat and set up balance refresh interval
   useEffect(() => {
+    const updateBalance = async () => {
+      if (!chatAddress) return;
+      try {
+        setIsRefreshingBalance(true);
+        const response = await walletAgent.processMessage('check balance');
+        const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
+        if (balanceMatch) {
+          setChatBalance(balanceMatch[1]);
+        }
+      } catch (error) {
+        console.error('Balance refresh failed:', error);
+      } finally {
+        setIsRefreshingBalance(false);
+      }
+    };
+
     const initializeChat = async () => {
       try {
         const storedAddress = localStorage.getItem('lastWalletAddress');
         if (storedAddress) {
           setChatAddress(storedAddress);
-          // Check wallet session through WalletAgent
-          const response = await walletAgent.processMessage('check balance');
-          const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
-          if (balanceMatch) {
-            setChatBalance(balanceMatch[1]);
-          }
+          await updateBalance();
         }
       } catch (error) {
         console.error('Failed to initialize chat:', error);
@@ -163,20 +177,10 @@ export default function ChatPage() {
     initializeChat();
 
     // Set up balance refresh interval for transactions and deployments
-    const refreshInterval = setInterval(async () => {
-      // Refresh more frequently right after a message (every 2s for first 30s)
-      if (chatAddress) {
-        try {
-          const response = await walletAgent.processMessage('check balance');
-          const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
-          if (balanceMatch) {
-            setChatBalance(balanceMatch[1]);
-          }
-        } catch (error) {
-          console.error('Balance refresh failed:', error);
-        }
-      }
-    }, Date.now() - lastMessageTime < 30000 ? 2000 : 5000);
+    const refreshInterval = setInterval(
+      updateBalance,
+      Date.now() - lastMessageTime < 30000 ? 2000 : 5000
+    );
 
     return () => clearInterval(refreshInterval);
   }, [walletAgent, lastMessageTime, chatAddress]);
@@ -219,85 +223,55 @@ export default function ChatPage() {
         message: inputText
       });
 
-      // Clear any previous messages if switching agents
-      if (activeAgent && messagesMap[activeAgent.name]?.length === 1 && messagesMap[activeAgent.name][0].sender === 'agent') {
-        setMessagesMap(prev => ({ ...prev, [activeAgent.name]: [] }));
-      }
-      
       try {
-        // Get agent response
-        const agentResponse = await activeAgent.instance.processMessage(inputText);
-        console.log('Received agent response:', agentResponse);
+        // Check cache for common responses
+        const cacheKey = `${activeAgent.name}:${inputText.toLowerCase()}`;
+        const cached = responseCache.current[cacheKey];
+        const now = Date.now();
         
-        // Create message object
-        const response: Message = {
-          id: Date.now().toString(),
-          text: agentResponse,
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        };
-
-        // Add response to chat
-        console.log('Adding response to messages:', response);
-        const agentKey = activeAgent.name;
-        setMessagesMap(prev => ({
-          ...prev,
-          [agentKey]: [...(prev[agentKey] || []), response]
-        }));
-      } catch (error) {
-        console.error('Error processing message:', error);
-        throw error;
-      }
-        
-      // Update UI state if needed
-      if (activeAgent.name === 'WalletAgent') {
-        console.log('Processing message through WalletAgent:', {
-          agent: activeAgent?.name || 'default',
-          message: inputText
-        });
-        const agentResponse = await walletAgent.processMessage(inputText);
-        console.log('Received agent response:', agentResponse);
-        
-        // Update UI state based on agent response
-        const storedAddress = localStorage.getItem('lastWalletAddress');
-        if (storedAddress !== chatAddress) {
-          setChatAddress(storedAddress || '');
+        let agentResponse: string;
+        if (cached && now - cached.timestamp < CACHE_TTL) {
+          console.log('Using cached response for:', inputText);
+          agentResponse = cached.response;
+        } else {
+          // Get fresh agent response
+          agentResponse = await activeAgent.instance.processMessage(inputText);
+          console.log('Received agent response:', agentResponse);
+          
+          // Cache response for common commands
+          if (inputText.toLowerCase().match(/^(help|balance|status)$/)) {
+            responseCache.current[cacheKey] = {
+              response: agentResponse,
+              timestamp: now
+            };
+          }
         }
         
-        // Always refresh balance after agent response for faucet-related actions
-        if (chatAddress) {
-          try {
-            setIsRefreshingBalance(true);
-            const balanceResponse = await walletAgent.processMessage('check balance');
-            const balanceMatch = balanceResponse.match(/contains (\d+(?:\.\d+)?)/);
-            if (balanceMatch) {
-              setChatBalance(balanceMatch[1]);
+        // Update UI state for WalletAgent
+        if (activeAgent.name === 'WalletAgent') {
+          const storedAddress = localStorage.getItem('lastWalletAddress');
+          if (storedAddress !== chatAddress) {
+            setChatAddress(storedAddress || '');
+          }
+          
+          if (chatAddress) {
+            try {
+              setIsRefreshingBalance(true);
+              const balanceMatch = agentResponse.match(/contains (\d+(?:\.\d+)?)/);
+              if (balanceMatch) {
+                setChatBalance(balanceMatch[1]);
+              }
+            } catch (error) {
+              console.error('Balance refresh failed:', error);
+            } finally {
+              setIsRefreshingBalance(false);
             }
-          } catch (error) {
-            console.error('Balance refresh failed:', error);
-          } finally {
-            setIsRefreshingBalance(false);
           }
         }
 
+        // Add response to chat
         const response: Message = {
-          id: (Date.now() + 1).toString(),
-          text: agentResponse,
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        };
-
-        console.log('Adding response to messages:', response);
-        const agentKey = activeAgent.name;
-        setMessagesMap(prev => ({
-          ...prev,
-          [agentKey]: [...(prev[agentKey] || []), response]
-        }));
-      } else if (activeAgent?.instance instanceof AgenticWorkflow) {
-        // Process message through agent's instance
-        const agentResponse = await activeAgent.instance.processMessage(inputText);
-        const response: Message = {
-          id: (Date.now() + 1).toString(),
+          id: Date.now().toString(),
           text: agentResponse,
           sender: 'agent',
           timestamp: new Date().toISOString()
@@ -312,7 +286,7 @@ export default function ChatPage() {
       console.error('Agent processing error:', error);
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
       const errorResponse: Message = {
-        id: (Date.now() + 1).toString(),
+        id: Date.now().toString(),
         text: `Error: ${message}`,
         sender: 'error',
         timestamp: new Date().toISOString()
