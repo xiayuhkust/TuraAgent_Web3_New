@@ -363,13 +363,9 @@ Remember: Always respond with exactly one category name in uppercase with unders
         return this.initiateWalletCreation();
       }
 
-      // Check for agent deployment intent or ongoing registration
-      const agentManager = new AgentManager();
-      const registrationState = agentManager.getRegistrationState();
-      if (registrationState.step !== 'idle' || 
-          (text.toLowerCase().includes('deploy') && text.toLowerCase().includes('agent'))) {
-        console.log('Delegating to AgentManager - registration state:', registrationState);
-        return await agentManager.processMessage(text);
+      // Direct wallet creation check before intent classification
+      if (text.toLowerCase().includes('create') && text.toLowerCase().includes('wallet')) {
+        return this.initiateWalletCreation();
       }
 
       switch (normalizedCompletion) {

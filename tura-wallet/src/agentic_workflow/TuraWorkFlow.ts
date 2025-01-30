@@ -28,6 +28,23 @@ export class TuraWorkFlow extends AgenticWorkflow {
     
     const normalizedMessage = message.toLowerCase();
     
+    // Handle wallet creation requests in any state
+    if (normalizedMessage.includes('create') && normalizedMessage.includes('wallet')) {
+      console.log('Delegating wallet creation to WalletAgent');
+      this.state = TuraWorkFlowState.CHECKING_WALLET;
+      return await this.walletAgent.processMessage(message);
+    }
+    
+    // Handle password input for wallet creation
+    if (this.state === TuraWorkFlowState.CHECKING_WALLET) {
+      const result = await this.walletAgent.processMessage(message);
+      if (result.includes('created successfully')) {
+        this.state = TuraWorkFlowState.CHECKING_BALANCE;
+        return result + '\n\nNow checking your balance...';
+      }
+      return result;
+    }
+    
     // Handle start workflow command
     if (this.state === TuraWorkFlowState.IDLE && 
         (normalizedMessage === 'start workflow' || normalizedMessage === 'start wf')) {
