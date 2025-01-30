@@ -512,7 +512,7 @@ export default function ChatPage() {
                         activeAgent?.name === workflow.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
                       }`}
                       onClick={() => {
-                        const workflowInstance = workflow.name === 'TuraWorkFlow' ? new TuraWorkFlow() : null;
+                        const workflowInstance = workflow.name === 'TuraWorkFlow' ? new TuraWorkFlow() : undefined;
                         setActiveAgent({ ...workflow, instance: workflowInstance });
                         setMessages(prev => [...prev, {
                           id: Date.now().toString(),
