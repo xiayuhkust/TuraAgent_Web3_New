@@ -66,16 +66,15 @@ Then follow the agent registration instructions.`;
           return "An error occurred. Please type 'Start Workflow' to start over.";
       }
     } catch (error) {
-      console.error('TuraWorkFlow error:', error);
       this.state = 'idle';
-      return `An error occurred: ${error instanceof Error ? error.message : 'Unknown error'}. Please type 'Start Workflow' to try again.`;
+      return "An error occurred. Please type 'Start Workflow' to try again.";
     }
   }
 
   private checkWalletStatus(): string {
     const address = localStorage.getItem('lastWalletAddress');
     if (!address) {
-      return `You need to create a wallet first. Please switch to WalletAgent by typing:
+      return `Please create a wallet to continue. Switch to WalletAgent by typing:
 "switch to WalletAgent"
 
 Then create your wallet by typing:
@@ -110,11 +109,10 @@ Checking your balance...`;
     try {
       const balance = await this.walletManager.getBalance(address);
       const balanceNum = parseFloat(balance);
-      const shortAddress = `${address.slice(0, 6)}...${address.slice(-4)}`;
-
+      
       if (balanceNum >= this.MIN_BALANCE) {
         this.state = 'registeringAgent';
-        return `Your wallet (${shortAddress}) has ${balance} TURA, which is sufficient for agent registration.
+        return `Your wallet has sufficient TURA for agent registration.
 
 To start the registration process:
 1. Type "switch to AgentManager"
@@ -129,13 +127,12 @@ The process will guide you through:
       }
 
       this.state = 'gettingFaucet';
-      return `Your wallet (${shortAddress}) has ${balance} TURA, which is insufficient. You need at least ${this.MIN_BALANCE} TURA to register an agent.
+      return `Your wallet requires additional TURA to register an agent.
 
 Would you like to get test tokens from the faucet? Type "yes" to proceed.`;
     } catch (error) {
-      console.error('Balance check error:', error);
       this.state = 'idle';
-      return `Failed to check balance: ${error instanceof Error ? error.message : 'Unknown error'}. Please type 'Start Workflow' to try again.`;
+      return "Failed to check balance. Please type 'Start Workflow' to try again.";
     }
   }
 }
