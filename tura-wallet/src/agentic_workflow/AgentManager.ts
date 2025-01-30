@@ -8,6 +8,7 @@ import {
   getTuraProvider
 } from '../contracts/TuraAgent';
 import { KeyManager } from '../lib/keyManager';
+import { deployMyToken } from '../contracts/MyToken';
 import { AgentData } from '../types/agentTypes';
 import { addAgent, getAgentsByOwner } from '../lib/agentStorage';
 import WalletManagerImpl from '../lib/wallet_manager';
@@ -35,11 +36,20 @@ try {
  */
 export class AgentManager extends AgenticWorkflow {
   private registrationState: {
-    step: 'idle' | 'collecting_name' | 'collecting_description' | 'collecting_company' | 'collecting_socials' | 'confirming_deployment';
-    data: Partial<AgentData>;
+    step: 'idle' | 'collecting_name' | 'collecting_description' | 'collecting_company' | 'collecting_socials' | 'confirming_deployment' |
+          'collecting_token_name' | 'collecting_token_symbol' | 'collecting_token_supply' | 'confirming_token_deployment';
+    data: Partial<AgentData> & {
+      type?: 'token';
+      tokenName?: string;
+      tokenSymbol?: string;
+      tokenSupply?: string;
+    };
   } = { step: 'idle', data: {} };
 
   private intentCache: Record<string, string> = {
+    'deploy token': 'DEPLOY_MY_TOKEN',
+    'new token': 'DEPLOY_MY_TOKEN',
+    'create token': 'DEPLOY_MY_TOKEN',
     'deploy': 'DEPLOY_CONTRACT',
     'create agent': 'DEPLOY_CONTRACT',
     'new agent': 'DEPLOY_CONTRACT',
@@ -73,6 +83,7 @@ export class AgentManager extends AgenticWorkflow {
         role: 'system' as const,
         content: `Classify user messages into exactly one category. Respond with ONLY the category name:
 
+DEPLOY_MY_TOKEN - Deploy new MyToken contract (0.1 TURA)
 DEPLOY_CONTRACT - Deploy new TuraAgent contract (0.1 TURA)
 REGISTER_AGENT - Register agent metadata
 CHECK_STATUS - Check deployment status
@@ -129,7 +140,8 @@ Respond with only the category name in uppercase with underscores.`
       } else {
         // If no OpenAI client, use basic phrase matching
         const intentPhrases = {
-          DEPLOY_CONTRACT: ['deploy', 'create agent', 'new agent', 'deploy contract'],
+          DEPLOY_MY_TOKEN: ['deploy token', 'new token', 'create token', 'token contract'],
+          DEPLOY_CONTRACT: ['deploy agent', 'create agent', 'new agent', 'deploy contract'],
           LIST_AGENTS: ['show agents', 'list agents', 'my agents', 'view agents'],
           CHECK_STATUS: ['status', 'check agent', 'deployment status'],
           REGISTER_AGENT: ['register', 'add agent info', 'update agent']
@@ -151,6 +163,12 @@ Respond with only the category name in uppercase with underscores.`
 
       // Map intent to handler functions
       switch (userIntent) {
+        case 'DEPLOY_MY_TOKEN':
+          if (this.registrationState.step !== 'idle') {
+            return "You're already in the process of registering a contract. Please complete or cancel the current registration first.";
+          }
+          return this.startTokenDeployment();
+
         case 'DEPLOY_CONTRACT':
           if (this.registrationState.step !== 'idle') {
             return "You're already in the process of registering an agent. Please complete or cancel the current registration first.";
@@ -170,25 +188,32 @@ Respond with only the category name in uppercase with underscores.`
           return this.checkAgentStatus();
         
         default:
-          return `I can help you deploy and register TuraAgent contracts. Here's what I can do:
+          return `I can help you deploy and manage contracts. Here's what I can do:
 
-1. Deploy a new TuraAgent contract (costs 0.1 TURA)
+1. Deploy a new MyToken contract (costs 0.1 TURA)
+   - Creates an ERC20 token with staking features
+   - Customizable name, symbol, and supply
+   - Automatically mints initial supply
+   Try: "Deploy a new token"
+
+2. Deploy a new TuraAgent contract (costs 0.1 TURA)
    - Creates a new agent contract
    - Collects metadata (name, description, company)
    - Registers on the blockchain
    Try: "Deploy a new agent"
 
-2. List your registered agents
+3. List your registered agents
    - Shows all your deployed agents
    - Displays contract addresses and metadata
    Try: "Show my agents"
 
-3. Check deployment status
+4. Check deployment status
    - View contract deployment status
    - Verify registration details
    Try: "Check agent status"
 
-Note: You must have a connected wallet with sufficient TURA balance (0.1 TURA) to deploy contracts.`;
+Note: You must have a connected wallet with sufficient TURA balance (0.1 TURA) to deploy contracts.
+      After deploying a token, you'll need to import it to MetaMask using the contract address.`;
       }
     } catch (error) {
       console.error('AgentManager error:', error);
@@ -207,17 +232,57 @@ Note: You must have a connected wallet with sufficient TURA balance (0.1 TURA) t
     return "Let's deploy a new TuraAgent contract. First, what would you like to name your agent?";
   }
 
-  /**
-   * Handle the current state of the registration flow
-   */
   private async handleRegistrationState(text: string): Promise<string> {
     const { step, data } = this.registrationState;
 
     switch (step) {
       case 'collecting_name':
-        this.registrationState.data = { ...data, name: text };
-        this.registrationState.step = 'collecting_description';
-        return "Great! Now please provide a description of what your agent does.";
+        if (data.type === 'token') {
+          if (text.toLowerCase() === 'yes') {
+            this.registrationState = { step: 'idle', data: {} };
+            return this.deployMyToken();
+          } else if (text.toLowerCase() === 'no') {
+            this.registrationState.step = 'collecting_token_name';
+            return "Please enter the token name:";
+          } else {
+            return "Please type 'yes' to use default values or 'no' to customize.";
+          }
+        } else {
+          this.registrationState.data = { ...data, name: text };
+          this.registrationState.step = 'collecting_description';
+          return "Great! Now please provide a description of what your agent does.";
+        }
+
+      case 'collecting_token_name':
+        this.registrationState.data = { ...data, tokenName: text };
+        this.registrationState.step = 'collecting_token_symbol';
+        return "Please enter the token symbol:";
+
+      case 'collecting_token_symbol':
+        this.registrationState.data = { ...data, tokenSymbol: text };
+        this.registrationState.step = 'collecting_token_supply';
+        return "Please enter the initial token supply:";
+
+      case 'collecting_token_supply':
+        this.registrationState.data = { ...data, tokenSupply: text };
+        this.registrationState.step = 'confirming_token_deployment';
+        return `Please review the token parameters:\nName: ${data.tokenName}\nSymbol: ${data.tokenSymbol}\nInitial Supply: ${data.tokenSupply}\n\nType 'confirm' to deploy or 'cancel' to abort.`;
+
+      case 'confirming_token_deployment':
+        if (text.toLowerCase() === 'confirm') {
+          const deploymentData = this.registrationState.data;
+          this.registrationState = { step: 'idle', data: {} };
+          return this.deployMyToken(
+            deploymentData.tokenName,
+            deploymentData.tokenSymbol,
+            deploymentData.tokenSupply
+          );
+        } else if (text.toLowerCase() === 'cancel') {
+          this.registrationState = { step: 'idle', data: {} };
+          return "Token deployment cancelled. Let me know if you'd like to try again!";
+        } else {
+          return "Please type 'confirm' to proceed with deployment or 'cancel' to abort.";
+        }
 
       case 'collecting_description':
         this.registrationState.data = { ...data, description: text };
@@ -576,6 +641,60 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
     }
   }
 
+
+
+  /**
+   * Check the status of deployed agents
+   */
+  private startTokenDeployment(): string {
+    this.registrationState = {
+      step: 'collecting_name',
+      data: { type: 'token' }
+    };
+    return "Let's deploy a new MyToken contract. The default parameters are:\nName: TestWF\nSymbol: WF\nInitial Supply: 1,000,000,000\n\nWould you like to use these default values? Type 'yes' to proceed or 'no' to customize.";
+  }
+
+  private async deployMyToken(name: string = "TestWF", symbol: string = "WF", initialSupply: string = "1000000000"): Promise<string> {
+    const address = localStorage.getItem('lastWalletAddress');
+    if (!address) {
+      return "Please create a wallet first using 'create wallet'";
+    }
+
+    const privateKey = await this.walletManager.getDecryptedKey(address);
+    if (!privateKey) {
+      return "Failed to retrieve wallet private key. Please ensure your wallet is properly set up.";
+    }
+
+    try {
+      // Validate supply format
+      const supply = Number(initialSupply);
+      if (isNaN(supply) || supply <= 0 || !Number.isInteger(supply)) {
+        return "Invalid initial supply. Please enter a positive whole number.";
+      }
+
+      // Validate name and symbol
+      if (!name || !symbol) {
+        return "Token name and symbol are required.";
+      }
+
+      if (symbol.length > 5) {
+        return "Token symbol must be 5 characters or less.";
+      }
+
+      const contractAddress = await deployMyToken(
+        name,
+        symbol,
+        initialSupply,
+        privateKey
+      );
+      
+      return `✅ Successfully deployed MyToken contract!\n\n📋 Contract Details:\nAddress: ${contractAddress}\nName: ${name}\nSymbol: ${symbol}\nInitial Supply: ${initialSupply}\n\n🔍 Next Steps:\n1. Import token to MetaMask using the contract address\n2. Check your wallet balance`;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      return `❌ Failed to deploy MyToken contract:\n${errorMsg}\n\n🔍 Common solutions:\n1. Check your TURA balance\n2. Verify your wallet connection\n3. Try again in a few minutes`;
+    }
+  }
+
   private async checkAgentStatus(): Promise<string> {
     const address = localStorage.getItem('lastWalletAddress');
     if (!address) {
@@ -590,10 +709,8 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
         return "You haven't deployed any agents yet.";
       }
 
-      // Check contract status for each agent
       const statusChecks = await Promise.all(userAgents.map(async (agent) => {
         try {
-          // Verify contract is still valid
           const isValid = await this.verifyContractDeployment(agent.contractAddress);
           if (!isValid) {
             return `${agent.name} (${agent.contractAddress.slice(0,6)}...${agent.contractAddress.slice(-4)})
