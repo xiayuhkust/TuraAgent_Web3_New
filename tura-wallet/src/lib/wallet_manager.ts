@@ -184,7 +184,7 @@ export class WalletManagerImpl {
 
       // Generate private key from mnemonic
       const seed = await bip39.mnemonicToSeed(mnemonic);
-      const privateKey = '0x' + Buffer.from(seed).slice(0, 32).toString('hex');
+      const privateKey = ethers.Wallet.createRandom().privateKey;
       const account = await this.walletService.createAccount(privateKey);
 
       const walletData: WalletData = {
