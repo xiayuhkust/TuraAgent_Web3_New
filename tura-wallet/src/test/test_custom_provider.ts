@@ -71,11 +71,11 @@ describe('CustomProvider', () => {
     });
 
     it('should create account with password', async () => {
-      const password = 'test123';
-      vi.spyOn(KeyManager, 'generatePrivateKey').mockReturnValue('0x1234...');
+      const password = `test-${Date.now()}`;
+      vi.spyOn(KeyManager, 'generatePrivateKey').mockReturnValue('mock-private-key');
       vi.spyOn(KeyManager, 'encryptKey').mockResolvedValue({
-        encryptedKey: 'encrypted',
-        salt: 'salt',
+        encryptedKey: 'mock-encrypted-key',
+        salt: 'mock-salt',
         iv: 'iv'
       });
 

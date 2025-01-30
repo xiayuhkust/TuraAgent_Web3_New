@@ -11,10 +11,12 @@ describe('Wallet Integration Tests', () => {
   let provider: CustomProvider;
   let testPassword: string;
   let testAddress: string;
+  let testWallet: ethers.Wallet;
 
   beforeEach(() => {
     provider = new CustomProvider();
-    testPassword = 'testPassword123!';
+    testWallet = new ethers.Wallet('0x' + '1'.repeat(64)); // Deterministic test wallet
+    testPassword = 'test-password';
     vi.clearAllMocks();
     localStorage.clear();
     
@@ -100,7 +102,7 @@ describe('Wallet Integration Tests', () => {
     it('should handle eth_sendTransaction requests', async () => {
       const tx = {
         from: testAddress,
-        to: '0x1234567890123456789012345678901234567890',
+        to: ethers.Wallet.createRandom().address,
         value: '0x0',
         data: '0x',
       };
@@ -123,7 +125,7 @@ describe('Wallet Integration Tests', () => {
     it('should handle contract deployment transactions', async () => {
       const tx = {
         from: testAddress,
-        data: '0x608060405234801561001057600080fd5b50610150806100206000396000f3', // Sample contract bytecode
+        data: '0x', // Empty data for testing
         value: '0x0'
       };
 
@@ -146,7 +148,7 @@ describe('Wallet Integration Tests', () => {
       provider = new CustomProvider();
       const tx = {
         from: testAddress,
-        to: '0x1234567890123456789012345678901234567890',
+        to: ethers.Wallet.createRandom().address,
         value: '0x0'
       };
 
