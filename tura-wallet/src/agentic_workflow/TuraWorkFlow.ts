@@ -43,10 +43,15 @@ export class TuraWorkFlow extends AgenticWorkflow {
         return await this.handleBalanceCheck();
 
       case TuraWorkFlowState.GETTING_FAUCET: {
-        const faucetResult = await this.walletAgent.processMessage('request faucet');
-        if (faucetResult.includes('Success')) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          return await this.handleBalanceCheck();
+        const faucetResult = await this.walletAgent.processMessage('get test tokens');
+        if (faucetResult.includes('Would you like to receive')) {
+          // Automatically confirm faucet request
+          const confirmResult = await this.walletAgent.processMessage('yes');
+          if (confirmResult.includes('Success') || confirmResult.includes('received')) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return await this.handleBalanceCheck();
+          }
+          return confirmResult;
         }
         return faucetResult;
       }
@@ -58,6 +63,15 @@ export class TuraWorkFlow extends AgenticWorkflow {
         return await this.handleAgentRegistration(message);
 
       default:
+        // Pass through wallet creation commands to WalletAgent
+        if (normalizedMessage.includes('create') && normalizedMessage.includes('wallet')) {
+          const result = await this.walletAgent.processMessage(message);
+          if (result.includes('created successfully')) {
+            this.state = TuraWorkFlowState.CHECKING_BALANCE;
+            return result + '\n\nNow checking your balance...';
+          }
+          return result;
+        }
         return 'Please type "Start WF" to begin the registration process.';
     }
   }
@@ -147,7 +161,7 @@ export class TuraWorkFlow extends AgenticWorkflow {
     }
   }
 
-  private async handleAgentRegistration(message: string): Promise<string> {
+  private async handleAgentRegistration(_message: string): Promise<string> {
     this.state = TuraWorkFlowState.IDLE;
     return "Agent registration completed successfully.";
   }

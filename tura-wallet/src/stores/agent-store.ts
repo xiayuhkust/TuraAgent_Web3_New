@@ -1,5 +1,6 @@
 import { Agent, OfficialAgent, Workflow } from "../types/agentTypes";
 import { WalletAgent } from "../agentic_workflow/WalletAgent";
+import { TuraWorkFlow } from "../agentic_workflow/TuraWorkFlow";
 
 // Official agents are managed separately from community agents
 export const officialAgents: OfficialAgent[] = [
@@ -48,7 +49,8 @@ export const workflows: Workflow[] = [
     requiredConfirmations: 1,
     turaToken: '0x0000000000000000000000000000000000000000',
     usdtToken: '0x0000000000000000000000000000000000000000',
-    status: 'VALID'
+    status: 'VALID',
+    instance: new TuraWorkFlow()
   }
 ];
 

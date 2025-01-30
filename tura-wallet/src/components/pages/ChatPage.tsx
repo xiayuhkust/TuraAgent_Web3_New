@@ -512,30 +512,15 @@ export default function ChatPage() {
                         activeAgent?.name === workflow.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
                       }`}
                       onClick={() => {
-                        const workflowInstance = workflow.name === 'TuraWorkFlow' ? new TuraWorkFlow() : null;
-                        if (workflowInstance) {
-                          setActiveAgent({ ...workflow, instance: workflowInstance });
-                          workflowInstance.processMessage('help').then(response => {
-                            setMessages(prev => [...prev, {
-                              id: Date.now().toString(),
-                              text: response,
-                              sender: 'agent',
-                              timestamp: new Date().toISOString()
-                            }]);
-                          });
+                        if (workflow.instance) {
+                          setActiveAgent(workflow);
+                          setMessages(prev => [...prev, {
+                            id: Date.now().toString(),
+                            text: `Connected to ${workflow.name}. Type "Start WF" to begin the workflow.`,
+                            sender: 'agent',
+                            timestamp: new Date().toISOString()
+                          }]);
                         }
-                        setMessages(prev => [...prev, {
-                          id: Date.now().toString(),
-                          text: 'Connected to TuraWorkFlow. Type "Start WF" to begin the workflow.',
-                          sender: 'agent',
-                          timestamp: new Date().toISOString()
-                        }]);
-                        setMessages(prev => [...prev, {
-                          id: Date.now().toString(),
-                          text: `Connected to ${workflow.name}. Type "Start WF" to begin the workflow.`,
-                          sender: 'agent',
-                          timestamp: new Date().toISOString()
-                        }]);
                       }}
                     >
                       <div className="flex items-center justify-between mb-1">
