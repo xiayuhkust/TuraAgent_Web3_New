@@ -133,17 +133,28 @@ export default function ChatPage() {
 
   // Initialize chat and set up balance refresh interval
   useEffect(() => {
+    const updateBalance = async () => {
+      if (!chatAddress) return;
+      try {
+        setIsRefreshingBalance(true);
+        const response = await walletAgent.processMessage('check balance');
+        const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
+        if (balanceMatch) {
+          setChatBalance(balanceMatch[1]);
+        }
+      } catch (error) {
+        console.error('Balance refresh failed:', error);
+      } finally {
+        setIsRefreshingBalance(false);
+      }
+    };
+
     const initializeChat = async () => {
       try {
         const storedAddress = localStorage.getItem('lastWalletAddress');
         if (storedAddress) {
           setChatAddress(storedAddress);
-          // Check wallet session through WalletAgent
-          const response = await walletAgent.processMessage('check balance');
-          const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
-          if (balanceMatch) {
-            setChatBalance(balanceMatch[1]);
-          }
+          await updateBalance();
         }
       } catch (error) {
         console.error('Failed to initialize chat:', error);
@@ -163,20 +174,10 @@ export default function ChatPage() {
     initializeChat();
 
     // Set up balance refresh interval for transactions and deployments
-    const refreshInterval = setInterval(async () => {
-      // Refresh more frequently right after a message (every 2s for first 30s)
-      if (chatAddress) {
-        try {
-          const response = await walletAgent.processMessage('check balance');
-          const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
-          if (balanceMatch) {
-            setChatBalance(balanceMatch[1]);
-          }
-        } catch (error) {
-          console.error('Balance refresh failed:', error);
-        }
-      }
-    }, Date.now() - lastMessageTime < 30000 ? 2000 : 5000);
+    const refreshInterval = setInterval(
+      updateBalance,
+      Date.now() - lastMessageTime < 30000 ? 2000 : 5000
+    );
 
     return () => clearInterval(refreshInterval);
   }, [walletAgent, lastMessageTime, chatAddress]);
@@ -224,48 +225,40 @@ export default function ChatPage() {
         const agentResponse = await activeAgent.instance.processMessage(inputText);
         console.log('Received agent response:', agentResponse);
         
-        // Create message object
+        // Update UI state for WalletAgent
+        if (activeAgent.name === 'WalletAgent') {
+          const storedAddress = localStorage.getItem('lastWalletAddress');
+          if (storedAddress !== chatAddress) {
+            setChatAddress(storedAddress || '');
+          }
+          
+          if (chatAddress) {
+            try {
+              setIsRefreshingBalance(true);
+              const balanceMatch = agentResponse.match(/contains (\d+(?:\.\d+)?)/);
+              if (balanceMatch) {
+                setChatBalance(balanceMatch[1]);
+              }
+            } catch (error) {
+              console.error('Balance refresh failed:', error);
+            } finally {
+              setIsRefreshingBalance(false);
+            }
+          }
+        }
+
+        // Add response to chat
         const response: Message = {
           id: Date.now().toString(),
           text: agentResponse,
           sender: 'agent',
           timestamp: new Date().toISOString()
         };
-
-        // Add response to chat
-        console.log('Adding response to messages:', response);
         const agentKey = activeAgent.name;
         setMessagesMap(prev => ({
           ...prev,
           [agentKey]: [...(prev[agentKey] || []), response]
         }));
-      } catch (error) {
-        console.error('Error processing message:', error);
-        throw error;
-      }
-        
-      // Update UI state if needed
-      if (activeAgent.name === 'WalletAgent') {
-        // Update UI state based on agent response
-        const storedAddress = localStorage.getItem('lastWalletAddress');
-        if (storedAddress !== chatAddress) {
-          setChatAddress(storedAddress || '');
-        }
-        
-        // Refresh balance if needed
-        if (chatAddress) {
-          try {
-            setIsRefreshingBalance(true);
-            const balanceMatch = agentResponse.match(/contains (\d+(?:\.\d+)?)/);
-            if (balanceMatch) {
-              setChatBalance(balanceMatch[1]);
-            }
-          } catch (error) {
-            console.error('Balance refresh failed:', error);
-          } finally {
-            setIsRefreshingBalance(false);
-          }
-        }
       }
     } catch (error: unknown) {
       console.error('Agent processing error:', error);
