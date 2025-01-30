@@ -55,21 +55,30 @@ export class TuraWorkFlow extends AgenticWorkflow {
         
       case TuraWorkFlowState.GETTING_FAUCET:
         console.log('Handling faucet request');
-        if (normalizedMessage === 'y' || normalizedMessage === 'yes') {
-          const faucetResult = await this.walletAgent.processMessage('request faucet');
-          if (faucetResult.includes('received')) {
+        // Directly request faucet tokens without confirmation
+        const faucetResult = await this.walletAgent.processMessage('request faucet');
+        console.log('Faucet request result:', faucetResult);
+        
+        if (faucetResult.includes('Would you like to receive')) {
+          // Automatically confirm faucet request
+          const confirmResult = await this.walletAgent.processMessage('yes');
+          console.log('Faucet confirmation result:', confirmResult);
+          
+          if (confirmResult.includes('Success')) {
             // Wait a moment for balance to update
             await new Promise(resolve => setTimeout(resolve, 2000));
             const newBalance = await this.walletAgent.getBalance();
+            console.log('New balance after faucet:', newBalance);
+            
             if (newBalance >= this.MIN_BALANCE) {
               this.state = TuraWorkFlowState.DEPLOYING_CONTRACT;
-              return `${faucetResult}\n\nYour new balance is ${newBalance} TURA.\nReady to deploy contract. Type "y" to confirm deployment or "n" to cancel.`;
+              return `${confirmResult}\n\nYour new balance is ${newBalance} TURA.\nReady to deploy contract. Type "y" to confirm deployment or "n" to cancel.`;
             }
-            return `${faucetResult}\nBalance is still insufficient. Please try requesting tokens again.`;
+            return `${confirmResult}\nBalance is still insufficient. Please try requesting tokens again.`;
           }
-          return faucetResult;
+          return confirmResult;
         }
-        return 'Would you like me to request test tokens for you? Type "y" to confirm or "n" to cancel.';
+        return faucetResult;
         
       case TuraWorkFlowState.DEPLOYING_CONTRACT:
         console.log('Handling contract deployment');
@@ -122,17 +131,7 @@ export class TuraWorkFlow extends AgenticWorkflow {
       
       if (balance < this.MIN_BALANCE) {
         this.state = TuraWorkFlowState.GETTING_FAUCET;
-        const faucetResult = await this.walletAgent.processMessage('request faucet');
-        if (faucetResult.includes('received')) {
-          // Wait a moment for balance to update
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          const newBalance = await this.walletAgent.getBalance();
-          if (newBalance >= this.MIN_BALANCE) {
-            this.state = TuraWorkFlowState.DEPLOYING_CONTRACT;
-            return `${faucetResult}\n\nYour new balance is ${newBalance} TURA.\nReady to deploy contract. Type "y" to confirm deployment or "n" to cancel.`;
-          }
-        }
-        return faucetResult;
+        return `Your balance (${balance} TURA) is insufficient for contract deployment.\nRequesting test tokens from faucet...`;
       }
       
       this.state = TuraWorkFlowState.DEPLOYING_CONTRACT;
