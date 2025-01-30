@@ -219,11 +219,6 @@ export default function ChatPage() {
         message: inputText
       });
 
-      // Clear any previous messages if switching agents
-      if (activeAgent && messagesMap[activeAgent.name]?.length === 1 && messagesMap[activeAgent.name][0].sender === 'agent') {
-        setMessagesMap(prev => ({ ...prev, [activeAgent.name]: [] }));
-      }
-      
       try {
         // Get agent response
         const agentResponse = await activeAgent.instance.processMessage(inputText);
@@ -251,25 +246,17 @@ export default function ChatPage() {
         
       // Update UI state if needed
       if (activeAgent.name === 'WalletAgent') {
-        console.log('Processing message through WalletAgent:', {
-          agent: activeAgent?.name || 'default',
-          message: inputText
-        });
-        const agentResponse = await walletAgent.processMessage(inputText);
-        console.log('Received agent response:', agentResponse);
-        
         // Update UI state based on agent response
         const storedAddress = localStorage.getItem('lastWalletAddress');
         if (storedAddress !== chatAddress) {
           setChatAddress(storedAddress || '');
         }
         
-        // Always refresh balance after agent response for faucet-related actions
+        // Refresh balance if needed
         if (chatAddress) {
           try {
             setIsRefreshingBalance(true);
-            const balanceResponse = await walletAgent.processMessage('check balance');
-            const balanceMatch = balanceResponse.match(/contains (\d+(?:\.\d+)?)/);
+            const balanceMatch = agentResponse.match(/contains (\d+(?:\.\d+)?)/);
             if (balanceMatch) {
               setChatBalance(balanceMatch[1]);
             }
@@ -279,40 +266,12 @@ export default function ChatPage() {
             setIsRefreshingBalance(false);
           }
         }
-
-        const response: Message = {
-          id: (Date.now() + 1).toString(),
-          text: agentResponse,
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        };
-
-        console.log('Adding response to messages:', response);
-        const agentKey = activeAgent.name;
-        setMessagesMap(prev => ({
-          ...prev,
-          [agentKey]: [...(prev[agentKey] || []), response]
-        }));
-      } else if (activeAgent?.instance instanceof AgenticWorkflow) {
-        // Process message through agent's instance
-        const agentResponse = await activeAgent.instance.processMessage(inputText);
-        const response: Message = {
-          id: (Date.now() + 1).toString(),
-          text: agentResponse,
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        };
-        const agentKey = activeAgent.name;
-        setMessagesMap(prev => ({
-          ...prev,
-          [agentKey]: [...(prev[agentKey] || []), response]
-        }));
       }
     } catch (error: unknown) {
       console.error('Agent processing error:', error);
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
       const errorResponse: Message = {
-        id: (Date.now() + 1).toString(),
+        id: Date.now().toString(),
         text: `Error: ${message}`,
         sender: 'error',
         timestamp: new Date().toISOString()
