@@ -286,9 +286,16 @@ export class WalletManagerImpl {
   }
 
   async getBalance(address: string): Promise<string> {
+    console.time('WalletManager_Balance_Total');
     try {
-      return await this.walletService.getBalance(address);
+      console.time('WalletService_GetBalance');
+      const balance = await this.walletService.getBalance(address);
+      console.timeEnd('WalletService_GetBalance');
+      
+      console.timeEnd('WalletManager_Balance_Total');
+      return balance;
     } catch (error) {
+      console.timeEnd('WalletManager_Balance_Total');
       if (error instanceof Error) {
         throw new Error(`Failed to get balance: ${error.message}`);
       }

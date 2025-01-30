@@ -40,9 +40,17 @@ export class CustomProvider {
       }
     );
     
-    // Mock network connection during infrastructure setup
-    console.log('Network setup in progress - using mock network configuration');
-    this.connected = true;
+    // Initialize network connection
+    this.connected = false;
+    this.provider.getNetwork()
+      .then(() => {
+        console.log('Network connection established');
+        this.connected = true;
+      })
+      .catch(error => {
+        console.error('Failed to connect to network:', error);
+        this.connected = false;
+      });
     
     // Initialize event handler sets
     ['accountsChanged', 'chainChanged', 'connect', 'disconnect'].forEach(event => {

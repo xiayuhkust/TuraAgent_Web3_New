@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { AlertTriangle, Mic, Send, Bot, Code2, Wallet, RefreshCw } from 'lucide-react';
-import { AgenticWorkflow } from '../../agentic_workflow/AgenticWorkflow';
+import { AlertTriangle, Mic, Send, Bot, Code2, Wallet } from 'lucide-react';
 import { Button } from '../ui/button';
+import { WalletManagerImpl as WalletManager } from '../../lib/wallet_manager';
 import { Input } from '../ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { ScrollArea } from '../ui/scroll-area';
@@ -79,9 +79,6 @@ export default function ChatPage() {
     }
   }, [activeAgent]);
   const [chatAddress, setChatAddress] = useState('');
-  const [chatBalance, setChatBalance] = useState('0');
-  const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
-  const [lastMessageTime, setLastMessageTime] = useState<number>(Date.now());
   const [walletAgent] = useState(() => {
     const agent = officialAgents.find(agent => agent.name === 'WalletAgent');
     return agent?.instance as WalletAgent;
@@ -134,30 +131,13 @@ export default function ChatPage() {
   const chunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Initialize chat and set up balance refresh interval
+  // Initialize chat
   useEffect(() => {
-    const updateBalance = async () => {
-      if (!chatAddress) return;
-      try {
-        setIsRefreshingBalance(true);
-        const response = await walletAgent.processMessage('check balance');
-        const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
-        if (balanceMatch) {
-          setChatBalance(balanceMatch[1]);
-        }
-      } catch (error) {
-        console.error('Balance refresh failed:', error);
-      } finally {
-        setIsRefreshingBalance(false);
-      }
-    };
-
     const initializeChat = async () => {
       try {
         const storedAddress = localStorage.getItem('lastWalletAddress');
         if (storedAddress) {
           setChatAddress(storedAddress);
-          await updateBalance();
         }
       } catch (error) {
         console.error('Failed to initialize chat:', error);
@@ -175,15 +155,7 @@ export default function ChatPage() {
     };
 
     initializeChat();
-
-    // Set up balance refresh interval for transactions and deployments
-    const refreshInterval = setInterval(
-      updateBalance,
-      Date.now() - lastMessageTime < 30000 ? 2000 : 5000
-    );
-
-    return () => clearInterval(refreshInterval);
-  }, [walletAgent, lastMessageTime, chatAddress]);
+  }, [walletAgent, chatAddress]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -191,6 +163,8 @@ export default function ChatPage() {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messagesMap, activeAgent]);
+
+  const walletManager = new WalletManager();
 
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
@@ -216,7 +190,6 @@ export default function ChatPage() {
       [agentKey]: [...(prev[agentKey] || []), newMessage]
     }));
     setInputText('');
-    setLastMessageTime(Date.now());
 
     try {
       setIsWaitingForOpenAI(true);
@@ -262,19 +235,7 @@ export default function ChatPage() {
             setChatAddress(storedAddress || '');
           }
           
-          if (chatAddress) {
-            try {
-              setIsRefreshingBalance(true);
-              const balanceMatch = agentResponse.match(/contains (\d+(?:\.\d+)?)/);
-              if (balanceMatch) {
-                setChatBalance(balanceMatch[1]);
-              }
-            } catch (error) {
-              console.error('Balance refresh failed:', error);
-            } finally {
-              setIsRefreshingBalance(false);
-            }
-          }
+
         }
 
         // Add response to chat
@@ -288,6 +249,20 @@ export default function ChatPage() {
         setMessagesMap(prev => ({
           ...prev,
           [agentKey]: [...(prev[agentKey] || []), response]
+        }));
+      } catch (error: unknown) {
+        console.error('Agent processing error:', error);
+        const message = error instanceof Error ? error.message : 'Unknown error occurred';
+        const errorResponse: Message = {
+          id: Date.now().toString(),
+          text: `Error: ${message}`,
+          sender: 'error',
+          timestamp: new Date().toISOString()
+        };
+        const agentKey = activeAgent?.name ?? 'unknown';
+        setMessagesMap(prev => ({
+          ...prev,
+          [agentKey]: [...(prev[agentKey] || []), errorResponse]
         }));
       }
     } catch (error: unknown) {
@@ -530,44 +505,10 @@ export default function ChatPage() {
             </div>
           )}
           
-          {chatAddress && (
-            <div className="p-2 bg-secondary rounded-lg flex flex-col items-start ml-4">
-              <div className="text-xs text-muted-foreground">Account</div>
-              <div className="font-mono text-sm break-all">
-                {chatAddress.slice(0,6)}...{chatAddress.slice(-4)}
-              </div>
-            </div>
-          )}
-
-          {chatAddress && (
-            <div className="p-2 bg-secondary rounded-lg flex flex-col items-start ml-2">
-              <div className="text-xs text-muted-foreground">Balance</div>
-              <div className="text-sm font-bold flex items-center gap-2">
-                {chatBalance} TURA
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-4 w-4 p-0"
-                  onClick={async () => {
-                    if (isRefreshingBalance) return;
-                    try {
-                      setIsRefreshingBalance(true);
-                      const response = await walletAgent.processMessage('check balance');
-                      const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
-                      if (balanceMatch) {
-                        setChatBalance(balanceMatch[1]);
-                      }
-                    } catch (error) {
-                      console.error('Balance refresh failed:', error);
-                    } finally {
-                      setIsRefreshingBalance(false);
-                    }
-                  }}
-                  disabled={isRefreshingBalance}
-                >
-                  <RefreshCw className={`h-3 w-3 ${isRefreshingBalance ? 'animate-spin' : ''}`} />
-                </Button>
-              </div>
+          {!chatAddress && (
+            <div className="ml-4 p-2 bg-yellow-100 text-yellow-800 rounded-lg flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Please connect your wallet via WalletAgent to access all features
             </div>
           )}
         </CardTitle>

@@ -194,31 +194,47 @@ export class WalletService {
   }
 
   async getBalance(address: string) {
+    console.time('Balance_Fetch_Total');
     try {
       console.log('Getting balance for address:', address);
+      console.time('Network_Check');
       
       // Verify provider and network connection
+      console.time('Network_Check');
       const isConnected = await this.web3.eth.net.isListening();
+      console.timeEnd('Network_Check');
+      console.timeLog('Balance_Fetch_Total', 'Network check completed');
       if (!isConnected) {
         throw new Error('Web3 provider is not connected');
       }
       
       // Get and verify chain ID
+      console.time('ChainID_Check');
       const currentChainId = await this.web3.eth.getChainId();
+      console.timeEnd('ChainID_Check');
+      console.timeLog('Balance_Fetch_Total', 'Chain ID verification completed');
       console.log('Current chain ID:', currentChainId);
       if (Number(currentChainId) !== CHAIN_CONFIG.chainId) {
         throw new Error(`Wrong chain ID. Expected ${CHAIN_CONFIG.chainId}, got ${currentChainId}`);
       }
       
+      console.time('Address_Validation');
       if (!this.web3.utils.isAddress(address)) {
         throw new Error('Invalid Ethereum address format');
       }
+      console.timeEnd('Address_Validation');
       
-      // For testing: Return mock balance during network setup
-      console.log('Network setup in progress - using mock balance for testing');
-      const mockBalance = '10.0';
-      return mockBalance;
+      // Fetch actual balance
+      console.time('RPC_Balance_Call');
+      const balance = await this.web3.eth.getBalance(address);
+      console.timeEnd('RPC_Balance_Call');
+      console.timeLog('Balance_Fetch_Total', 'Balance retrieved from RPC');
+      
+      const result = this.web3.utils.fromWei(balance, 'ether');
+      console.timeEnd('Balance_Fetch_Total');
+      return result;
     } catch (error) {
+      console.timeEnd('Balance_Fetch_Total');
       console.error('Failed to get balance:', error);
       if (error instanceof Error) {
         throw new Error('Failed to get wallet balance: ' + error.message);

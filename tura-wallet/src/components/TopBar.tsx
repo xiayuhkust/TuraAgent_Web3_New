@@ -4,7 +4,6 @@ import { WalletManagerImpl as WalletManager } from '../lib/wallet_manager';
 export function TopBar() {
   const [passwordInput, setPasswordInput] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [balance, setBalance] = useState('0');
   const walletManager = new WalletManager();
   const address = localStorage.getItem('lastWalletAddress') || '';
 
@@ -12,14 +11,6 @@ export function TopBar() {
     const checkSession = async () => {
       const session = await walletManager.getSession();
       setIsLoggedIn(!!session);
-      if (session && address) {
-        try {
-          const balance = await walletManager.getBalance(address);
-          setBalance(balance);
-        } catch (error) {
-          console.error('Failed to fetch balance:', error);
-        }
-      }
     };
     checkSession();
   }, [address]);
@@ -29,8 +20,6 @@ export function TopBar() {
       await walletManager.login(address, passwordInput);
       setIsLoggedIn(true);
       setPasswordInput('');
-      const balance = await walletManager.getBalance(address);
-      setBalance(balance);
     } catch (error) {
       alert('Invalid password or wallet not found');
       setPasswordInput('');
@@ -40,7 +29,6 @@ export function TopBar() {
   const handleLogout = () => {
     localStorage.removeItem('wallet_session');
     setIsLoggedIn(false);
-    setBalance('0');
   };
 
   if (!address) {
@@ -53,17 +41,7 @@ export function TopBar() {
 
   // Securely display account info with minimal exposure
   return (
-    <div className="flex items-center justify-end gap-4 p-2 bg-primary/10">
-      <div className="text-sm">
-        <span className="text-gray-600">Account: </span>
-        <span className="font-mono">
-          {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not Connected'}
-        </span>
-      </div>
-      <div className="text-sm">
-        <span className="text-gray-600">Balance: </span>
-        <span className="font-mono">{Number(balance).toFixed(4)} TURA</span>
-      </div>
+    <div className="flex items-center justify-end p-2 bg-primary/10">
       {isLoggedIn ? (
         <button
           onClick={handleLogout}
