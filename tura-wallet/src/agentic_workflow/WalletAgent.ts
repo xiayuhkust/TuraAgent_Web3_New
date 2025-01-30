@@ -24,9 +24,9 @@ export class WalletAgent extends AgenticWorkflow {
     this.walletManager = new WalletManager();
     this.isWaitingForPassword = false;
     this.isWaitingForFaucetConfirmation = false;
-    this.FAUCET_ADDRESS = '0x08Bb6eA809A2d6c13D57166Fa3ede48C0ae9a70e';
-    this.MIN_BALANCE = 0.1;
-    this.FAUCET_AMOUNT = 1;
+    this.FAUCET_ADDRESS = import.meta.env.VITE_FAUCET_ADDRESS || '0x0000000000000000000000000000000000000000';
+    this.MIN_BALANCE = parseFloat(import.meta.env.VITE_MIN_BALANCE || '0.1');
+    this.FAUCET_AMOUNT = parseFloat(import.meta.env.VITE_FAUCET_AMOUNT || '1');
     this.FAUCET_PASSWORD = import.meta.env.VITE_FAUCET_PASSWORD;
     
     // Initialize with minimal required state
