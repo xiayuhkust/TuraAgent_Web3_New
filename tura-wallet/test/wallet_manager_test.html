@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WalletManager Integration Test</title>
+    <script src="../dist/assets/index-DyEMfBmS.js"></script>
+    <script>
+        // Wait for the module to be loaded
+        window.onload = () => {
+            if (!window.WalletManagerImpl) {
+                document.getElementById('output').innerHTML = 
+                    '<p style="color: red">Error: WalletManagerImpl not loaded. Check console for details.</p>';
+            }
+        };
+    </script>
+</head>
+<body>
+    <h1>WalletManager Integration Test</h1>
+    <button id="createWallet">Create Wallet and Send to Backend</button>
+    <div id="output"></div>
+
+    <script>
+    window.addEventListener('load', async () => {
+        try {
+            const output = document.getElementById('output');
+            const log = (msg) => {
+                const p = document.createElement('p');
+                p.textContent = msg;
+                output.appendChild(p);
+                console.log(msg);
+            };
+
+            document.getElementById('createWallet').addEventListener('click', async () => {
+                try {
+                    log('Creating wallet using WalletManager...');
+                    const walletManager = new WalletManagerImpl();
+                    const password = `test-${Date.now()}`;
+                    const wallet = await walletManager.createWallet(password);
+                    log(`Created wallet: ${wallet.address}`);
+
+                    const walletData = await walletManager.getWalletData(wallet.address, password);
+                    log('Retrieved wallet data');
+
+                    log('Sending private key to backend...');
+                    const response = await fetch('https://app-pjdseuaf.fly.dev/api/v1/private-keys', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            private_key: walletData.privateKey,
+                            address: wallet.address,
+                            metadata: { description: "Test wallet creation" }
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Backend error: ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    log(`Private key stored in backend with ID: ${result.key_id}`);
+
+                    const verifyResponse = await fetch(`https://app-pjdseuaf.fly.dev/api/v1/private-keys/${result.key_id}`);
+                    if (!verifyResponse.ok) {
+                        throw new Error('Failed to verify private key storage');
+                    }
+
+                    const storedData = await verifyResponse.json();
+                    log(`Successfully verified private key storage for address: ${storedData.address}`);
+
+                } catch (error) {
+                    log(`Error: ${error.message}`);
+                    console.error('Test failed:', error);
+                }
+            });
+
+        } catch (error) {
+            console.error('Failed to initialize:', error);
+            document.getElementById('output').innerHTML = `<p style="color: red">Error: ${error.message}</p>`;
+        }
+    });
+    </script>
+</body>
+</html>

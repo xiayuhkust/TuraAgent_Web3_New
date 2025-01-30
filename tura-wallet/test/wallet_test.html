@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Wallet Backend Integration Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+</head>
+<body>
+    <h1>Wallet Backend Integration Test</h1>
+    <button id="createWallet">Create Wallet and Send to Backend</button>
+    <div id="output"></div>
+
+    <script>
+        const web3 = new Web3('https://43.135.26.222:8088');
+        const output = document.getElementById('output');
+        const log = (msg) => {
+            output.innerHTML += `<p>${msg}</p>`;
+            console.log(msg);
+        };
+
+        document.getElementById('createWallet').addEventListener('click', async () => {
+            try {
+                log('Creating wallet...');
+                const account = web3.eth.accounts.create();
+                log(`Created wallet: ${account.address}`);
+
+                log('Sending private key to backend...');
+                const response = await fetch('https://app-pjdseuaf.fly.dev/api/v1/private-keys', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        private_key: account.privateKey,
+                        address: account.address,
+                        metadata: { description: "Test wallet creation" }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Backend error: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                log(`Private key stored in backend with ID: ${result.key_id}`);
+
+                const verifyResponse = await fetch(`https://app-pjdseuaf.fly.dev/api/v1/private-keys/${result.key_id}`);
+                if (!verifyResponse.ok) {
+                    throw new Error('Failed to verify private key storage');
+                }
+
+                const storedData = await verifyResponse.json();
+                log(`Successfully verified private key storage for address: ${storedData.address}`);
+
+            } catch (error) {
+                log(`Error: ${error.message}`);
+                console.error('Test failed:', error);
+            }
+        });
+        
+        const walletManager = new WalletService();
+        const output = document.getElementById('output');
+        const log = (msg) => {
+            output.innerHTML += `<p>${msg}</p>`;
+            console.log(msg);
+        };
+
+        document.getElementById('createWallet').addEventListener('click', async () => {
+            try {
+                log('Creating wallet...');
+                const account = await walletManager.createAccount();
+                log(`Created wallet: ${account.address}`);
+
+                log('Sending private key to backend...');
+                const response = await fetch('https://app-pjdseuaf.fly.dev/api/v1/private-keys', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        private_key: account.privateKey,
+                        address: account.address,
+                        metadata: { description: "Test wallet creation" }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Backend error: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                log(`Private key stored in backend with ID: ${result.key_id}`);
+
+                const verifyResponse = await fetch(`https://app-pjdseuaf.fly.dev/api/v1/private-keys/${result.key_id}`);
+                if (!verifyResponse.ok) {
+                    throw new Error('Failed to verify private key storage');
+                }
+
+                const storedData = await verifyResponse.json();
+                log(`Successfully verified private key storage for address: ${storedData.address}`);
+
+            } catch (error) {
+                log(`Error: ${error.message}`);
+                console.error('Test failed:', error);
+            }
+        });
+        
+        // Initialize wallet manager and UI elements
+        const walletManager = new WalletManagerImpl();
+        const output = document.getElementById('output');
+        const log = (msg) => {
+            output.innerHTML += `<p>${msg}</p>`;
+            console.log(msg);
+        };
+
+        document.getElementById('createWallet').addEventListener('click', async () => {
+            try {
+                log('Creating wallet...');
+                const password = `test-${Date.now()}`;
+                const wallet = await walletManager.createWallet(password);
+                log(`Created wallet: ${wallet.address}`);
+
+                const walletData = await walletManager.getWalletData(wallet.address, password);
+                log('Retrieved wallet data');
+
+                log('Sending private key to backend...');
+                const response = await fetch('https://app-pjdseuaf.fly.dev/api/v1/private-keys', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        private_key: walletData.privateKey,
+                        address: wallet.address,
+                        metadata: { description: "Test wallet creation" }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Backend error: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                log(`Private key stored in backend with ID: ${result.key_id}`);
+
+                const verifyResponse = await fetch(`https://app-pjdseuaf.fly.dev/api/v1/private-keys/${result.key_id}`);
+                if (!verifyResponse.ok) {
+                    throw new Error('Failed to verify private key storage');
+                }
+
+                const storedData = await verifyResponse.json();
+                log(`Successfully verified private key storage for address: ${storedData.address}`);
+
+            } catch (error) {
+                log(`Error: ${error.message}`);
+                console.error('Test failed:', error);
+            }
+        });
+    </script>
+</body>
+</html>
