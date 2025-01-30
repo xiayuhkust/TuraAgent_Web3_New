@@ -27,7 +27,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/rpc': {
-        target: 'https://43.135.26.222:8088',
+        target: 'https://43.135.26.222:8000',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/rpc/, ''),
@@ -49,6 +49,30 @@ export default defineConfig({
             res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
             res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
             console.log('Response:', proxyRes.statusCode);
+          });
+        }
+      },
+      '/api/v1/deploy-mytoken': {
+        target: 'http://43.135.26.222:8000',
+        changeOrigin: true,
+        secure: false,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('Deploy proxy error:', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req: any, _res) => {
+            console.log('Deploy proxying:', req.method, req.url);
+            let bodyData = '';
+            req.on('data', (chunk: Buffer) => {
+              bodyData += chunk.toString();
+            });
+            req.on('end', () => {
+              if (bodyData) {
+                proxyReq.setHeader('Content-Type', 'application/json');
+                proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+                proxyReq.write(bodyData);
+              }
+            });
           });
         }
       }
