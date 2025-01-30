@@ -40,14 +40,14 @@ export const agents: Agent[] = [
 
 export const workflows: Workflow[] = [
   {
-    name: 'TuraAgentMultiSigV2',
-    contractAddress: '0x9dAB58844d1E118bA44D4fBF730717cF5371EC98',
-    description: 'Multi-signature wallet management workflow',
+    name: 'TuraWorkFlow',
+    contractAddress: '0x0000000000000000000000000000000000000000',
+    description: 'Automated workflow for agent registration and management',
     fee: '0.0 TURA',
-    owner: '0x08Bb6eA809A2d6c13D57166Fa3ede48C0ae9a70e',
+    owner: '0x0000000000000000000000000000000000000000',
     requiredConfirmations: 1,
     turaToken: '0x0000000000000000000000000000000000000000',
-    usdtToken: '0x18fbB6Cc5A960F2aFC9A47a30638Db7654944a5B',
+    usdtToken: '0x0000000000000000000000000000000000000000',
     status: 'VALID'
   }
 ];
