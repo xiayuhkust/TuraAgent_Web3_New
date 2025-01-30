@@ -107,7 +107,7 @@ export default function WalletContent() {
       const amount = prompt('Enter amount to send:');
       if (!amount) return;
 
-      const password = prompt('Enter your wallet password to confirm:');
+      const password = await this.walletManager.requestPassword('Enter your wallet password to confirm:');
       if (!password) return;
 
       setSignatureDetails({
@@ -212,7 +212,7 @@ export default function WalletContent() {
                     setError('');
                     setIsCreatingWallet(true);
                     
-                    const password = prompt('Enter a secure password for your new wallet:');
+                    const password = await this.walletManager.requestPassword('Enter a secure password for your new wallet:');
                     if (!password) {
                       setIsCreatingWallet(false);
                       return;
@@ -289,7 +289,7 @@ export default function WalletContent() {
                 try {
                   setError('');
                   setIsLoggingIn(true);
-                  const password = prompt('Enter your wallet password:');
+                  const password = await this.walletManager.requestPassword('Enter your wallet password:');
                   if (!password) {
                     return;
                   }
@@ -451,7 +451,7 @@ export default function WalletContent() {
                     return;
                   }
 
-                  const password = prompt('Enter a secure password for your restored wallet:');
+                  const password = await this.walletManager.requestPassword('Enter a secure password for your restored wallet:');
                   if (!password) {
                     setIsRestoringWallet(false);
                     return;
