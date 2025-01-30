@@ -282,7 +282,7 @@ export class KeyManager {
       
       // Validate key range (must be less than curve order)
       const keyBigInt = BigInt(normalizedKey);
-      const curveOrder = BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141');
+      const curveOrder = ethers.MaxUint256;
       if (keyBigInt >= curveOrder) {
         console.log('Invalid private key: exceeds curve order');
         return false;
