@@ -86,6 +86,9 @@ export default function ChatPage() {
     const agent = officialAgents.find(agent => agent.name === 'WalletAgent');
     return agent?.instance as WalletAgent;
   });
+
+  const responseCache = useRef<Record<string, {response: string; timestamp: number}>>({});
+  const CACHE_TTL = 30000; // 30 seconds cache TTL
   
   // Initialize messages with welcome message based on active agent
   useEffect(() => {
@@ -221,9 +224,28 @@ export default function ChatPage() {
       });
 
       try {
-        // Get agent response
-        const agentResponse = await activeAgent.instance.processMessage(inputText);
-        console.log('Received agent response:', agentResponse);
+        // Check cache for common responses
+        const cacheKey = `${activeAgent.name}:${inputText.toLowerCase()}`;
+        const cached = responseCache.current[cacheKey];
+        const now = Date.now();
+        
+        let agentResponse: string;
+        if (cached && now - cached.timestamp < CACHE_TTL) {
+          console.log('Using cached response for:', inputText);
+          agentResponse = cached.response;
+        } else {
+          // Get fresh agent response
+          agentResponse = await activeAgent.instance.processMessage(inputText);
+          console.log('Received agent response:', agentResponse);
+          
+          // Cache response for common commands
+          if (inputText.toLowerCase().match(/^(help|balance|status)$/)) {
+            responseCache.current[cacheKey] = {
+              response: agentResponse,
+              timestamp: now
+            };
+          }
+        }
         
         // Update UI state for WalletAgent
         if (activeAgent.name === 'WalletAgent') {
