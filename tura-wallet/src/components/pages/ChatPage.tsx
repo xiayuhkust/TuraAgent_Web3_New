@@ -88,7 +88,6 @@ export default function ChatPage() {
   });
   
   // Initialize messages with welcome message based on active agent
-  // Initialize chat with welcome message
   useEffect(() => {
     const initializeChat = async () => {
       const agentKey = activeAgent?.name ?? 'unknown';
@@ -103,7 +102,10 @@ export default function ChatPage() {
             sender: 'agent',
             timestamp: new Date().toISOString()
           };
-          setMessagesMap({ [agentKey]: [welcomeMessage] });
+          setMessagesMap(prevMap => ({
+            ...prevMap,
+            [agentKey]: [welcomeMessage]
+          }));
         } catch (error) {
           console.error('Failed to get welcome message:', error);
           // Fallback welcome message
@@ -115,12 +117,15 @@ export default function ChatPage() {
             sender: 'agent',
             timestamp: new Date().toISOString()
           };
-          setMessagesMap({ [agentKey]: [fallbackMessage] });
+          setMessagesMap(prevMap => ({
+            ...prevMap,
+            [agentKey]: [fallbackMessage]
+          }));
         }
       }
     };
     initializeChat();
-  }, [activeAgent]);
+  }, [activeAgent, messagesMap]);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -690,15 +695,21 @@ export default function ChatPage() {
                       }`}
                       onClick={() => {
                         setActiveAgent(agent);
-                        const welcomeMessage: Message = {
-                          id: Date.now().toString(),
-                          text: `Connected to ${agent.name}`,
-                          sender: 'agent',
-                          timestamp: new Date().toISOString()
-                        };
-                        setMessagesMap({
-                          ...messagesMap,
-                          [agent.name]: [welcomeMessage]
+                        setMessagesMap(prevMap => {
+                          const existingMessages = prevMap[agent.name] || [];
+                          if (existingMessages.length > 0) {
+                            return prevMap;
+                          }
+                          const welcomeMessage: Message = {
+                            id: Date.now().toString(),
+                            text: `Connected to ${agent.name}`,
+                            sender: 'agent',
+                            timestamp: new Date().toISOString()
+                          };
+                          return {
+                            ...prevMap,
+                            [agent.name]: [welcomeMessage]
+                          };
                         });
                       }}
                     >
@@ -735,15 +746,21 @@ export default function ChatPage() {
                       }`}
                       onClick={() => {
                         setActiveAgent(agent);
-                        const welcomeMessage: Message = {
-                          id: Date.now().toString(),
-                          text: `Connected to ${agent.name}`,
-                          sender: 'agent',
-                          timestamp: new Date().toISOString()
-                        };
-                        setMessagesMap({
-                          ...messagesMap,
-                          [agent.name]: [welcomeMessage]
+                        setMessagesMap(prevMap => {
+                          const existingMessages = prevMap[agent.name] || [];
+                          if (existingMessages.length > 0) {
+                            return prevMap;
+                          }
+                          const welcomeMessage: Message = {
+                            id: Date.now().toString(),
+                            text: `Connected to ${agent.name}`,
+                            sender: 'agent',
+                            timestamp: new Date().toISOString()
+                          };
+                          return {
+                            ...prevMap,
+                            [agent.name]: [welcomeMessage]
+                          };
                         });
                       }}
                     >
@@ -780,15 +797,21 @@ export default function ChatPage() {
                       }`}
                       onClick={() => {
                         setActiveAgent(workflow);
-                        const welcomeMessage: Message = {
-                          id: Date.now().toString(),
-                          text: `Connected to ${workflow.name}`,
-                          sender: 'agent',
-                          timestamp: new Date().toISOString()
-                        };
-                        setMessagesMap({
-                          ...messagesMap,
-                          [workflow.name]: [welcomeMessage]
+                        setMessagesMap(prevMap => {
+                          const existingMessages = prevMap[workflow.name] || [];
+                          if (existingMessages.length > 0) {
+                            return prevMap;
+                          }
+                          const welcomeMessage: Message = {
+                            id: Date.now().toString(),
+                            text: `Connected to ${workflow.name}`,
+                            sender: 'agent',
+                            timestamp: new Date().toISOString()
+                          };
+                          return {
+                            ...prevMap,
+                            [workflow.name]: [welcomeMessage]
+                          };
                         });
                       }}
                     >
