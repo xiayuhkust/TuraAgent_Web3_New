@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Check Wallet Balance</title>
+    <link rel="stylesheet" href="../dist/assets/index-Dw9uFdpV.css">
+    <script src="../dist/assets/index-DyEMfBmS.js"></script>
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.umd.min.js"></script>
+</head>
+<body>
+    <h1>Check Wallet Balance</h1>
+    <div id="output"></div>
+    <button id="checkBalance">Check Balance</button>
+    <button id="createWallet">Create Wallet</button>
+    <div id="status"></div>
+
+    <script>
+        const MIN_BALANCE = 0.1; // Required TURA balance for contract deployment
+        
+        window.addEventListener('load', async () => {
+            const output = document.getElementById('output');
+            const status = document.getElementById('status');
+            let walletAgent;
+            
+            try {
+                if (!window.WalletAgent) {
+                    throw new Error('WalletAgent not found. Make sure the bundle is loaded correctly.');
+                }
+                walletAgent = new window.WalletAgent();
+                status.textContent = 'WalletAgent initialized';
+                status.textContent = 'WalletAgent initialized successfully';
+
+            document.getElementById('createWallet').addEventListener('click', async () => {
+                try {
+                    const response = await walletAgent.processMessage('create wallet');
+                    output.textContent = response;
+                } catch (error) {
+                    output.textContent = `Error: ${error.message}`;
+                    console.error(error);
+                }
+            });
+        
+        document.getElementById('checkBalance').addEventListener('click', async () => {
+            try {
+                output.textContent = 'Checking balance...';
+                const response = await walletAgent.processMessage('check balance');
+                output.textContent = response;
+                
+                if (response.includes('balance') && !response.includes('create one')) {
+                    const balanceMatch = response.match(/contains ([\d.]+) TURA/);
+                    if (balanceMatch && parseFloat(balanceMatch[1]) < 0.1) {
+                        output.textContent += '\n\nInsufficient balance for contract deployment. Requesting faucet tokens...';
+                        const faucetResponse = await walletAgent.processMessage('get test tokens');
+                        output.textContent += '\n' + faucetResponse;
+                    }
+                }
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+                console.error(error);
+                return;
+            }
+
+            // Set up event handlers
+            document.getElementById('checkBalance').addEventListener('click', async () => {
+                try {
+                    output.textContent = 'Checking balance...';
+                    const response = await walletAgent.processMessage('check balance');
+                    output.textContent = response;
+                    
+                    // Check if we have a balance and need faucet tokens
+                    if (response.includes('contains')) {
+                        const balanceMatch = response.match(/contains ([\d.]+) TURA/);
+                        if (balanceMatch) {
+                            const balance = parseFloat(balanceMatch[1]);
+                            status.textContent = `Current balance: ${balance} TURA`;
+                            
+                            if (balance < MIN_BALANCE) {
+                                status.textContent += '\nInsufficient balance for contract deployment';
+                                const shouldRequestTokens = confirm('Your balance is below 0.1 TURA required for contract deployment. Would you like to request test tokens?');
+                                if (shouldRequestTokens) {
+                                    const faucetResponse = await walletAgent.processMessage('get test tokens');
+                                    status.textContent += '\n' + faucetResponse;
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    output.textContent = `Error checking balance: ${error.message}`;
+                    console.error('Balance check error:', error);
+                }
+            });
+
+            document.getElementById('createWallet').addEventListener('click', async () => {
+                try {
+                    output.textContent = 'Creating wallet...';
+                    const response = await walletAgent.processMessage('create wallet');
+                    output.textContent = response;
+                    
+                    // If wallet was created successfully, check balance
+                    if (response.includes('Wallet created successfully')) {
+                        const balanceResponse = await walletAgent.processMessage('check balance');
+                        status.textContent = balanceResponse;
+                    }
+                } catch (error) {
+                    output.textContent = `Error creating wallet: ${error.message}`;
+                    console.error('Wallet creation error:', error);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
