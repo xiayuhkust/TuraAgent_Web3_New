@@ -214,10 +214,11 @@ export class WalletService {
         throw new Error('Invalid Ethereum address format');
       }
       
-      // For testing: Return mock balance during network setup
-      console.log('Network setup in progress - using mock balance for testing');
-      const mockBalance = '10.0';
-      return mockBalance;
+      // Get actual balance from chain
+      const balance = await this.web3.eth.getBalance(address);
+      const balanceInEther = this.web3.utils.fromWei(balance, 'ether');
+      console.log('Balance retrieved:', { address, balanceInEther });
+      return balanceInEther;
     } catch (error) {
       console.error('Failed to get balance:', error);
       if (error instanceof Error) {
