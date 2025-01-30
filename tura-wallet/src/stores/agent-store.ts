@@ -1,25 +1,37 @@
 import { Agent, OfficialAgent, Workflow } from "../types/agentTypes";
 import { WalletAgent } from "../agentic_workflow/WalletAgent";
 import { AgentManager } from "../agentic_workflow/AgentManager";
+import { TokenAgent } from "../agentic_workflow/TokenAgent";
+import { TuraWorkFlow } from "../agentic_workflow/TuraWorkFlow";
 
 // Official agents are managed separately from community agents
 export const officialAgents: OfficialAgent[] = [
   {
     name: 'WalletAgent',
-    contractAddress: '',  // No contract address as it's a built-in agent
+    contractAddress: '',
     description: 'Your personal wallet assistant for managing TURA transactions',
     feePerRequest: '0.0 TURA',
-    owner: '',  // No specific owner as it's a system agent
+    owner: '',
     chainId: 1337,
     status: 'OFFICIAL',
     instance: new WalletAgent()
   },
   {
+    name: 'TokenAgent',
+    contractAddress: '',
+    description: 'Deploy and manage ERC20 token contracts',
+    feePerRequest: '0.1 TURA',
+    owner: '',
+    chainId: 1337,
+    status: 'OFFICIAL',
+    instance: new TokenAgent()
+  },
+  {
     name: 'AgentManager',
-    contractAddress: '',  // No contract address as it's a built-in agent
+    contractAddress: '',
     description: 'Deploy and manage TuraAgent contracts with metadata collection',
     feePerRequest: '0.0 TURA',
-    owner: '',  // No specific owner as it's a system agent
+    owner: '',
     chainId: 1337,
     status: 'OFFICIAL',
     instance: new AgentManager()
@@ -51,15 +63,16 @@ export const agents: Agent[] = [
 
 export const workflows: Workflow[] = [
   {
-    name: 'TuraAgentMultiSigV2',
-    contractAddress: '0x9dAB58844d1E118bA44D4fBF730717cF5371EC98',
-    description: 'Multi-signature wallet management workflow',
+    name: 'TuraWorkFlow',
+    contractAddress: '',
+    description: 'Automated workflow for wallet setup and agent registration',
     fee: '0.0 TURA',
-    owner: '0x08Bb6eA809A2d6c13D57166Fa3ede48C0ae9a70e',
+    owner: '',
     requiredConfirmations: 1,
     turaToken: '0x0000000000000000000000000000000000000000',
-    usdtToken: '0x18fbB6Cc5A960F2aFC9A47a30638Db7654944a5B',
-    status: 'VALID'
+    usdtToken: '',
+    status: 'VALID',
+    instance: new TuraWorkFlow()
   }
 ];
 
