@@ -281,11 +281,9 @@ export default function ChatPage() {
         [agentKey]: [...(prev[agentKey] || []), response]
       }));
     } catch (error: unknown) {
-      console.error('Agent processing error:', error);
-      const message = error instanceof Error ? error.message : 'Unknown error occurred';
       const errorResponse: Message = {
         id: Date.now().toString(),
-        text: `Error: ${message}`,
+        text: 'An error occurred while processing your request. Please try again.',
         sender: 'error',
         timestamp: new Date().toISOString()
       };
