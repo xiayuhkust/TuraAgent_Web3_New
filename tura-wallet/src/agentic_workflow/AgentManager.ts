@@ -8,7 +8,7 @@ import {
   getTuraProvider
 } from '../contracts/TuraAgent';
 import { KeyManager } from '../lib/keyManager';
-import { deployMyToken } from '../contracts/MyToken';
+import { TokenDeploymentParams, TokenDeploymentResult, deployMyToken } from '../contracts/MyToken';
 import { AgentData } from '../types/agentTypes';
 import { addAgent, getAgentsByOwner } from '../lib/agentStorage';
 import WalletManagerImpl from '../lib/wallet_manager';
@@ -61,8 +61,12 @@ export class AgentManager extends AgenticWorkflow {
     'help': 'GENERAL_HELP'
   };
 
+  private walletManager: WalletManagerImpl;
+
   constructor() {
     super("AgentManager", "Deploy and register TuraAgent contracts with metadata collection");
+    this.walletManager = new WalletManagerImpl();
+
   }
 
   /**
@@ -163,11 +167,31 @@ Respond with only the category name in uppercase with underscores.`
 
       // Map intent to handler functions
       switch (userIntent) {
-        case 'DEPLOY_MY_TOKEN':
-          if (this.registrationState.step !== 'idle') {
-            return "You're already in the process of registering a contract. Please complete or cancel the current registration first.";
+        case 'GET_TEST_TOKENS':
+          if (text.toLowerCase().includes('get test tokens')) {
+            return "Please use the WalletAgent to get test tokens. Type 'switch to WalletAgent' first.";
           }
-          return this.startTokenDeployment();
+          return "Please use the WalletAgent to get test tokens.";
+
+        case 'DEPLOY_MY_TOKEN':
+          // Parse deployment parameters from message
+          const tokenMatch = text.match(/name\s+(\w+),\s*symbol\s+(\w+),\s*and\s*supply\s+(\d+)/i);
+          if (tokenMatch) {
+            const [_, name, symbol, supply] = tokenMatch;
+            try {
+              const result = await this.deployMyToken({
+                name,
+                symbol,
+                supply
+              });
+              return this.formatDeploymentSuccess(result);
+            } catch (error) {
+              console.error('Token deployment failed:', error);
+              return `❌ Failed to deploy token: ${error instanceof Error ? error.message : 'Unknown error'}`;
+            }
+          }
+          
+          return "Please provide the token parameters in the format: Deploy MyToken contract with name TestWF, symbol WF, and supply 1000000000";
 
         case 'DEPLOY_CONTRACT':
           if (this.registrationState.step !== 'idle') {
@@ -237,21 +261,9 @@ Note: You must have a connected wallet with sufficient TURA balance (0.1 TURA) t
 
     switch (step) {
       case 'collecting_name':
-        if (data.type === 'token') {
-          if (text.toLowerCase() === 'yes') {
-            this.registrationState = { step: 'idle', data: {} };
-            return this.deployMyToken();
-          } else if (text.toLowerCase() === 'no') {
-            this.registrationState.step = 'collecting_token_name';
-            return "Please enter the token name:";
-          } else {
-            return "Please type 'yes' to use default values or 'no' to customize.";
-          }
-        } else {
-          this.registrationState.data = { ...data, name: text };
-          this.registrationState.step = 'collecting_description';
-          return "Great! Now please provide a description of what your agent does.";
-        }
+        this.registrationState.data = { ...data, name: text };
+        this.registrationState.step = 'collecting_description';
+        return "Great! Now please provide a description of what your agent does.";
 
       case 'collecting_token_name':
         this.registrationState.data = { ...data, tokenName: text };
@@ -272,11 +284,12 @@ Note: You must have a connected wallet with sufficient TURA balance (0.1 TURA) t
         if (text.toLowerCase() === 'confirm') {
           const deploymentData = this.registrationState.data;
           this.registrationState = { step: 'idle', data: {} };
-          return this.deployMyToken(
-            deploymentData.tokenName,
-            deploymentData.tokenSymbol,
-            deploymentData.tokenSupply
-          );
+          const result = await this.deployMyToken({
+            name: deploymentData.tokenName || '',
+            symbol: deploymentData.tokenSymbol || '',
+            supply: deploymentData.tokenSupply || ''
+          });
+          return this.formatDeploymentSuccess(result);
         } else if (text.toLowerCase() === 'cancel') {
           this.registrationState = { step: 'idle', data: {} };
           return "Token deployment cancelled. Let me know if you'd like to try again!";
@@ -646,53 +659,27 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
   /**
    * Check the status of deployed agents
    */
-  private startTokenDeployment(): string {
-    this.registrationState = {
-      step: 'collecting_name',
-      data: { type: 'token' }
-    };
-    return "Let's deploy a new MyToken contract. The default parameters are:\nName: TestWF\nSymbol: WF\nInitial Supply: 1,000,000,000\n\nWould you like to use these default values? Type 'yes' to proceed or 'no' to customize.";
-  }
-
-  private async deployMyToken(name: string = "TestWF", symbol: string = "WF", initialSupply: string = "1000000000"): Promise<string> {
+  private async deployMyToken(params: TokenDeploymentParams): Promise<TokenDeploymentResult> {
     const address = localStorage.getItem('lastWalletAddress');
     if (!address) {
-      return "Please create a wallet first using 'create wallet'";
+      throw new Error("Please create a wallet first using 'create wallet'");
     }
 
-    const privateKey = await this.walletManager.getDecryptedKey(address);
-    if (!privateKey) {
-      return "Failed to retrieve wallet private key. Please ensure your wallet is properly set up.";
+    const session = await this.walletManager.getSession();
+    if (!session?.password) {
+      throw new Error("Please log in to your wallet first");
     }
 
-    try {
-      // Validate supply format
-      const supply = Number(initialSupply);
-      if (isNaN(supply) || supply <= 0 || !Number.isInteger(supply)) {
-        return "Invalid initial supply. Please enter a positive whole number.";
-      }
-
-      // Validate name and symbol
-      if (!name || !symbol) {
-        return "Token name and symbol are required.";
-      }
-
-      if (symbol.length > 5) {
-        return "Token symbol must be 5 characters or less.";
-      }
-
-      const contractAddress = await deployMyToken(
-        name,
-        symbol,
-        initialSupply,
-        privateKey
-      );
-      
-      return `✅ Successfully deployed MyToken contract!\n\n📋 Contract Details:\nAddress: ${contractAddress}\nName: ${name}\nSymbol: ${symbol}\nInitial Supply: ${initialSupply}\n\n🔍 Next Steps:\n1. Import token to MetaMask using the contract address\n2. Check your wallet balance`;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      return `❌ Failed to deploy MyToken contract:\n${errorMsg}\n\n🔍 Common solutions:\n1. Check your TURA balance\n2. Verify your wallet connection\n3. Try again in a few minutes`;
+    const walletData = await this.walletManager.getWalletData(address, session.password);
+    if (!walletData?.privateKey) {
+      throw new Error("Failed to retrieve wallet private key. Please ensure you're logged in.");
     }
+
+    return await deployMyToken(params, walletData.privateKey);
+  }
+
+  private formatDeploymentSuccess(result: TokenDeploymentResult): string {
+    return `✅ Token deployment successful!\n\n📋 Contract Details:\nAddress: ${result.contract_address}\nName: ${result.name}\nSymbol: ${result.symbol}\nInitial Supply: ${result.initial_supply}\n\n🔍 Next Steps:\n1. Import token to MetaMask:\n   • Contract: ${result.contract_address}\n   • Symbol: ${result.symbol}\n   • Decimals: 18\n2. Check your wallet balance`;
   }
 
   private async checkAgentStatus(): Promise<string> {
