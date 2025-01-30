@@ -2,11 +2,8 @@ import { beforeAll, afterEach, vi } from 'vitest';
 import { Buffer } from 'buffer';
 import { ethers } from 'ethers';
 
-// Test constants
-const TEST_PRIVATE_KEY = process.env.TEST_PRIVATE_KEY || '0x0000000000000000000000000000000000000000000000000000000000000000';
-const mockWallet = TEST_PRIVATE_KEY === '0x0000000000000000000000000000000000000000000000000000000000000000' 
-  ? ethers.Wallet.createRandom() 
-  : new ethers.Wallet(TEST_PRIVATE_KEY);
+// Create a new random wallet for testing
+const mockWallet = ethers.Wallet.createRandom();
 // const TEST_ADDRESS = mockWallet.address; // Unused for now
 
 // Add Buffer to global scope with proper polyfill
