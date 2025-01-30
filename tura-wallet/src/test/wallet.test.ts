@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { WalletService } from '../lib/wallet';
 import { KeyManager } from '../lib/keyManager';
-import Web3 from 'web3';
+import { Wallet } from 'ethers';
 
 // Mock KeyManager
 vi.mock('../lib/keyManager', () => ({
@@ -11,12 +11,12 @@ vi.mock('../lib/keyManager', () => ({
       salt: 'mock-salt',
       iv: 'mock-iv'
     }),
-    decryptKey: vi.fn().mockImplementation((data, password) => {
+    decryptKey: vi.fn().mockImplementation((_data, password) => {
       if (password === 'testPassword123!') {
         // Return a valid private key format that matches our test account
-        return '0x1234567890123456789012345678901234567890123456789012345678901234';
+        return Promise.resolve('0x1234567890123456789012345678901234567890123456789012345678901234');
       }
-      throw new Error('Invalid password');
+      return Promise.reject(new Error('Invalid password'));
     }),
     validatePrivateKey: vi.fn().mockImplementation((key) => {
       return key === '0x1234567890123456789012345678901234567890123456789012345678901234';
@@ -39,7 +39,7 @@ vi.mock('web3', () => {
     utils: any;
     static providers: any;
 
-    constructor(provider: any) {
+    constructor(_provider: any) {
       this.eth = {
         accounts: {
           create: () => ({
@@ -50,7 +50,7 @@ vi.mock('web3', () => {
             address: '0x1234567890123456789012345678901234567890',
             privateKey: key
           }),
-          signTransaction: async (tx: any, privateKey: string) => {
+          signTransaction: async (_tx: any, privateKey: string) => {
             if (!privateKey) {
               throw new Error('Password required for transaction signing');
             }
@@ -77,7 +77,7 @@ vi.mock('web3', () => {
       
       this.utils = {
         isAddress: (addr: string) => /^0x[a-fA-F0-9]{40}$/.test(addr),
-        fromWei: (wei: string) => '1.0',
+        fromWei: (_wei: string) => '1.0',
         toWei: (eth: string) => {
           if (eth === '0' || parseFloat(eth) <= 0) {
             throw new Error('Amount must be greater than 0');
@@ -113,11 +113,11 @@ describe('Wallet Integration Tests', () => {
       salt: 'mock-salt',
       iv: 'mock-iv'
     });
-    vi.mocked(KeyManager.decryptKey).mockImplementation((data, password) => {
+    vi.mocked(KeyManager.decryptKey).mockImplementation((_data, password) => {
       if (password === 'testPassword123!') {
-        return '0x1234567890123456789012345678901234567890123456789012345678901234';
+        return Promise.resolve('0x1234567890123456789012345678901234567890123456789012345678901234');
       }
-      throw new Error('Invalid password');
+      return Promise.reject(new Error('Invalid password'));
     });
   });
 
@@ -128,7 +128,8 @@ describe('Wallet Integration Tests', () => {
 
   describe('Account Management', () => {    
     it('should create new account', async () => {
-      const account = await walletService.createAccount();
+      const wallet = Wallet.createRandom();
+      const account = await walletService.createAccount(wallet.privateKey);
       
       expect(account.address).toBeDefined();
       expect(account.address).toMatch(/^0x[a-fA-F0-9]{40}$/);
@@ -150,7 +151,8 @@ describe('Wallet Integration Tests', () => {
     let account: { address: string; privateKey: string };
     
     beforeEach(async () => {
-      account = await walletService.createAccount();
+      const wallet = Wallet.createRandom();
+      account = await walletService.createAccount(wallet.privateKey);
     });
 
     it('should send transaction with password', async () => {
@@ -220,7 +222,8 @@ describe('Wallet Integration Tests', () => {
     let account: { address: string; privateKey: string };
     
     beforeEach(async () => {
-      account = await walletService.createAccount();
+      const wallet = Wallet.createRandom();
+      account = await walletService.createAccount(wallet.privateKey);
     });
 
     it('should validate transaction signatures', async () => {
