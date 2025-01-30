@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Test Wallet</title>
+    <script type="module">
+        import { WalletManager } from '../src/lib/wallet_manager';
+        import { ethers } from 'ethers';
+        
+        window.addEventListener('load', async () => {
+            const output = document.getElementById('output');
+            const log = (msg) => {
+                const p = document.createElement('p');
+                p.textContent = msg;
+                output.appendChild(p);
+                console.log(msg);
+            };
+
+            document.getElementById('createWallet').addEventListener('click', async () => {
+                try {
+                    log('Creating new wallet...');
+                    const walletManager = new WalletManager();
+                    const password = `test-${Date.now()}`;
+                    log(`Generated password: ${password}`);
+                    
+                    const wallet = await walletManager.createWallet(password);
+                    log(`Created wallet address: ${wallet.address}`);
+                    
+                    const walletData = await walletManager.getWalletData(wallet.address, password);
+                    log(`Private key: ${walletData.privateKey}`);
+                    
+                    log('IMPORTANT: Save these credentials securely!');
+                    log('-------------------');
+                    log(`Address: ${wallet.address}`);
+                    log(`Password: ${password}`);
+                    log(`Private key: ${walletData.privateKey}`);
+                    
+                } catch (error) {
+                    log(`Error: ${error.message}`);
+                    console.error('Test failed:', error);
+                }
+            });
+        });
+    </script>
+</head>
+<body>
+    <h1>Create Test Wallet</h1>
+    <button id="createWallet">Create New Wallet</button>
+    <div id="output"></div>
+</body>
+</html>
