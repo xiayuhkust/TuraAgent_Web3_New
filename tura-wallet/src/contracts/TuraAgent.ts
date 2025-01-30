@@ -175,21 +175,17 @@ export const CONTRACT_CONFIG = {
  * @returns The deployed contract address
  */
 export async function deployTuraAgent(signer: ethers.Signer): Promise<string> {
-  try {
+  return withRetry(async () => {
     console.log('Starting contract deployment...');
-    
-    // Verify signer is connected
     const address = await signer.getAddress();
     console.log('Deploying from address:', address);
     
-    // Create contract factory with proper provider
     const factory = new ethers.ContractFactory(
       TuraAgentABI,
       TuraAgentBytecode,
       signer
     );
     
-    // Deploy contract with subscription fee
     console.log('Deploying TuraAgent contract...');
     console.log('Gas limit:', CONTRACT_CONFIG.gasLimit);
     console.log('Subscription fee:', ethers.formatEther(CONTRACT_CONFIG.subscriptionFee), 'TURA');
@@ -199,7 +195,6 @@ export async function deployTuraAgent(signer: ethers.Signer): Promise<string> {
       value: CONTRACT_CONFIG.subscriptionFee
     });
     
-    // Wait for deployment to complete
     console.log('Waiting for deployment transaction...');
     const tx = contract.deploymentTransaction();
     if (!tx) throw new Error('Deployment transaction failed');
@@ -212,10 +207,7 @@ export async function deployTuraAgent(signer: ethers.Signer): Promise<string> {
     
     console.log('TuraAgent deployed to:', contractAddress);
     return contractAddress;
-  } catch (error) {
-    console.error('Contract deployment failed:', error);
-    throw error;
-  }
+  });
 }
 
 /**
@@ -224,15 +216,44 @@ export async function deployTuraAgent(signer: ethers.Signer): Promise<string> {
  * @param address The address to check
  * @returns True if balance is sufficient
  */
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      if (attempt === maxRetries - 1) throw error;
+      const delay = baseDelay * Math.pow(2, attempt);
+      console.log(`Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+
 export async function checkTuraBalance(
   provider: ethers.Provider,
   address: string
 ): Promise<boolean> {
   try {
-    const balance = await provider.getBalance(address);
+    const balance = await withRetry(async () => {
+      try {
+        return await provider.getBalance(address);
+      } catch (error: any) {
+        if (error.code === 'NETWORK_ERROR' || error.code === 'TIMEOUT' || 
+            error.message?.includes('failed to fetch')) {
+          throw error;
+        }
+        console.error('Non-retryable balance check error:', error);
+        return BigInt(0);
+      }
+    });
     return balance >= CONTRACT_CONFIG.subscriptionFee;
   } catch (error) {
-    console.error('Balance check failed:', error);
+    console.error('Balance check failed after retries:', error);
     return false;
   }
 }
@@ -253,7 +274,7 @@ export function getTuraProvider(): ethers.Provider {
     return customProvider;
   }
 
-  // Fallback to JSON-RPC provider
+  // Fallback to JSON-RPC provider with retry configuration
   return new ethers.JsonRpcProvider(
     CONTRACT_CONFIG.rpcEndpoint,
     {
