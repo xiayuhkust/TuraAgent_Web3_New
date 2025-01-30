@@ -49,9 +49,13 @@ export class TuraWorkFlow extends AgenticWorkflow {
       return this.startWorkflow();
     }
 
-    // For non-IDLE states, process the message based on current state
+    // Process the message based on current state
     switch (this.state) {
       case TuraWorkFlowState.IDLE:
+      case TuraWorkFlowState.CHECKING_BALANCE:
+      case TuraWorkFlowState.GETTING_FAUCET:
+      case TuraWorkFlowState.DEPLOYING_CONTRACT:
+      case TuraWorkFlowState.REGISTERING_AGENT:
       case TuraWorkFlowState.CHECKING_WALLET:
         console.log('Handling wallet check');
         if (normalizedMessage.startsWith('create wallet')) {
@@ -209,7 +213,7 @@ export class TuraWorkFlow extends AgenticWorkflow {
     }
   }
 
-  private async handleAgentRegistration(message: string): Promise<string> {
+  private async handleAgentRegistration(_message: string): Promise<string> {
     this.state = TuraWorkFlowState.IDLE;
     return "Agent registration completed successfully.";
   }
