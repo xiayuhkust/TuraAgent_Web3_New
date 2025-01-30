@@ -26,8 +26,8 @@ export default defineConfig({
     host: true,
     port: 5173,
     proxy: {
-      '/rpc': {
-        target: 'https://43.135.26.222:8088',
+      '/api': {
+        target: 'http://43.135.26.222:8000',
         changeOrigin: true,
         secure: false,
         configure: (proxy, _options) => {
