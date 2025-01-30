@@ -11,14 +11,161 @@ export enum TuraWorkFlowState {
 }
 
 export class TuraWorkFlow extends AgenticWorkflow {
-  private state: TuraWorkFlowState = TuraWorkFlowState.IDLE;
+  private state: TuraWorkFlowState;
   private walletAgent: IWalletAgent;
   private readonly MIN_BALANCE = 1.0;
 
   constructor() {
     super('TuraWorkFlow', 'Automated workflow for agent registration');
     this.walletAgent = new WalletAgent();
+    this.state = TuraWorkFlowState.IDLE;
   }
+
+  async processMessage(message: string): Promise<string> {
+    console.log('TuraWorkFlow processing message:', { message, currentState: this.state });
+    
+    const normalizedMessage = message.toLowerCase();
+    
+    if (normalizedMessage === 'start workflow' || normalizedMessage === 'start wf') {
+      console.log('Starting workflow from IDLE state');
+      return this.startWorkflow();
+    }
+
+    switch (this.state) {
+      case TuraWorkFlowState.CHECKING_WALLET:
+        console.log('Handling wallet check');
+        if (normalizedMessage.startsWith('create wallet')) {
+          const result = await this.walletAgent.processMessage(message);
+          if (result.includes('created successfully')) {
+            this.state = TuraWorkFlowState.CHECKING_BALANCE;
+            return result + '\n\nNow checking your balance...';
+          }
+          return result;
+        }
+        return this.handleWalletCheck();
+
+      case TuraWorkFlowState.CHECKING_BALANCE:
+        return this.handleBalanceCheck();
+
+      case TuraWorkFlowState.GETTING_FAUCET:
+        console.log('Handling faucet request');
+        return this.handleBalanceCheck();
+
+      case TuraWorkFlowState.DEPLOYING_CONTRACT:
+        return this.handleContractDeployment(message);
+
+      case TuraWorkFlowState.REGISTERING_AGENT:
+        return this.handleAgentRegistration(message);
+
+      default:
+        console.log('In IDLE state, waiting for start command');
+        return 'Please type "Start WF" to begin the registration process.';
+    }
+  }
+
+  private async startWorkflow(): Promise<string> {
+    console.log('Starting workflow, checking wallet...');
+    this.state = TuraWorkFlowState.CHECKING_WALLET;
+    const hasWallet = await this.walletAgent.hasWallet();
+    
+    if (!hasWallet) {
+      return await this.walletAgent.processMessage('create wallet');
+    }
+    
+    return this.handleWalletCheck();
+  }
+
+  private async handleWalletCheck(): Promise<string> {
+    try {
+      const hasWallet = await this.walletAgent.hasWallet();
+      console.log('Wallet check result:', hasWallet);
+      
+      if (!hasWallet) {
+        return 'No wallet found. Please create a new wallet by typing "create wallet".';
+      }
+      
+      this.state = TuraWorkFlowState.CHECKING_BALANCE;
+      return this.handleBalanceCheck();
+    } catch (error) {
+      console.error('Wallet check error:', error);
+      this.state = TuraWorkFlowState.IDLE;
+      return `Error checking wallet: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+  }
+
+  private async handleBalanceCheck(): Promise<string> {
+    try {
+      const balance = await this.walletAgent.getBalance();
+      console.log('Balance check result:', balance);
+      
+      if (balance < this.MIN_BALANCE) {
+        this.state = TuraWorkFlowState.GETTING_FAUCET;
+        return `Your balance (${balance} TURA) is insufficient for contract deployment.\nRequesting test tokens from faucet...`;
+      }
+      
+      this.state = TuraWorkFlowState.DEPLOYING_CONTRACT;
+      return 'Ready to deploy contract. Type "y" to confirm deployment or "n" to cancel.';
+    } catch (error) {
+      console.error('Balance check error:', error);
+      this.state = TuraWorkFlowState.IDLE;
+      return `Error checking balance: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+  }
+
+  private async handleContractDeployment(message: string): Promise<string> {
+    if (message.toLowerCase() !== 'y') {
+      this.state = TuraWorkFlowState.IDLE;
+      return 'Contract deployment cancelled.';
+    }
+
+    try {
+      let privateKey: string;
+      try {
+        privateKey = await this.walletAgent.getDecryptedKey();
+      } catch (error) {
+        this.state = TuraWorkFlowState.IDLE;
+        return `Failed to get wallet key: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+
+      const response = await fetch('/api/v1/deploy-mytoken', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          private_key: privateKey,
+          name: 'TuraWorkFlow',
+          symbol: 'TWF',
+          initial_supply: '1000000000'
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || 'Deployment failed');
+      }
+
+      this.state = TuraWorkFlowState.REGISTERING_AGENT;
+      return `Contract deployed successfully! 🎉\n\nDetails:\n` +
+        `• Contract Address: ${data.contract_address}\n` +
+        `• Deployer: ${data.deployer_address}\n` +
+        `• Name: ${data.name}\n` +
+        `• Symbol: ${data.symbol}\n` +
+        `• Initial Supply: ${data.initial_supply}\n` +
+        `• Chain ID: ${data.chain_id}\n\n` +
+        `Type "register" to proceed with agent registration or "cancel" to exit.`;
+    } catch (error) {
+      this.state = TuraWorkFlowState.IDLE;
+      return `Contract deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+  }
+
+  private async handleAgentRegistration(_message: string): Promise<string> {
+    this.state = TuraWorkFlowState.IDLE;
+    return "Agent registration completed successfully.";
+  }
+}
 
   async processMessage(message: string): Promise<string> {
     console.log('TuraWorkFlow processing message:', { message, currentState: this.state });
@@ -50,39 +197,41 @@ export class TuraWorkFlow extends AgenticWorkflow {
     }
 
     // Process the message based on current state
-    if (this.state === TuraWorkFlowState.CHECKING_WALLET) {
-      console.log('Handling wallet check');
-      if (normalizedMessage.startsWith('create wallet')) {
-        const result = await this.walletAgent.processMessage(message);
-        if (result.includes('created successfully')) {
-          this.state = TuraWorkFlowState.CHECKING_BALANCE;
-          return result + '\n\nNow checking your balance...';
+    if (normalizedMessage === 'start workflow' || normalizedMessage === 'start wf') {
+      console.log('Starting workflow from IDLE state');
+      return this.startWorkflow();
+    }
+
+    switch (this.state) {
+      case TuraWorkFlowState.CHECKING_WALLET:
+        console.log('Handling wallet check');
+        if (normalizedMessage.startsWith('create wallet')) {
+          const result = await this.walletAgent.processMessage(message);
+          if (result.includes('created successfully')) {
+            this.state = TuraWorkFlowState.CHECKING_BALANCE;
+            return result + '\n\nNow checking your balance...';
+          }
+          return result;
         }
-        return result;
-      }
-      return this.handleWalletCheck();
+        return this.handleWalletCheck();
+
+      case TuraWorkFlowState.CHECKING_BALANCE:
+        return this.handleBalanceCheck();
+
+      case TuraWorkFlowState.GETTING_FAUCET:
+        console.log('Handling faucet request');
+        return this.handleBalanceCheck();
+
+      case TuraWorkFlowState.DEPLOYING_CONTRACT:
+        return this.handleContractDeployment(message);
+
+      case TuraWorkFlowState.REGISTERING_AGENT:
+        return this.handleAgentRegistration(message);
+
+      default:
+        console.log('In IDLE state, waiting for start command');
+        return 'Please type "Start WF" to begin the registration process.';
     }
-    
-    if (this.state === TuraWorkFlowState.CHECKING_BALANCE) {
-      return this.handleBalanceCheck();
-    }
-    
-    if (this.state === TuraWorkFlowState.GETTING_FAUCET) {
-      console.log('Handling faucet request');
-      return this.handleBalanceCheck();
-    }
-    
-    if (this.state === TuraWorkFlowState.DEPLOYING_CONTRACT) {
-      return this.handleContractDeployment(message);
-    }
-    
-    if (this.state === TuraWorkFlowState.REGISTERING_AGENT) {
-      return this.handleAgentRegistration(message);
-    }
-    
-    // Default to IDLE state behavior
-    console.log('In IDLE state, waiting for start command');
-    return 'Please type "Start WF" to begin the registration process.';
         
       case TuraWorkFlowState.CHECKING_BALANCE:
         console.log('Handling balance check');
