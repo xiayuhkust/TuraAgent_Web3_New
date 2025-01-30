@@ -171,7 +171,7 @@ export const CONTRACT_CONFIG = {
     decimals: 18
   },
   gasLimit: 3000000,
-  subscriptionFee: ethers.utils.parseEther('0.1')
+  subscriptionFee: ethers.parseEther('0.1')
 };
 
 /**
@@ -203,10 +203,17 @@ export async function deployTuraAgent(signer: ethers.Signer): Promise<string> {
     
     // Wait for deployment to complete
     console.log('Waiting for deployment transaction...');
-    const receipt = await contract.deployTransaction.wait();
+    const deployTx = await contract.deploymentTransaction();
+    if (!deployTx) throw new Error('Failed to get deployment transaction');
     
-    console.log('TuraAgent deployed to:', receipt.contractAddress);
-    return receipt.contractAddress;
+    const receipt = await deployTx.wait();
+    if (!receipt) throw new Error('Failed to get transaction receipt');
+    
+    const contractAddress = receipt.contractAddress;
+    if (!contractAddress) throw new Error('Failed to get contract address');
+    
+    console.log('TuraAgent deployed to:', contractAddress);
+    return contractAddress;
   } catch (error) {
     console.error('Contract deployment failed:', error);
     throw error;
@@ -220,12 +227,12 @@ export async function deployTuraAgent(signer: ethers.Signer): Promise<string> {
  * @returns True if balance is sufficient
  */
 export async function checkTuraBalance(
-  provider: ethers.providers.Provider,
+  provider: ethers.Provider,
   address: string
 ): Promise<boolean> {
   try {
     const balance = await provider.getBalance(address);
-    return balance.gte(CONTRACT_CONFIG.subscriptionFee);
+    return balance >= CONTRACT_CONFIG.subscriptionFee;
   } catch (error) {
     console.error('Balance check failed:', error);
     return false;
@@ -236,9 +243,9 @@ export async function checkTuraBalance(
  * Get a Web3 provider for the Tura network
  * @returns Configured ethers provider
  */
-export function getTuraProvider(): ethers.providers.Provider {
+export function getTuraProvider(): ethers.Provider {
   // Use configured RPC URL
-  return new ethers.providers.JsonRpcProvider(CONTRACT_CONFIG.rpcUrl, {
+  return new ethers.JsonRpcProvider(CONTRACT_CONFIG.rpcUrl, {
     chainId: CONTRACT_CONFIG.chainId,
     name: CONTRACT_CONFIG.chainName
   });

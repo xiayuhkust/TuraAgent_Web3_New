@@ -14,18 +14,18 @@ const CHAIN_CONFIG = {
 };
 
 export interface TransactionReceipt {
-  transactionHash: string;
+  hash: string;
   blockNumber: number;
   blockHash: string;
-  status: boolean;
-  from?: string;
-  to?: string;
-  contractAddress?: string;
-  gasUsed?: number;
+  status: number;
+  from: string;
+  to: string | null;
+  contractAddress: string | null;
+  gasUsed: bigint;
 }
 
 export class WalletService {
-  private provider: ethers.providers.JsonRpcProvider;
+  private provider: ethers.JsonRpcProvider;
 
   constructor() {
     console.log('Initializing ethers with chain config:', {
@@ -36,7 +36,7 @@ export class WalletService {
     });
 
     // Initialize ethers with JSON-RPC provider
-    this.provider = new ethers.providers.JsonRpcProvider(CHAIN_CONFIG.rpcUrl);
+    this.provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.rpcUrl);
   }
 
   async createAccount(privateKey: string) {
@@ -63,13 +63,13 @@ export class WalletService {
   async getBalance(address: string) {
     try {
       // Validate address format
-      if (!ethers.utils.isAddress(address)) {
+      if (!ethers.isAddress(address)) {
         throw new Error('Invalid Tura address format');
       }
       
       // Get balance from chain
       const balance = await this.provider.getBalance(address);
-      const balanceInTura = ethers.utils.formatEther(balance);
+      const balanceInTura = ethers.formatEther(balance);
       console.log('Balance for', address, ':', balanceInTura, 'TURA');
       
       return balanceInTura;
@@ -97,7 +97,7 @@ export class WalletService {
       
       // Validate addresses first
       const isTestAddress = (addr: string) => addr === '0x1234567890123456789012345678901234567890';
-      if (!ethers.utils.isAddress(fromAddress) || !ethers.utils.isAddress(toAddress)) {
+      if (!ethers.isAddress(fromAddress) || !ethers.isAddress(toAddress)) {
         throw new Error('Invalid Tura address format');
       }
       
@@ -134,7 +134,7 @@ export class WalletService {
       const wallet = new ethers.Wallet(privateKey, this.provider);
       
       // Convert amount to Wei
-      const value = ethers.utils.parseEther(amount.toString());
+      const value = ethers.parseEther(amount.toString());
       
       // Get latest nonce and gas price with timeout
       const [nonce, feeData] = await Promise.all([
@@ -149,7 +149,7 @@ export class WalletService {
       if (!isTestAddress(fromAddress)) {
         // Check if account has sufficient balance
         const balance = await this.provider.getBalance(fromAddress);
-        const totalCost = value.add(gasPrice.mul(21000));
+        const totalCost = value + (gasPrice * BigInt(21000));
         
         if (balance < totalCost) {
           throw new Error('Insufficient balance for transaction');
@@ -177,18 +177,18 @@ export class WalletService {
         throw new Error('Failed to get transaction receipt');
       }
 
-      console.log('Transaction successful:', receipt.transactionHash);
+      console.log('Transaction successful:', receipt.hash);
       
       // Convert receipt to our TransactionReceipt type
       return {
-        transactionHash: receipt.transactionHash,
-        blockNumber: receipt.blockNumber || 0,
-        blockHash: receipt.blockHash || '',
-        status: receipt.status === 1,
+        hash: receipt.hash,
+        blockNumber: receipt.blockNumber,
+        blockHash: receipt.blockHash,
+        status: receipt.status,
         from: receipt.from,
         to: receipt.to,
-        contractAddress: receipt.contractAddress || undefined,
-        gasUsed: receipt.gasUsed ? Number(receipt.gasUsed) : undefined
+        contractAddress: receipt.contractAddress,
+        gasUsed: receipt.gasUsed
       };
     } catch (error) {
       console.error('Transaction failed:', error);
