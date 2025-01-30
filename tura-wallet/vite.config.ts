@@ -27,21 +27,18 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/rpc': {
-        target: 'http://43.135.26.222:8000',
+        target: 'https://43.135.26.222:8088',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/rpc/, ''),
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
             console.log('proxy error', err);
           });
           proxy.on('proxyReq', (proxyReq, req, _res) => {
             console.log('Proxying:', req.method, req.url, '=>', proxyReq.path);
-            if ((req as any).body) {
-              const bodyData = JSON.stringify((req as any).body);
+            if (req.method === 'POST') {
               proxyReq.setHeader('Content-Type', 'application/json');
-              proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
-              proxyReq.write(bodyData);
+              proxyReq.setHeader('Accept', 'application/json');
             }
           });
           proxy.on('proxyRes', (proxyRes, _req, res) => {
