@@ -10,7 +10,7 @@ import {
 // Using WalletManagerImpl for key management
 import { WalletManagerImpl } from '../lib/wallet_manager';
 import { AgentData } from '../types/agentTypes';
-import { readLocalAgents, saveLocalAgents, addAgent, getAgentsByOwner } from '../lib/agentStorage';
+import { addAgent, getAgentsByOwner } from '../lib/agentStorage';
 
 // Initialize DeepSeek client for intent recognition
 let openai: OpenAI | undefined;
@@ -33,7 +33,13 @@ try {
  * AgentManager handles the deployment and registration of TuraAgent contracts.
  * It manages the collection of agent metadata and handles the contract deployment process.
  */
-export class AgentManager extends AgenticWorkflow {
+export interface IAgentManager {
+  getRegistrationState(): { step: string; data: any };
+  getRegistrationPrompt(): string;
+  processMessage(message: string): Promise<string>;
+}
+
+export class AgentManager extends AgenticWorkflow implements IAgentManager {
   public registrationState: {
     step: 'idle' | 'collecting_name' | 'collecting_description' | 'collecting_company' | 'collecting_socials' | 'confirming_deployment';
     data: Partial<AgentData>;
@@ -41,6 +47,10 @@ export class AgentManager extends AgenticWorkflow {
 
   public getRegistrationState() {
     return this.registrationState;
+  }
+
+  public getRegistrationPrompt(): string {
+    return "Would you like to register a new agent? Type 'yes' to begin the registration process.";
   }
 
   constructor() {
@@ -225,7 +235,7 @@ Note: You must have a connected wallet with sufficient TURA balance (0.1 TURA) t
         return "Almost there! Please provide your GitHub and/or Twitter links (or type 'skip' to skip).";
 
       case 'collecting_socials':
-        let socialLinks = {};
+        let socialLinks: Record<string, string> = {};
         if (text.toLowerCase() !== 'skip') {
           // Basic URL validation
           const githubMatch = text.match(/github\.com\/[\w-]+/);
@@ -251,7 +261,7 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
         if (text.toLowerCase() === 'confirm') {
           // Reset state before deployment
           const registrationData = this.registrationState.data;
-          this.registrationState = { step: 'idle' };
+          this.registrationState = { step: 'idle', data: { socialLinks: {} } };
           
           try {
             // Get provider and signer
@@ -325,8 +335,8 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
               throw error;
             }
 
-            // Deploy contract
-            const contractAddress = await deployTuraAgent(signer);
+            // Use already deployed contract address
+            const contractAddress = deployedAddress;
             
             // Verify contract deployment
             console.log('Verifying contract deployment...');
@@ -419,14 +429,14 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
             ].join('\n');
           }
         } else if (text.toLowerCase() === 'cancel') {
-          this.registrationState = { step: 'idle' };
+          this.registrationState = { step: 'idle', data: { socialLinks: {} } };
           return "Registration cancelled. Let me know if you'd like to try again!";
         } else {
           return "Please type 'confirm' to proceed with deployment or 'cancel' to abort.";
         }
 
       default:
-        this.registrationState = { step: 'idle' };
+        this.registrationState = { step: 'idle', data: { socialLinks: {} } };
         return "Something went wrong. Please start over by saying 'Deploy a new agent'.";
     }
   }
@@ -496,48 +506,6 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
     }
   }
 
-<<<<<<< Updated upstream
-||||||| constructed merge base
-  /**
-   * Test function to deploy a TuraAgent contract using wallet credentials
-   * @param address The wallet address
-   * @param password The wallet password to decrypt private key
-   * @returns The deployed contract address
-   */
-  public async deployTestAgent(address: string, password: string): Promise<string> {
-    try {
-      console.log('Starting test deployment for address:', address);
-      
-      // Get wallet data using WalletManagerImpl
-      const walletManager = new WalletManagerImpl();
-      const walletData = await walletManager.getWalletData(address, password);
-      if (!walletData.privateKey) {
-        throw new Error('No private key found for this address');
-      }
-
-      // Get provider and create signer
-      const provider = getTuraProvider();
-      const signer = new ethers.Wallet(walletData.privateKey, provider);
-
-      // Check TURA balance before deployment
-      const hasSufficientBalance = await checkTuraBalance(provider, address);
-      if (!hasSufficientBalance) {
-        throw new Error('Insufficient TURA balance. You need at least 0.1 TURA to deploy an agent contract.');
-      }
-
-      // Deploy the contract
-      console.log('Deploying test TuraAgent contract...');
-      const contractAddress = await deployTuraAgent(signer);
-      console.log('Test agent deployed at:', contractAddress);
-
-      return contractAddress;
-    } catch (error) {
-      console.error('Test deployment failed:', error);
-      throw error;
-    }
-  }
-
-=======
   /**
    * Test function to deploy a TuraAgent contract using wallet credentials
    * @param address The wallet address
@@ -593,8 +561,6 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
       throw error;
     }
   }
-
->>>>>>> Stashed changes
   private async checkAgentStatus(): Promise<string> {
     const address = localStorage.getItem('lastWalletAddress');
     if (!address) {

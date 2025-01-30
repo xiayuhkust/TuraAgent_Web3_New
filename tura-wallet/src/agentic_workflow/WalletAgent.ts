@@ -27,10 +27,59 @@ try {
  * WalletAgent provides a chat interface for wallet operations.
  * It wraps the existing wallet functionality in a more user-friendly way.
  */
-export class WalletAgent extends AgenticWorkflow {
+export interface IWalletAgent {
+  hasWallet(): Promise<boolean>;
+  getBalance(): Promise<number>;
+  processMessage(message: string): Promise<string>;
+  getDecryptedKey(): Promise<string>;
+}
+
+export class WalletAgent extends AgenticWorkflow implements IWalletAgent {
   private walletManager: WalletManager;
   private isWaitingForPassword: boolean;
   private isWaitingForFaucetConfirmation: boolean;
+
+  public async hasWallet(): Promise<boolean> {
+    return !!localStorage.getItem('lastWalletAddress');
+  }
+
+  public async getBalance(): Promise<number> {
+    const address = localStorage.getItem('lastWalletAddress');
+    if (!address) return 0;
+    const balance = await this.walletManager.getBalance(address);
+    return parseFloat(balance);
+  }
+
+  public async getDecryptedKey(): Promise<string> {
+    const address = localStorage.getItem('lastWalletAddress');
+    if (!address) {
+      throw new Error('No wallet connected');
+    }
+    const chatPage = (window as any).ChatPage;
+    if (!chatPage?.showSignatureDialog) {
+      throw new Error('Chat interface not available');
+    }
+    return new Promise((resolve, reject) => {
+      chatPage.showSignatureDialog({
+        title: 'Decrypt Wallet',
+        description: 'Please enter your wallet password to decrypt your private key.',
+        requirePassword: true,
+        onConfirm: async (password: string) => {
+          try {
+            const privateKey = await this.walletManager.getPrivateKey(password);
+            if (!privateKey) {
+              reject(new Error('Invalid wallet password'));
+              return;
+            }
+            resolve(privateKey);
+          } catch (error) {
+            reject(error);
+          }
+        }
+      });
+    });
+  }
+
   private readonly FAUCET_ADDRESS: string;
   private readonly MIN_BALANCE: number;
   private readonly FAUCET_AMOUNT: number;

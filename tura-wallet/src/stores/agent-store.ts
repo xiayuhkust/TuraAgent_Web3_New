@@ -9,7 +9,7 @@ export const officialAgents: OfficialAgent[] = [
     description: 'Your personal wallet assistant for managing TURA transactions',
     feePerRequest: '0.0 TURA',
     owner: '',  // No specific owner as it's a system agent
-    chainId: 1337,
+    chainId: Number(import.meta.env.VITE_CHAIN_ID) || 1337,
     status: 'OFFICIAL',
     instance: new WalletAgent()
   }
@@ -23,7 +23,7 @@ export const agents: Agent[] = [
     feePerRequest: '1.0 TURA',
     owner: '0x009f54E5CcbEFCdCa0dd85ddc85171A76B5c1ef1',
     multiSigAddress: '0x5BC87de68410DBa5c17e4496543dd325f60Ce6e8',
-    chainId: 1337,
+    chainId: Number(import.meta.env.VITE_CHAIN_ID) || 1337,
     status: 'VALID'
   },
   {
@@ -33,7 +33,7 @@ export const agents: Agent[] = [
     feePerRequest: '0.01 TURA',
     owner: '0x21872525127D3346E92D1477190FDEC15604e337',
     multiSigAddress: '0x08Bb6eA809A2d6c13D57166Fa3ede48C0ae9a70e',
-    chainId: 1337,
+    chainId: Number(import.meta.env.VITE_CHAIN_ID) || 1337,
     status: 'VALID'
   }
 ];

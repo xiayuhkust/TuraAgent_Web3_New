@@ -118,7 +118,7 @@ export default function ChatPage() {
     setLastMessageTime(Date.now());
 
     try {
-      // Process message through WalletAgent
+      // Process message through appropriate agent
       if (!activeAgent || activeAgent.name === 'WalletAgent') {
         const agentResponse = await walletAgent.processMessage(inputText);
         
@@ -152,11 +152,16 @@ export default function ChatPage() {
         };
 
         setMessages(prev => [...prev, response]);
-      } else {
-        // Handle other agents' messages here
+      } else if (activeAgent.instance) {
+        // Handle workflow or agent with instance
+        const normalizedInput = inputText.toLowerCase();
+        const isStartWorkflow = normalizedInput === 'start wf' || normalizedInput === 'start workflow';
+        const messageToSend = isStartWorkflow ? 'start workflow' : inputText;
+        
+        const agentResponse = await activeAgent.instance.processMessage(messageToSend);
         const response: Message = {
           id: (Date.now() + 1).toString(),
-          text: `Agent ${activeAgent.name} received: ${inputText}`,
+          text: agentResponse,
           sender: 'agent',
           timestamp: new Date().toISOString()
         };

@@ -486,7 +486,7 @@ export default function WalletContent() {
           <DialogHeader>
             <DialogTitle>Confirm Transaction</DialogTitle>
             <DialogDescription className="space-y-4">
-              <p>Please review and confirm this transaction on the Tura network (Chain ID: 1337):</p>
+              <p>Please review and confirm this transaction on the {import.meta.env.VITE_CHAIN_NAME || 'Tura'} network (Chain ID: {import.meta.env.VITE_CHAIN_ID || 1337}):</p>
               <div className="space-y-2 p-4 bg-muted rounded-lg">
                 <div className="grid grid-cols-[auto,1fr] gap-2">
                   <span className="text-muted-foreground">From:</span>
@@ -499,7 +499,7 @@ export default function WalletContent() {
                   <span className="font-bold">{signatureDetails?.amount} TURA</span>
                   
                   <span className="text-muted-foreground">Network:</span>
-                  <span>Tura (Chain ID: 1337)</span>
+                  <span>{import.meta.env.VITE_CHAIN_NAME || 'Tura'} (Chain ID: {import.meta.env.VITE_CHAIN_ID || 1337})</span>
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">

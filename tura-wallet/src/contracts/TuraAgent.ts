@@ -162,16 +162,16 @@ export const TuraAgentContract = {
 
 // Contract configuration for deployment
 export const CONTRACT_CONFIG = {
-  chainId: 1337,
-  chainName: 'Tura Chain',
-  rpcUrl: '/rpc',  // Using proxy path
+  chainId: Number(import.meta.env.VITE_CHAIN_ID) || 1337,
+  chainName: import.meta.env.VITE_CHAIN_NAME || 'Tura Chain',
+  rpcUrl: import.meta.env.VITE_RPC_URL || '/rpc',
   nativeCurrency: {
     name: 'TURA',
     symbol: 'TURA',
     decimals: 18
   },
   gasLimit: 3000000,
-  subscriptionFee: ethers.parseEther('0.1')
+  subscriptionFee: ethers.utils.parseEther('0.1')
 };
 
 /**
@@ -220,7 +220,7 @@ export async function deployTuraAgent(signer: ethers.Signer): Promise<string> {
  * @returns True if balance is sufficient
  */
 export async function checkTuraBalance(
-  provider: ethers.Provider,
+  provider: ethers.providers.Provider,
   address: string
 ): Promise<boolean> {
   try {
@@ -236,10 +236,10 @@ export async function checkTuraBalance(
  * Get a Web3 provider for the Tura network
  * @returns Configured ethers provider
  */
-export function getTuraProvider(): ethers.Provider {
-  // Use HTTP provider with proxy
-  return new ethers.JsonRpcProvider('/rpc', {
+export function getTuraProvider(): ethers.providers.Provider {
+  // Use configured RPC URL
+  return new ethers.providers.JsonRpcProvider(CONTRACT_CONFIG.rpcUrl, {
     chainId: CONTRACT_CONFIG.chainId,
-    name: 'Tura'
+    name: CONTRACT_CONFIG.chainName
   });
 }

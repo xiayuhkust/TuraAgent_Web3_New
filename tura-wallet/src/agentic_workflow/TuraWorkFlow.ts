@@ -7,6 +7,7 @@ export enum TuraWorkFlowState {
   CHECKING_WALLET = 'checkingWallet',
   CHECKING_BALANCE = 'checkingBalance',
   GETTING_FAUCET = 'gettingFaucet',
+  DEPLOYING_CONTRACT = 'deployingContract',
   REGISTERING_AGENT = 'registeringAgent'
 }
 
@@ -36,6 +37,8 @@ export class TuraWorkFlow extends AgenticWorkflow {
         return this.handleBalanceCheck();
       case TuraWorkFlowState.GETTING_FAUCET:
         return this.handleFaucetRequest();
+      case TuraWorkFlowState.DEPLOYING_CONTRACT:
+        return this.handleContractDeployment(message);
       case TuraWorkFlowState.REGISTERING_AGENT:
         return this.handleAgentRegistration(message);
       default:
@@ -63,14 +66,42 @@ export class TuraWorkFlow extends AgenticWorkflow {
       this.state = TuraWorkFlowState.GETTING_FAUCET;
       return 'Your balance is insufficient. Requesting tokens from faucet...';
     }
-    this.state = TuraWorkFlowState.REGISTERING_AGENT;
-    return this.agentManager.getRegistrationPrompt();
+    this.state = TuraWorkFlowState.DEPLOYING_CONTRACT;
+    return 'Ready to deploy contract. Type "y" to confirm deployment or "n" to cancel.';
   }
 
   private async handleFaucetRequest(): Promise<string> {
     const result = await this.walletAgent.processMessage('request faucet');
     this.state = TuraWorkFlowState.CHECKING_BALANCE;
     return `${result}\nChecking balance again...`;
+  }
+
+  private async handleContractDeployment(message: string): Promise<string> {
+    if (message.toLowerCase() !== 'y') {
+      this.state = TuraWorkFlowState.IDLE;
+      return 'Contract deployment cancelled.';
+    }
+
+    try {
+      const privateKey = await this.walletAgent.getDecryptedKey();
+      const response = await fetch('http://localhost:8000/api/deploy-contract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ private_key: privateKey })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Contract deployment failed');
+      }
+
+      const { contract_address } = await response.json();
+      this.state = TuraWorkFlowState.REGISTERING_AGENT;
+      return `Contract deployed successfully at: ${contract_address}\n${this.agentManager.getRegistrationPrompt()}`;
+    } catch (error) {
+      this.state = TuraWorkFlowState.IDLE;
+      return `Contract deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
   }
 
   private async handleAgentRegistration(message: string): Promise<string> {
