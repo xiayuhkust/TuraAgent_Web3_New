@@ -1,6 +1,6 @@
 import { AgenticWorkflow } from './AgenticWorkflow';
-import { WalletAgent } from './WalletAgent';
-import { AgentManager } from './AgentManager';
+import { WalletAgent, IWalletAgent } from './WalletAgent';
+import { AgentManager, IAgentManager } from './AgentManager';
 
 export enum TuraWorkFlowState {
   IDLE = 'idle',
@@ -12,8 +12,8 @@ export enum TuraWorkFlowState {
 
 export class TuraWorkFlow extends AgenticWorkflow {
   private state: TuraWorkFlowState = TuraWorkFlowState.IDLE;
-  private walletAgent: WalletAgent;
-  private agentManager: AgentManager;
+  private walletAgent: IWalletAgent;
+  private agentManager: IAgentManager;
   private readonly MIN_BALANCE = 1.0;
 
   constructor() {
@@ -23,7 +23,9 @@ export class TuraWorkFlow extends AgenticWorkflow {
   }
 
   async processMessage(message: string): Promise<string> {
-    if (this.state === TuraWorkFlowState.IDLE && message.toLowerCase() === 'start workflow') {
+    const normalizedMessage = message.toLowerCase();
+    if (this.state === TuraWorkFlowState.IDLE && 
+        (normalizedMessage === 'start workflow' || normalizedMessage === 'start wf')) {
       return this.startWorkflow();
     }
 
