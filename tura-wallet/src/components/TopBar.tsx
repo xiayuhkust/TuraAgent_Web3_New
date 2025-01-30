@@ -51,15 +51,18 @@ export function TopBar() {
     );
   }
 
+  // Securely display account info with minimal exposure
   return (
     <div className="flex items-center justify-end gap-4 p-2 bg-primary/10">
       <div className="text-sm">
         <span className="text-gray-600">Account: </span>
-        <span className="font-mono">{`${address.slice(0, 6)}...${address.slice(-4)}`}</span>
+        <span className="font-mono">
+          {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not Connected'}
+        </span>
       </div>
       <div className="text-sm">
         <span className="text-gray-600">Balance: </span>
-        <span className="font-mono">{balance} TURA</span>
+        <span className="font-mono">{Number(balance).toFixed(4)} TURA</span>
       </div>
       {isLoggedIn ? (
         <button

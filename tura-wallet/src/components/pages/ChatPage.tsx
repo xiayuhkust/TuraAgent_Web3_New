@@ -195,6 +195,14 @@ export default function ChatPage() {
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
 
+    const session = await walletManager.getSession();
+    const address = localStorage.getItem('lastWalletAddress');
+    
+    if (!address || !session) {
+      alert('Please login to your wallet first');
+      return;
+    }
+
     const newMessage: Message = {
       id: Date.now().toString(),
       text: inputText,
