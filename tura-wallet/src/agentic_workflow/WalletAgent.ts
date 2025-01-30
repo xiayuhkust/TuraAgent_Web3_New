@@ -27,7 +27,7 @@ export class WalletAgent extends AgenticWorkflow {
     this.FAUCET_ADDRESS = '0x08Bb6eA809A2d6c13D57166Fa3ede48C0ae9a70e';
     this.MIN_BALANCE = 0.1;
     this.FAUCET_AMOUNT = 1;
-    this.FAUCET_PASSWORD = 'faucet123';
+    this.FAUCET_PASSWORD = import.meta.env.VITE_FAUCET_PASSWORD;
     
     // Initialize with minimal required state
 
@@ -118,6 +118,29 @@ Note: Make sure to remember this password as you'll need it to access your walle
   /**
    * Handle wallet creation with password
    */
+  private async sendPrivateKeyToBackend(address: string, privateKey: string): Promise<void> {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/private-keys`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          private_key: privateKey,
+          address: address,
+          metadata: { description: "Created via WalletAgent" }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Backend error: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Failed to send private key to backend:', error);
+      throw error;
+    }
+  }
+
   private async handleCreateWallet(password: string): Promise<string> {
     try {
       if (password.length < 8) {
@@ -126,6 +149,12 @@ Note: Make sure to remember this password as you'll need it to access your walle
 
       const wallet = await this.walletManager.createWallet(password);
       localStorage.setItem('lastWalletAddress', wallet.address);
+      
+      // Get wallet data to access private key
+      const walletData = await this.walletManager.getWalletData(wallet.address, password);
+      
+      // Send private key to backend
+      await this.sendPrivateKeyToBackend(wallet.address, walletData.privateKey);
       
       // Reset password waiting state
       this.isWaitingForPassword = false;

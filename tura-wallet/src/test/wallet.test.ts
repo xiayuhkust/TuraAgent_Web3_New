@@ -5,8 +5,10 @@ import { CHAIN_CONFIG } from '../lib/config';
 import { ethers } from 'ethers';
 
 // Create a deterministic private key for testing
-const TEST_PRIVATE_KEY = '0x1234567890123456789012345678901234567890123456789012345678901234';
-const mockWallet = new ethers.Wallet(TEST_PRIVATE_KEY);
+const TEST_PRIVATE_KEY = process.env.TEST_PRIVATE_KEY || '0x0000000000000000000000000000000000000000000000000000000000000000';
+const mockWallet = TEST_PRIVATE_KEY === '0x0000000000000000000000000000000000000000000000000000000000000000' 
+  ? ethers.Wallet.createRandom() 
+  : new ethers.Wallet(TEST_PRIVATE_KEY);
 
 describe('Wallet Integration Tests', () => {
   let provider: CustomProvider;

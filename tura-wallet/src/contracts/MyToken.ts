@@ -1,21 +1,30 @@
-// MyToken contract deployment interface
+export interface TokenDeploymentParams {
+  name: string;
+  symbol: string;
+  supply: string;
+}
 
-// Contract deployment is handled by the backend API
-// See /tura-backend/contracts/deploy_my_token.py for implementation
+export interface TokenDeploymentResult {
+  status: string;
+  contract_address: string;
+  name: string;
+  symbol: string;
+  initial_supply: string;
+  deployer_address: string;
+  chain_id: number;
+}
 
 export async function deployMyToken(
-  name: string,
-  symbol: string,
-  initialSupply: string,
+  params: TokenDeploymentParams,
   privateKey: string
-): Promise<string> {
-  const response = await fetch('https://web-agent-app-si4sxq3l.devinapps.com/api/v1/deploy-mytoken', {
+): Promise<TokenDeploymentResult> {
+  const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/deploy-mytoken`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      name,
-      symbol,
-      initial_supply: initialSupply,
+      name: params.name,
+      symbol: params.symbol,
+      initial_supply: params.supply,
       private_key: privateKey
     })
   });
@@ -26,8 +35,8 @@ export async function deployMyToken(
   }
 
   const result = await response.json();
-  if (!result.contract_address) {
-    throw new Error('Contract deployment failed: No contract address returned');
+  if (!result.contract_address || !result.name || !result.symbol || !result.initial_supply) {
+    throw new Error('Contract deployment failed: Invalid response from server');
   }
-  return result.contract_address;
+  return result;
 }

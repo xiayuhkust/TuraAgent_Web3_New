@@ -32,7 +32,7 @@ export default defineConfig({
     allowedHosts: ['frontend-deploy-app-tunnel-xuzsroun.devinapps.com'],
     proxy: {
       '/rpc': {
-        target: 'https://43.135.26.222:8088',
+        target: process.env.VITE_RPC_URL || 'http://localhost:8545',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/rpc/, ''),
@@ -51,6 +51,21 @@ export default defineConfig({
               status: proxyRes.statusCode,
               headers: proxyRes.headers
             });
+          });
+        }
+      },
+      '/api': {
+        target: process.env.VITE_API_URL || 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api/, '/api'),
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('proxy error', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Proxying to backend:', req.method, req.url, '=>', proxyReq.path);
+            proxyReq.setHeader('Content-Type', 'application/json');
           });
         }
       }
