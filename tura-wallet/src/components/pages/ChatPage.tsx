@@ -8,6 +8,7 @@ import { Badge } from '../ui/badge';
 import { officialAgents, agents, workflows } from '../../stores/agent-store';
 import { Agent, OfficialAgent, Workflow } from '../../types/agentTypes';
 import { WalletAgent } from '../../agentic_workflow/WalletAgent';
+import { TuraWorkFlow } from '../../agentic_workflow/TuraWorkFlow';
 
 interface Message {
   id: string;
@@ -511,10 +512,11 @@ export default function ChatPage() {
                         activeAgent?.name === workflow.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
                       }`}
                       onClick={() => {
-                        setActiveAgent(workflow);
+                        const workflowInstance = workflow.name === 'TuraWorkFlow' ? new TuraWorkFlow() : null;
+                        setActiveAgent({ ...workflow, instance: workflowInstance });
                         setMessages(prev => [...prev, {
                           id: Date.now().toString(),
-                          text: `Connected to ${workflow.name}`,
+                          text: `Connected to ${workflow.name}. Type "Start WF" to begin the workflow.`,
                           sender: 'agent',
                           timestamp: new Date().toISOString()
                         }]);
