@@ -9,15 +9,14 @@ export interface WalletResponse {
 }
 
 export interface TransactionReceipt {
-  transactionHash: string;
+  hash: string;
   blockNumber: number;
   blockHash: string;
-  status: boolean;
-  // Add other fields that might come from Web3
-  from?: string;
-  to?: string;
-  contractAddress?: string;
-  gasUsed?: number;
+  status: number | null;
+  from: string;
+  to: string | null;
+  contractAddress: string | null;
+  gasUsed: bigint;
 }
 
 export class WalletManagerImpl {
@@ -37,7 +36,8 @@ export class WalletManagerImpl {
       const account = await this.walletService.createAccount(wallet.privateKey);
       
       // Store encrypted private key
-      await KeyManager.storeKey(account.privateKey, password);
+      const encryptedData = await KeyManager.encryptKey(account.privateKey, password);
+      KeyManager.storeEncryptedKey(encryptedData);
       
       return {
         address: account.address,
@@ -83,11 +83,12 @@ export class WalletManagerImpl {
   async importWallet(mnemonic: string, password: string): Promise<WalletResponse> {
     try {
       // Generate private key from mnemonic
-      const wallet = ethers.Wallet.fromMnemonic(mnemonic);
+      const wallet = ethers.HDNodeWallet.fromPhrase(mnemonic);
       const account = await this.walletService.createAccount(wallet.privateKey);
       
       // Store encrypted private key
-      await KeyManager.storeKey(account.privateKey, password);
+      const encryptedData = await KeyManager.encryptKey(account.privateKey, password);
+      KeyManager.storeEncryptedKey(encryptedData);
       
       return {
         address: account.address,
