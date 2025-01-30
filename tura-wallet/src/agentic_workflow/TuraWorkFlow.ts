@@ -50,23 +50,39 @@ export class TuraWorkFlow extends AgenticWorkflow {
     }
 
     // Process the message based on current state
-    switch (this.state) {
-      case TuraWorkFlowState.IDLE:
-      case TuraWorkFlowState.CHECKING_BALANCE:
-      case TuraWorkFlowState.GETTING_FAUCET:
-      case TuraWorkFlowState.DEPLOYING_CONTRACT:
-      case TuraWorkFlowState.REGISTERING_AGENT:
-      case TuraWorkFlowState.CHECKING_WALLET:
-        console.log('Handling wallet check');
-        if (normalizedMessage.startsWith('create wallet')) {
-          const result = await this.walletAgent.processMessage(message);
-          if (result.includes('created successfully')) {
-            this.state = TuraWorkFlowState.CHECKING_BALANCE;
-            return result + '\n\nNow checking your balance...';
-          }
-          return result;
+    if (this.state === TuraWorkFlowState.CHECKING_WALLET) {
+      console.log('Handling wallet check');
+      if (normalizedMessage.startsWith('create wallet')) {
+        const result = await this.walletAgent.processMessage(message);
+        if (result.includes('created successfully')) {
+          this.state = TuraWorkFlowState.CHECKING_BALANCE;
+          return result + '\n\nNow checking your balance...';
         }
-        return this.handleWalletCheck();
+        return result;
+      }
+      return this.handleWalletCheck();
+    }
+    
+    if (this.state === TuraWorkFlowState.CHECKING_BALANCE) {
+      return this.handleBalanceCheck();
+    }
+    
+    if (this.state === TuraWorkFlowState.GETTING_FAUCET) {
+      console.log('Handling faucet request');
+      return this.handleBalanceCheck();
+    }
+    
+    if (this.state === TuraWorkFlowState.DEPLOYING_CONTRACT) {
+      return this.handleContractDeployment(message);
+    }
+    
+    if (this.state === TuraWorkFlowState.REGISTERING_AGENT) {
+      return this.handleAgentRegistration(message);
+    }
+    
+    // Default to IDLE state behavior
+    console.log('In IDLE state, waiting for start command');
+    return 'Please type "Start WF" to begin the registration process.';
         
       case TuraWorkFlowState.CHECKING_BALANCE:
         console.log('Handling balance check');
