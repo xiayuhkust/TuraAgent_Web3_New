@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { AlertTriangle, Mic, Send, Bot, Code2, Wallet, RefreshCw } from 'lucide-react';
-import { AgenticWorkflow } from '../../agentic_workflow/AgenticWorkflow';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -223,65 +222,72 @@ export default function ChatPage() {
         message: inputText
       });
 
-      try {
-        // Check cache for common responses
-        const cacheKey = `${activeAgent.name}:${inputText.toLowerCase()}`;
-        const cached = responseCache.current[cacheKey];
-        const now = Date.now();
+      // Check cache for common responses
+      const cacheKey = `${activeAgent.name}:${inputText.toLowerCase()}`;
+      const cached = responseCache.current[cacheKey];
+      const now = Date.now();
+      
+      let agentResponse: string;
+      if (cached && now - cached.timestamp < CACHE_TTL) {
+        console.log('Using cached response for:', inputText);
+        agentResponse = cached.response;
+      } else {
+        // Get fresh agent response
+        agentResponse = await activeAgent.instance.processMessage(inputText);
+        console.log('Received agent response:', agentResponse);
         
-        let agentResponse: string;
-        if (cached && now - cached.timestamp < CACHE_TTL) {
-          console.log('Using cached response for:', inputText);
-          agentResponse = cached.response;
-        } else {
-          // Get fresh agent response
-          agentResponse = await activeAgent.instance.processMessage(inputText);
-          console.log('Received agent response:', agentResponse);
-          
-          // Cache response for common commands
-          if (inputText.toLowerCase().match(/^(help|balance|status)$/)) {
-            responseCache.current[cacheKey] = {
-              response: agentResponse,
-              timestamp: now
-            };
-          }
-        }
+        // Cache response for common commands and queries
+        const commonCommands = [
+          'help', 'balance', 'status', 'list', 'show',
+          'what can you do', 'how to', 'guide', 'info',
+          'check balance', 'get balance', 'show balance',
+          'list agents', 'show agents', 'available agents'
+        ];
         
-        // Update UI state for WalletAgent
-        if (activeAgent.name === 'WalletAgent') {
-          const storedAddress = localStorage.getItem('lastWalletAddress');
-          if (storedAddress !== chatAddress) {
-            setChatAddress(storedAddress || '');
-          }
-          
-          if (chatAddress) {
-            try {
-              setIsRefreshingBalance(true);
-              const balanceMatch = agentResponse.match(/contains (\d+(?:\.\d+)?)/);
-              if (balanceMatch) {
-                setChatBalance(balanceMatch[1]);
-              }
-            } catch (error) {
-              console.error('Balance refresh failed:', error);
-            } finally {
-              setIsRefreshingBalance(false);
-            }
-          }
+        if (commonCommands.some(cmd => inputText.toLowerCase().includes(cmd)) && 
+            !inputText.toLowerCase().includes('deploy') && 
+            !inputText.toLowerCase().includes('create')) {
+          responseCache.current[cacheKey] = {
+            response: agentResponse,
+            timestamp: now
+          };
         }
-
-        // Add response to chat
-        const response: Message = {
-          id: Date.now().toString(),
-          text: agentResponse,
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        };
-        const agentKey = activeAgent.name;
-        setMessagesMap(prev => ({
-          ...prev,
-          [agentKey]: [...(prev[agentKey] || []), response]
-        }));
       }
+      
+      // Update UI state for WalletAgent
+      if (activeAgent.name === 'WalletAgent') {
+        const storedAddress = localStorage.getItem('lastWalletAddress');
+        if (storedAddress !== chatAddress) {
+          setChatAddress(storedAddress || '');
+        }
+        
+        if (chatAddress) {
+          try {
+            setIsRefreshingBalance(true);
+            const balanceMatch = agentResponse.match(/contains (\d+(?:\.\d+)?)/);
+            if (balanceMatch) {
+              setChatBalance(balanceMatch[1]);
+            }
+          } catch (error) {
+            console.error('Balance refresh failed:', error);
+          } finally {
+            setIsRefreshingBalance(false);
+          }
+        }
+      }
+
+      // Add response to chat
+      const response: Message = {
+        id: Date.now().toString(),
+        text: agentResponse,
+        sender: 'agent',
+        timestamp: new Date().toISOString()
+      };
+      const agentKey = activeAgent.name;
+      setMessagesMap(prev => ({
+        ...prev,
+        [agentKey]: [...(prev[agentKey] || []), response]
+      }));
     } catch (error: unknown) {
       console.error('Agent processing error:', error);
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -565,15 +571,12 @@ export default function ChatPage() {
         </CardTitle>
       </CardHeader>
       {/* Signature Dialog */}
-      <Dialog 
-        open={showSignatureDialog} 
-        onOpenChange={(open) => {
-          if (!open) {
-            setPassword('');
-          }
-          setShowSignatureDialog(open);
-        }}
-      >
+      <Dialog open={showSignatureDialog} onOpenChange={(open) => {
+        if (!open) {
+          setPassword('');
+        }
+        setShowSignatureDialog(open);
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{signatureDetails?.title || 'Confirm Transaction'}</DialogTitle>
@@ -596,57 +599,48 @@ export default function ChatPage() {
             </div>
           )}
           <DialogFooter className="flex justify-between">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setPassword('');
-                setShowSignatureDialog(false);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={async () => {
-                if (signatureDetails?.onConfirm) {
-                  try {
-                    if (signatureDetails.requirePassword && !password) {
-                      const agentKey = activeAgent?.name ?? 'unknown';
-                      setMessagesMap(prev => ({
-                        ...prev,
-                        [agentKey]: [...(prev[agentKey] || []), {
-                          id: Date.now().toString(),
-                          text: 'Error: Password is required',
-                          sender: 'error',
-                          timestamp: new Date().toISOString()
-                        }]
-                      }));
-                      return;
-                    }
-                    await signatureDetails.onConfirm(signatureDetails.requirePassword ? password : undefined);
-                    setPassword('');
-                    setShowSignatureDialog(false);
-                  } catch (error) {
-                    console.error('Transaction failed:', error);
+            <Button variant="outline" onClick={() => {
+              setPassword('');
+              setShowSignatureDialog(false);
+            }}>Cancel</Button>
+            <Button onClick={async () => {
+              if (signatureDetails?.onConfirm) {
+                try {
+                  if (signatureDetails.requirePassword && !password) {
                     const agentKey = activeAgent?.name ?? 'unknown';
                     setMessagesMap(prev => ({
                       ...prev,
                       [agentKey]: [...(prev[agentKey] || []), {
                         id: Date.now().toString(),
-                        text: `Error: ${error instanceof Error ? error.message : 'Transaction failed'}`,
+                        text: 'Error: Password is required',
                         sender: 'error',
                         timestamp: new Date().toISOString()
                       }]
                     }));
+                    return;
                   }
+                  await signatureDetails.onConfirm(signatureDetails.requirePassword ? password : undefined);
+                  setPassword('');
+                  setShowSignatureDialog(false);
+                } catch (error) {
+                  console.error('Transaction failed:', error);
+                  const agentKey = activeAgent?.name ?? 'unknown';
+                  setMessagesMap(prev => ({
+                    ...prev,
+                    [agentKey]: [...(prev[agentKey] || []), {
+                      id: Date.now().toString(),
+                      text: `Error: ${error instanceof Error ? error.message : 'Transaction failed'}`,
+                      sender: 'error',
+                      timestamp: new Date().toISOString()
+                    }]
+                  }));
                 }
-              }}
-              disabled={signatureDetails?.requirePassword && !password}
-            >
-              Sign & Deploy
-            </Button>
+              }
+            }} disabled={signatureDetails?.requirePassword && !password}>Sign & Deploy</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       {/* Chat Interface */}
       <CardContent className="flex h-full gap-4">

@@ -51,6 +51,9 @@ export class AgentManager extends AgenticWorkflow {
     'help': 'GENERAL_HELP'
   };
 
+  private responseCache: Map<string, { response: string; timestamp: number }> = new Map();
+  private readonly CACHE_TTL = 30000; // 30 seconds
+
   constructor() {
     super("AgentManager", "Deploy and register TuraAgent contracts with metadata collection");
   }
@@ -63,6 +66,16 @@ export class AgentManager extends AgenticWorkflow {
   async processMessage(text: string): Promise<string> {
     try {
       console.log('Processing message:', text);
+      
+      // Check cache first
+      const cacheKey = text.toLowerCase();
+      const now = Date.now();
+      const cached = this.responseCache.get(cacheKey);
+      
+      if (cached && now - cached.timestamp < this.CACHE_TTL) {
+        console.log('Using cached response for:', text);
+        return cached.response;
+      }
       
       // Store message in parent class and get base response
       const baseResponse = await super.processMessage(text);
@@ -150,27 +163,34 @@ Respond with only the category name in uppercase with underscores.`
       }
 
       // Map intent to handler functions
+      let response: string;
       switch (userIntent) {
         case 'DEPLOY_CONTRACT':
           if (this.registrationState.step !== 'idle') {
-            return "You're already in the process of registering an agent. Please complete or cancel the current registration first.";
+            response = "You're already in the process of registering an agent. Please complete or cancel the current registration first.";
+          } else {
+            response = this.startRegistrationFlow();
           }
-          return this.startRegistrationFlow();
+          break;
         
         case 'REGISTER_AGENT':
           if (this.registrationState.step !== 'idle') {
-            return "You're already in the process of registering an agent. Please complete or cancel the current registration first.";
+            response = "You're already in the process of registering an agent. Please complete or cancel the current registration first.";
+          } else {
+            response = "Agent-only registration without contract deployment is not supported yet. Please use 'Deploy a new agent' to create and register an agent.";
           }
-          return "Agent-only registration without contract deployment is not supported yet. Please use 'Deploy a new agent' to create and register an agent.";
+          break;
         
         case 'LIST_AGENTS':
-          return this.listRegisteredAgents();
+          response = await this.listRegisteredAgents();
+          break;
         
         case 'CHECK_STATUS':
-          return this.checkAgentStatus();
+          response = await this.checkAgentStatus();
+          break;
         
         default:
-          return `I can help you deploy and register TuraAgent contracts. Here's what I can do:
+          response = `I can help you deploy and register TuraAgent contracts. Here's what I can do:
 
 1. Deploy a new TuraAgent contract (costs 0.1 TURA)
    - Creates a new agent contract
@@ -190,6 +210,13 @@ Respond with only the category name in uppercase with underscores.`
 
 Note: You must have a connected wallet with sufficient TURA balance (0.1 TURA) to deploy contracts.`;
       }
+
+      // Cache response if not in registration flow
+      if (this.registrationState.step === 'idle' && userIntent !== 'DEPLOY_CONTRACT') {
+        this.responseCache.set(cacheKey, { response, timestamp: now });
+      }
+
+       return response;
     } catch (error) {
       console.error('AgentManager error:', error);
       return `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`;
