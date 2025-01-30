@@ -8,6 +8,7 @@ import { Badge } from '../ui/badge';
 import { officialAgents, agents, workflows } from '../../stores/agent-store';
 import { Agent, OfficialAgent, Workflow } from '../../types/agentTypes';
 import { WalletAgent } from '../../agentic_workflow/WalletAgent';
+// Import will be used when implementing TokenAgent UI integration
 import {
   Dialog,
   DialogContent,
@@ -793,6 +794,63 @@ export default function ChatPage() {
                         </Badge>
                       </div>
                       <div className="text-sm text-muted-foreground">{workflow.description}</div>
+                      {workflow.name === 'TuraWorkFlow' && (
+                        <div 
+                          className="mt-2 relative h-10 bg-secondary rounded-lg overflow-hidden cursor-pointer"
+                          onPointerDown={(e) => {
+                            const button = e.currentTarget;
+                            const startTime = Date.now();
+                            const duration = 1000; // 1 second
+                            
+                            const updateProgress = () => {
+                              const elapsed = Date.now() - startTime;
+                              const progress = Math.min(elapsed / duration * 100, 100);
+                              button.style.setProperty('--progress', `${progress}%`);
+                              
+                              if (elapsed < duration && button.matches(':active')) {
+                                requestAnimationFrame(updateProgress);
+                              } else if (elapsed >= duration && button.matches(':active')) {
+                                setActiveAgent(workflow);
+                                if (workflow.instance) {
+                                  workflow.instance.processMessage('Start Workflow').then(response => {
+                                    const message: Message = {
+                                      id: Date.now().toString(),
+                                      text: response,
+                                      sender: 'agent',
+                                      timestamp: new Date().toISOString()
+                                    };
+                                    setMessagesMap(prev => ({
+                                      ...prev,
+                                      [workflow.name]: [...(prev[workflow.name] || []), message]
+                                    }));
+                                  });
+                                }
+                              }
+                            };
+                            
+                            requestAnimationFrame(updateProgress);
+                          }}
+                          onPointerUp={(e) => {
+                            e.currentTarget.style.setProperty('--progress', '0%');
+                          }}
+                          onPointerLeave={(e) => {
+                            e.currentTarget.style.setProperty('--progress', '0%');
+                          }}
+                           style={{
+                             ['--progress' as string]: '0%',
+                           }}
+                        >
+                          <div 
+                            className="absolute inset-0 bg-primary/20 transition-transform duration-100"
+                             style={{
+                               transform: `translateX(calc(var(--progress) - 100%))`,
+                             } as React.CSSProperties}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center text-sm">
+                            Hold to Start Workflow
+                          </div>
+                        </div>
+                      )}
                       <div className="text-xs font-mono mt-2">
                         Contract: {workflow.contractAddress.slice(0, 6)}...{workflow.contractAddress.slice(-4)}
                       </div>
