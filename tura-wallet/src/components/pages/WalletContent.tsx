@@ -108,7 +108,7 @@ export default function WalletContent() {
             const newBalance = await walletManager.getBalance(address);
             setBalance(newBalance);
             setShowSignature(false);
-            alert('Transaction successful! Hash: ' + receipt.transactionHash);
+            alert('Transaction successful! Hash: ' + receipt.hash);
           } catch (error) {
             console.error('Transaction failed:', error);
             const walletError = error as WalletError;

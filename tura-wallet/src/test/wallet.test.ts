@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { EncryptedKeyData } from '../lib/keyManager';
 import { WalletService } from '../lib/wallet';
 import { KeyManager } from '../lib/keyManager';
 import { Wallet } from 'ethers';
@@ -11,14 +12,14 @@ vi.mock('../lib/keyManager', () => ({
       salt: 'mock-salt',
       iv: 'mock-iv'
     }),
-    decryptKey: vi.fn().mockImplementation((_data, password) => {
+    decryptKey: vi.fn().mockImplementation((_data: EncryptedKeyData, password: string) => {
       if (password === 'testPassword123!') {
         // Return a valid private key format that matches our test account
         return Promise.resolve('0x1234567890123456789012345678901234567890123456789012345678901234');
       }
       return Promise.reject(new Error('Invalid password'));
     }),
-    validatePrivateKey: vi.fn().mockImplementation((key) => {
+    validatePrivateKey: vi.fn().mockImplementation((key: string) => {
       return key === '0x1234567890123456789012345678901234567890123456789012345678901234';
     }),
     clearStoredKey: vi.fn(),
@@ -113,7 +114,7 @@ describe('Wallet Integration Tests', () => {
       salt: 'mock-salt',
       iv: 'mock-iv'
     });
-    vi.mocked(KeyManager.decryptKey).mockImplementation((_data, password) => {
+    vi.mocked(KeyManager.decryptKey).mockImplementation((_data: EncryptedKeyData, password: string) => {
       if (password === 'testPassword123!') {
         return Promise.resolve('0x1234567890123456789012345678901234567890123456789012345678901234');
       }
@@ -166,7 +167,7 @@ describe('Wallet Integration Tests', () => {
         testPassword
       );
 
-      expect(receipt.transactionHash).toBe('0xtxhash');
+      expect(receipt.hash).toBe('0xtxhash');
       expect(receipt.status).toBe(true);
     }, 10000);
 
