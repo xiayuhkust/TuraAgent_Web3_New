@@ -2,7 +2,7 @@ import { OpenAI } from 'openai';
 import type { ChatCompletionCreateParams } from 'openai/resources/chat/completions';
 import WalletManager from '../lib/wallet_manager';
 import { AgenticWorkflow } from './AgenticWorkflow';
-import { AgentManager } from './AgentManager';
+// Removed unused import
 
 type ChatMessage = ChatCompletionCreateParams['messages'][number];
 

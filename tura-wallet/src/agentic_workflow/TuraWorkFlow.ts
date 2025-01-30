@@ -11,16 +11,16 @@ export enum TuraWorkFlowState {
   REGISTERING_AGENT = 'registeringAgent'
 }
 
+type TuraWorkFlowStateType = TuraWorkFlowState;
+
 export class TuraWorkFlow extends AgenticWorkflow {
   private state: TuraWorkFlowState = TuraWorkFlowState.IDLE;
   private walletAgent: IWalletAgent;
-  private agentManager: AgentManager;
   private readonly MIN_BALANCE = 1.0;
 
   constructor() {
     super('TuraWorkFlow', 'Automated workflow for agent registration');
     this.walletAgent = new WalletAgent();
-    this.agentManager = new AgentManager();
   }
 
   async processMessage(message: string): Promise<string> {
