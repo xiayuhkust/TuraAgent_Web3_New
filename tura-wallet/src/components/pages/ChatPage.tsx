@@ -1,22 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
-import { AlertTriangle, Mic, Send, Bot, Code2, Wallet, RefreshCw } from 'lucide-react';
-import { AgenticWorkflow } from '../../agentic_workflow/AgenticWorkflow';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
+import { AlertTriangle, Bot, Mic, Send, Code2, Wallet, RefreshCw } from 'lucide-react';
+import { WalletManagerImpl } from '../../lib/wallet_manager';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { ScrollArea } from '../ui/scroll-area';
-import { Badge } from '../ui/badge';
 import { officialAgents, agents, workflows } from '../../stores/agent-store';
 import { Agent, OfficialAgent, Workflow } from '../../types/agentTypes';
 import { WalletAgent } from '../../agentic_workflow/WalletAgent';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { ScrollArea } from '../ui/scroll-area';
+import { Badge } from '../ui/badge';
 
 interface Message {
   id: string;
@@ -195,6 +188,28 @@ export default function ChatPage() {
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
 
+    // Check for valid session before proceeding
+    const walletManager = new WalletManagerImpl();
+    const session = await walletManager.getSession();
+    const address = localStorage.getItem('lastWalletAddress');
+
+    if (!address || !session) {
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        text: !address 
+          ? 'Please create or restore a wallet before chatting.'
+          : 'Your session has expired. Please log in to continue.',
+        sender: 'error',
+        timestamp: new Date().toISOString()
+      };
+      const agentKey = activeAgent?.name ?? 'unknown';
+      setMessagesMap(prev => ({
+        ...prev,
+        [agentKey]: [...(prev[agentKey] || []), errorMessage]
+      }));
+      return;
+    }
+
     const newMessage: Message = {
       id: Date.now().toString(),
       text: inputText,
@@ -223,11 +238,10 @@ export default function ChatPage() {
         message: inputText
       });
 
-      try {
-        // Check cache for common responses
-        const cacheKey = `${activeAgent.name}:${inputText.toLowerCase()}`;
-        const cached = responseCache.current[cacheKey];
-        const now = Date.now();
+      // Check cache for common responses
+      const cacheKey = `${activeAgent.name}:${inputText.toLowerCase()}`;
+      const cached = responseCache.current[cacheKey];
+      const now = Date.now();
         
         let agentResponse: string;
         if (cached && now - cached.timestamp < CACHE_TTL) {
@@ -281,7 +295,6 @@ export default function ChatPage() {
           ...prev,
           [agentKey]: [...(prev[agentKey] || []), response]
         }));
-      }
     } catch (error: unknown) {
       console.error('Agent processing error:', error);
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
