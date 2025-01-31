@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { AgentManager } from '../../agentic_workflow/AgentManager';
-import { agents, workflows, subscribeToAgentStore, getAllAgents } from '../../stores/agent-store';
+import { agents, workflows, subscribeToAgentStore, getAllAgents, officialAgents } from '../../stores/agent-store';
 import { Agent, Workflow } from '../../types/agentTypes';
 // Remove VirtualWalletSystem import since we renamed it above
 import { TuraWorkflow } from '../../agentic_workflow/TuraWorkflow';

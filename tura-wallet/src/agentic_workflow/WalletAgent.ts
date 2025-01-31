@@ -1,4 +1,5 @@
 import { OpenAI } from 'openai';
+import { ethers } from 'ethers';
 import type { ChatCompletionCreateParams } from 'openai/resources/chat/completions';
 import WalletManager from '../lib/wallet_manager';
 import { AgenticWorkflow } from './AgenticWorkflow';
@@ -396,8 +397,9 @@ Note: Make sure to remember this password as you'll need it to access your walle
       }
 
       const walletSystem = new VirtualWalletSystem();
-      const wallet = walletSystem.createWallet();
-      walletSystem.setCurrentAddress(wallet.address);
+      const wallet = ethers.Wallet.createRandom();
+      const { address } = walletSystem.createWallet(wallet.privateKey);
+      walletSystem.setCurrentAddress(address);
       
       // Reset password waiting state
       this.isWaitingForPassword = false;
