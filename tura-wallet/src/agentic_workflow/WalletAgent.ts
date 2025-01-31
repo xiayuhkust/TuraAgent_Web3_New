@@ -6,21 +6,16 @@ import { AgentManager } from './AgentManager';
 
 type ChatMessage = ChatCompletionCreateParams['messages'][number];
 
-// Initialize DeepSeek client for intent recognition
-const DEEPSEEK_API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY;
+// Initialize OpenAI client for intent recognition
 let openai: OpenAI | undefined;
 try {
-  console.log('Initializing DeepSeek client');
+  console.log('Initializing OpenAI client');
   openai = new OpenAI({
-    baseURL: 'https://api.deepseek.com/v1',
-    apiKey: DEEPSEEK_API_KEY,
-    dangerouslyAllowBrowser: true,  // Enable browser usage
-    defaultHeaders: {
-      'Content-Type': 'application/json'
-    }
+    apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+    dangerouslyAllowBrowser: true
   });
 } catch (error) {
-  console.warn('Failed to initialize DeepSeek client:', error);
+  console.warn('Failed to initialize OpenAI client:', error);
 }
 
 /**
@@ -187,14 +182,14 @@ Remember: Always respond with exactly one category name in uppercase with unders
       let normalizedCompletion = 'GENERAL_HELP';  // Default fallback
       if (openai) {
         try {
-          console.log('Calling DeepSeek API for intent classification');
+          console.log('Calling OpenAI API for intent classification');
           // Define confidence threshold
           const CONFIDENCE_THRESHOLD = 0.7;
-          console.log('Sending request to DeepSeek API...');
-          console.log('Sending to DeepSeek:', { systemMessage: systemMessage.content, userMessage: text });
+          console.log('Sending request to OpenAI API...');
+          console.log('Sending to OpenAI:', { systemMessage: systemMessage.content, userMessage: text });
           const result = await openai.chat.completions.create({
             messages: conversationLog,
-            model: "deepseek-chat",
+            model: "gpt-3.5-turbo",
             temperature: 0,  // Use 0 for most deterministic responses
             max_tokens: 15,  // We only need the category name
             presence_penalty: 0,  // No need for penalties since we want exact matches
@@ -203,7 +198,7 @@ Remember: Always respond with exactly one category name in uppercase with unders
             stop: ["\n", "->", "."]  // Stop on newlines, arrows, and periods
           });
           
-          console.log('DeepSeek API Response:', {
+          console.log('OpenAI API Response:', {
             completion: result.choices[0]?.message?.content,
             finish_reason: result.choices[0]?.finish_reason,
             logprobs: result.choices[0]?.logprobs
@@ -215,7 +210,7 @@ Remember: Always respond with exactly one category name in uppercase with unders
           const logprobs = result.choices?.[0]?.logprobs;
           
           // Log full API response for debugging
-          console.log('Full DeepSeek response:', JSON.stringify(result, null, 2));
+          console.log('Full OpenAI response:', JSON.stringify(result, null, 2));
           console.log('Raw completion:', completion);
           console.log('Raw logprobs:', JSON.stringify(logprobs, null, 2));
           
