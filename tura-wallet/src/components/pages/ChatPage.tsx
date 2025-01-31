@@ -113,6 +113,13 @@ export default function ChatPage() {
       if (hasInitialized.current) return;
       hasInitialized.current = true;
 
+      // Clear all guest conversations
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('chat_guest_')) {
+          localStorage.removeItem(key);
+        }
+      });
+
       try {
         const storedAddress = walletSystem.getCurrentAddress();
         if (storedAddress) {
@@ -461,7 +468,7 @@ export default function ChatPage() {
                     setChatAddress('');
                     setChatBalance('0');
                     
-                    // Clear all agent message histories
+                    // Clear all agent message histories and guest conversations
                     if (walletAgent) {
                       walletAgent.clearMessages();
                     }
@@ -478,6 +485,12 @@ export default function ChatPage() {
                     workflows.forEach(workflow => {
                       if (workflow.instance?.clearMessages) {
                         workflow.instance.clearMessages();
+                      }
+                    });
+                    // Clear guest conversations
+                    Object.keys(localStorage).forEach(key => {
+                      if (key.startsWith('chat_guest_')) {
+                        localStorage.removeItem(key);
                       }
                     });
                     updateMessages([]);

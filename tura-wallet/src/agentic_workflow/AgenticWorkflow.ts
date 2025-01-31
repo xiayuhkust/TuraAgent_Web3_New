@@ -44,6 +44,11 @@ export abstract class AgenticWorkflow {
 
   private loadConversation(): Message[] {
     try {
+      // Don't load guest conversations
+      if (this.storageKey.startsWith('chat_guest_')) {
+        return [];
+      }
+      
       const stored = this.walletSystem.getConversation(this.storageKey);
       if (!stored) return [];
       
