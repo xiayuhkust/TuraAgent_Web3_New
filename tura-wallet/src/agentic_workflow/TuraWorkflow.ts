@@ -56,80 +56,91 @@ export class TuraWorkflow extends AgenticWorkflow {
   }
 
   public async startWorkflow(): Promise<string> {
+    if (this.currentRunId) {
+      return 'A workflow is already running. Please wait for it to complete.';
+    }
+
+    // Step 1: Check/Create Wallet
     const address = this.walletSystem.getCurrentAddress();
     if (!address) {
       this.currentRunId = startWorkflowRun('guest');
       addWorkflowRecord(this.currentRunId, {
         agentName: 'WalletAgent',
         fee: getAgentFee('WalletAgent'),
-        callType: 'checkWallet',
+        callType: 'createWallet',
         address: 'guest',
         success: false,
-        details: 'No wallet found'
+        details: 'Creating new wallet'
       });
-      completeWorkflowRun(this.currentRunId, false);
-      return "No wallet found. Please create one using the WalletAgent first.";
+      
+      const walletResult = await this.mockWalletAgent.processMessage('create wallet');
+      const newAddress = this.walletSystem.getCurrentAddress();
+      
+      if (!newAddress) {
+        completeWorkflowRun(this.currentRunId, false);
+        return walletResult;
+      }
+      
+      addWorkflowRecord(this.currentRunId, {
+        agentName: 'WalletAgent',
+        fee: 0,
+        callType: 'walletCreated',
+        address: newAddress,
+        success: true,
+        details: 'Wallet created successfully'
+      });
     }
 
-    this.currentRunId = startWorkflowRun(address);
-    const balance = await this.walletSystem.getBalance(address);
-
+    // Step 2: Check/Request Balance
+    const currentAddress = this.walletSystem.getCurrentAddress()!;
+    if (!this.currentRunId) {
+      this.currentRunId = startWorkflowRun(currentAddress);
+    }
+    
+    const balance = await this.walletSystem.getBalance(currentAddress);
     addWorkflowRecord(this.currentRunId, {
       agentName: 'WalletAgent',
       fee: getAgentFee('WalletAgent'),
       callType: 'checkBalance',
-      address,
+      address: currentAddress,
       success: true,
       details: `Balance: ${balance} TURA`
     });
 
     if (balance < 1) {
+      const faucetResult = await this.mockWalletAgent.processMessage('get tokens');
       addWorkflowRecord(this.currentRunId, {
         agentName: 'WalletAgent',
-        fee: getAgentFee('WalletAgent'),
+        fee: 0,
         callType: 'requestFaucet',
-        address,
+        address: currentAddress,
         success: false,
-        details: 'Insufficient balance'
+        details: 'Requesting faucet tokens'
       });
       completeWorkflowRun(this.currentRunId, false);
-      return "Your balance is too low. Please use the WalletAgent's faucet to get test tokens first.";
+      return faucetResult;
     }
 
+    // Step 3: Deploy Agent
     try {
-      const registrationFee = 0.1;
-      addWorkflowRecord(this.currentRunId, {
-        agentName: 'AgentManager',
-        fee: registrationFee,
-        callType: 'deductFee',
-        address,
-        success: true,
-        details: `Deducting ${registrationFee} TURA registration fee`
-      });
-
-      const result = await this.walletSystem.deductFee(address, registrationFee);
-      if (!result.success) {
-        throw new Error('Failed to deduct registration fee');
-      }
-
-      const contractAddress = this.generateContractAddress();
+      const deployResult = await this.mockAgentManager.processMessage('deploy agent');
       addWorkflowRecord(this.currentRunId, {
         agentName: 'AgentManager',
         fee: getAgentFee('AgentManager'),
         callType: 'deployAgent',
-        address,
+        address: currentAddress,
         success: true,
-        details: `Contract deployed at ${contractAddress}`
+        details: 'Agent deployment initiated'
       });
 
       completeWorkflowRun(this.currentRunId, true);
-      return `✅ Workflow completed successfully!\n\nContract deployed at: ${contractAddress}\nRemaining balance: ${result.newBalance} TURA`;
+      return deployResult;
     } catch (error) {
       addWorkflowRecord(this.currentRunId, {
         agentName: 'AgentManager',
         fee: getAgentFee('AgentManager'),
         callType: 'deployAgent',
-        address,
+        address: currentAddress,
         success: false,
         details: error instanceof Error ? error.message : 'Unknown error'
       });

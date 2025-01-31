@@ -755,7 +755,7 @@ export default function ChatPage() {
                 <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
-            <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-background via-background/60 to-transparent" />
+
           </div>
           
           <div className="flex gap-2 mt-4">

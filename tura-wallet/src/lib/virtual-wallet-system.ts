@@ -13,6 +13,7 @@ export interface TransactionResult {
 }
 
 import type { AgentData } from '../types/agentTypes';
+import { ethers } from 'ethers';
 
 export interface AgentTable {
   agents: AgentData[];
@@ -57,17 +58,24 @@ export class VirtualWalletSystem {
     localStorage.removeItem(this.addressKey);
   }
 
-  public createWallet(): { address: string } {
-    const address = "0x" + Array.from(crypto.getRandomValues(new Uint8Array(20)))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
+  public createWallet(privateKey: string): { address: string } {
+    try {
+      // Add '0x' prefix if not present
+      const formattedKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
+      const wallet = new ethers.Wallet(formattedKey);
+      const address = wallet.address;
 
-    const userTable = this.getUserTable();
-    userTable[address] = { balance: 0 };
-    this.saveUserTable(userTable);
-    localStorage.setItem(this.addressKey, address);
+      const userTable = this.getUserTable();
+      userTable[address] = { balance: 0 };
+      this.saveUserTable(userTable);
+      localStorage.setItem(this.addressKey, address);
+      this.setKeyData(address, privateKey);
 
-    return { address };
+      return { address };
+    } catch (error) {
+      console.error('Error creating wallet:', error);
+      throw new Error('Failed to create wallet with the provided private key');
+    }
   }
 
   public async getBalance(address: string): Promise<number> {

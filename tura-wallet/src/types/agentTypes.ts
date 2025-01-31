@@ -21,6 +21,7 @@ interface BaseAgent {
 
 export interface OfficialAgent extends BaseAgent {
   feePerRequest: string;
+  multiSigAddress?: string;
   chainId: number;
   status: 'OFFICIAL';
   instance?: AgenticWorkflow;
@@ -28,9 +29,9 @@ export interface OfficialAgent extends BaseAgent {
 
 export interface Agent extends BaseAgent {
   feePerRequest: string;
-  multiSigAddress: string;
+  multiSigAddress?: string;
   chainId: number;
-  status: 'VALID' | 'DEPRECATED';
+  status: 'VALID' | 'DEPRECATED' | 'OFFICIAL';
   instance?: AgenticWorkflow;
 }
 
