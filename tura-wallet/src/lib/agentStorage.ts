@@ -1,6 +1,5 @@
 import { AgentData } from '../types/agentTypes';
-
-const STORAGE_KEY = 'tura_registered_agents';
+import { VirtualWalletSystem } from './virtual-wallet-system';
 
 interface AgentStorage {
   agents: AgentData[];
@@ -12,14 +11,12 @@ interface AgentStorage {
  */
 export function readLocalAgents(): AgentStorage {
   try {
-    const storedData = localStorage.getItem(STORAGE_KEY);
-    if (!storedData) {
-      // Initialize storage with empty array if not exists
-      const initialData = { agents: [] };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(initialData));
-      return initialData;
-    }
-    return JSON.parse(storedData);
+    const walletSystem = new VirtualWalletSystem();
+    const address = walletSystem.getCurrentAddress();
+    if (!address) return { agents: [] };
+    
+    const agents = walletSystem.getAgentsByOwner(address);
+    return { agents };
   } catch (error) {
     console.error('Error reading agent data from localStorage:', error);
     return { agents: [] };
@@ -33,8 +30,8 @@ export function readLocalAgents(): AgentStorage {
  */
 export function saveLocalAgents(data: AgentStorage): boolean {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    return true;
+    const walletSystem = new VirtualWalletSystem();
+    return walletSystem.saveAgent(data.agents[data.agents.length - 1]);
   } catch (error) {
     console.error('Error saving agent data to localStorage:', error);
     return false;

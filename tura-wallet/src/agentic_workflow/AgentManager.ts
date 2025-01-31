@@ -1,5 +1,6 @@
 import { AgenticWorkflow } from './AgenticWorkflow';
 import { OpenAI } from 'openai';
+import { VirtualWalletSystem } from '../lib/virtual-wallet-system';
 import { ethers } from 'ethers';
 import { 
   TuraAgentContract,
@@ -153,7 +154,8 @@ Remember: Always respond with exactly one category name in uppercase with unders
       }
 
       // Get current wallet address
-      const address = localStorage.getItem('lastWalletAddress');
+      const walletSystem = new VirtualWalletSystem();
+      const address = walletSystem.getCurrentAddress();
       if (!address && userIntent !== 'GENERAL_HELP') {
         return "Please connect your wallet first to interact with agents.";
       }
@@ -279,11 +281,11 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
             const provider = getTuraProvider();
             let deployedAddress: string;
 
-            const storedAddress = localStorage.getItem('lastWalletAddress');
-            if (!storedAddress) {
+            const walletSystem = new VirtualWalletSystem();
+            const address = walletSystem.getCurrentAddress();
+            if (!address) {
               return "No wallet found. Please create a wallet first.";
             }
-            const address = storedAddress;
 
             // Show password dialog for contract deployment
             try {
@@ -463,7 +465,8 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
    * List all registered agents for the current user
    */
   private listRegisteredAgents(): string {
-    const address = localStorage.getItem('lastWalletAddress');
+    const walletSystem = new VirtualWalletSystem();
+    const address = walletSystem.getCurrentAddress();
     if (!address) {
       return "Please connect your wallet to view your registered agents.";
     }
@@ -579,7 +582,8 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
     }
   }
   private async checkAgentStatus(): Promise<string> {
-    const address = localStorage.getItem('lastWalletAddress');
+    const walletSystem = new VirtualWalletSystem();
+    const address = walletSystem.getCurrentAddress();
     if (!address) {
       return "Please connect your wallet to check agent status.";
     }

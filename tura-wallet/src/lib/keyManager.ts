@@ -4,9 +4,10 @@ export interface EncryptedKeyData {
   iv: string;
 }
 
+import { VirtualWalletSystem } from './virtual-wallet-system';
+
 export class KeyManager {
   private static readonly ITERATION_COUNT = 100000;
-  private static readonly STORAGE_KEY = 'tura_encrypted_key';
   private static readonly HASH_ALGORITHM = 'SHA-256';
   
   /**
@@ -183,23 +184,12 @@ export class KeyManager {
         throw new Error('Invalid encrypted data format');
       }
 
+      const walletSystem = new VirtualWalletSystem();
+      const address = walletSystem.getCurrentAddress();
+      if (!address) throw new Error('No wallet address found');
+
       const serializedData = JSON.stringify(encryptedData);
-      localStorage.setItem(this.STORAGE_KEY, serializedData);
-      
-      // Verify storage was successful
-      const storedData = localStorage.getItem(this.STORAGE_KEY);
-      if (!storedData) {
-        console.error('Storage verification failed: no data found after storage');
-        throw new Error('Storage verification failed');
-      }
-      
-      // Verify data integrity
-      const parsedData = JSON.parse(storedData);
-      if (!parsedData.encryptedKey || !parsedData.salt || !parsedData.iv) {
-        console.error('Storage verification failed: stored data is incomplete');
-        throw new Error('Storage verification failed: data integrity check');
-      }
-      
+      walletSystem.setKeyData(address, serializedData);
       console.log('Encrypted key data stored successfully');
     } catch (error) {
       console.error('Failed to store encrypted key:', error);
@@ -213,16 +203,17 @@ export class KeyManager {
   static getStoredKey(): EncryptedKeyData | null {
     try {
       console.log('Retrieving stored key data');
-      const storedData = localStorage.getItem(this.STORAGE_KEY);
-      
+      const walletSystem = new VirtualWalletSystem();
+      const address = walletSystem.getCurrentAddress();
+      if (!address) return null;
+
+      const storedData = walletSystem.getKeyData(address);
       if (!storedData) {
         console.log('No stored key data found');
         return null;
       }
       
       const parsedData = JSON.parse(storedData) as EncryptedKeyData;
-      
-      // Validate parsed data
       if (!parsedData.encryptedKey || !parsedData.salt || !parsedData.iv) {
         console.error('Retrieved data is incomplete:', parsedData);
         return null;
@@ -241,7 +232,10 @@ export class KeyManager {
    */
   static clearStoredKey(): void {
     try {
-      localStorage.removeItem(this.STORAGE_KEY);
+      const walletSystem = new VirtualWalletSystem();
+      const address = walletSystem.getCurrentAddress();
+      if (!address) return;
+      walletSystem.clearKeyData(address);
     } catch (error) {
       console.error('Failed to clear stored key:', error);
       throw new Error('Failed to clear stored key');

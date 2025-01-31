@@ -1,16 +1,19 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { WalletService } from '../lib/wallet';
+import { VirtualWalletSystem } from '../lib/virtual-wallet-system';
 
 describe('Wallet Service Tests', () => {
   let walletService: WalletService;
 
   beforeEach(() => {
     walletService = new WalletService();
-    localStorage.clear();
+    const walletSystem = new VirtualWalletSystem();
+    walletSystem.clearAllData();
   });
 
   afterEach(() => {
-    localStorage.clear();
+    const walletSystem = new VirtualWalletSystem();
+    walletSystem.clearAllData();
   });
 
   describe('Basic Wallet Operations', () => {    

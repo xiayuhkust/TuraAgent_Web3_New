@@ -233,8 +233,9 @@ export default function WalletContent() {
                   if (!password) {
                     return;
                   }
-                  // Skip password validation in mock system
-                  localStorage.setItem('isLoggedIn', 'true');
+                  // Set current address in virtual wallet system
+                  const walletSystem = new VirtualWalletSystem();
+                  walletSystem.setCurrentAddress(address);
                   setIsLoggedIn(true);
                   const balance = await walletSystem.getBalance(address);
                   setBalance(balance.toString());

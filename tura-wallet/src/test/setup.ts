@@ -1,5 +1,6 @@
 import { afterEach, vi } from 'vitest';
 import type { Provider } from 'ethers';
+import { VirtualWalletSystem } from '../lib/virtual-wallet-system';
 
 // Mock localStorage
 vi.stubGlobal('localStorage', {
@@ -114,5 +115,6 @@ vi.mock('ethers', () => {
 
 afterEach(() => {
   vi.clearAllMocks();
-  localStorage.clear();
+  const walletSystem = new VirtualWalletSystem();
+  walletSystem.clearAllData();
 });
