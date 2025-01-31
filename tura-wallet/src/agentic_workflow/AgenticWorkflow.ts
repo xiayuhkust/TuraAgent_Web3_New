@@ -1,3 +1,5 @@
+import { VirtualWalletSystem } from '../lib/virtual-wallet-system';
+
 export interface Message {
   text: string;
   timestamp: string;
@@ -10,6 +12,7 @@ export interface Intent {
 }
 
 export abstract class AgenticWorkflow {
+  protected walletSystem: VirtualWalletSystem;
   public name: string;
   public description: string;
   protected agentConversation: Message[];
@@ -21,6 +24,7 @@ export abstract class AgenticWorkflow {
     this.description = description;
     this.currentAddress = null;
     this.agentConversation = [];
+    this.walletSystem = new VirtualWalletSystem();
     this.updateStorageKey();
     this.agentConversation = this.loadConversation();
   }
@@ -40,7 +44,7 @@ export abstract class AgenticWorkflow {
 
   private loadConversation(): Message[] {
     try {
-      const stored = localStorage.getItem(this.storageKey);
+      const stored = this.walletSystem.getConversation(this.storageKey);
       if (!stored) return [];
       
       const parsed = JSON.parse(stored);
@@ -58,7 +62,7 @@ export abstract class AgenticWorkflow {
 
   private saveConversation(): void {
     try {
-      localStorage.setItem(this.storageKey, JSON.stringify(this.agentConversation));
+      this.walletSystem.saveConversation(this.storageKey, JSON.stringify(this.agentConversation));
     } catch (error) {
       console.error(`${this.name}: Failed to save conversation:`, error);
     }

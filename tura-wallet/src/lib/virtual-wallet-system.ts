@@ -45,6 +45,10 @@ export class VirtualWalletSystem {
     localStorage.setItem(this.addressKey, address);
   }
 
+  public logoutAccount(): void {
+    localStorage.removeItem(this.addressKey);
+  }
+
   public createWallet(): { address: string } {
     const address = "0x" + Array.from(crypto.getRandomValues(new Uint8Array(20)))
       .map(b => b.toString(16).padStart(2, '0'))
@@ -128,5 +132,29 @@ export class VirtualWalletSystem {
       console.error('Failed to get agents:', error);
       return [];
     }
+  }
+
+  public getConversation(key: string): string | null {
+    return localStorage.getItem(key);
+  }
+
+  public saveConversation(key: string, data: string): void {
+    localStorage.setItem(key, data);
+  }
+
+  public getKeyData(address: string): string | null {
+    return localStorage.getItem(`key_${address}`);
+  }
+
+  public setKeyData(address: string, data: string): void {
+    localStorage.setItem(`key_${address}`, data);
+  }
+
+  public clearKeyData(address: string): void {
+    localStorage.removeItem(`key_${address}`);
+  }
+
+  public clearAllData(): void {
+    localStorage.clear();
   }
 }

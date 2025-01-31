@@ -23,7 +23,6 @@ import { Message } from '../../agentic_workflow/AgenticWorkflow';
 
 interface ChatMessage extends Message {
   id: string;
-  sender: 'user' | 'agent' | 'error';
 }
 
 interface SignatureDetails {
@@ -37,9 +36,10 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const updateMessages = useCallback((newMessages: Message[]): void => {
     setMessages(newMessages.map((msg, index) => ({
-      ...msg,
       id: `${Date.now()}-${index}`,
-      sender: msg.sender === 'error' ? 'error' : msg.sender
+      text: msg.text,
+      timestamp: msg.timestamp,
+      sender: msg.sender
     })));
   }, []);
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
@@ -70,7 +70,13 @@ export default function ChatPage() {
   const [chatBalance, setChatBalance] = useState('0');
   const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
   const [lastMessageTime, setLastMessageTime] = useState<number>(Date.now());
-  const [walletAgent] = useState(() => (officialAgents[0].instance as MockWalletAgent));
+  const [walletAgent] = useState(() => {
+    const instance = officialAgents[0].instance;
+    if (!(instance instanceof MockWalletAgent)) {
+      throw new Error('Expected WalletAgent instance to be MockWalletAgent');
+    }
+    return instance;
+  });
   const [walletSystem] = useState(() => new VirtualWalletSystem());
   
   // Update messages state when balance changes
@@ -82,9 +88,9 @@ export default function ChatPage() {
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('Error processing message:', errMsg);
-      const errorMessage = {
+      const errorMessage: Message = {
         text: `Failed to refresh balance: ${errMsg}`,
-        sender: 'agent' as const,
+        sender: 'agent',
         timestamp: new Date().toISOString()
       };
       updateMessages([...messages, errorMessage]);
@@ -197,9 +203,9 @@ export default function ChatPage() {
     } catch (error: unknown) {
       console.error('Agent processing error:', error);
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
-      const errorMessage = {
+      const errorMessage: Message = {
         text: `Error: ${message}`,
-        sender: 'agent' as const,
+        sender: 'agent',
         timestamp: new Date().toISOString()
       };
       updateMessages([...messages, errorMessage]);
@@ -338,9 +344,9 @@ export default function ChatPage() {
             return 'Please check your microphone settings.';
         }
       })() : 'Please check your microphone settings.';
-      const errorMessage = {
+      const errorMessage: Message = {
         text: `Failed to start recording: ${errMsg}`,
-        sender: 'agent' as const,
+        sender: 'agent',
         timestamp: new Date().toISOString()
       };
       updateMessages([...messages, errorMessage]);
@@ -373,9 +379,9 @@ export default function ChatPage() {
       setInputText(data.text);
     } catch (error) {
       console.error('Speech-to-text error:', error);
-      const errorMessage = {
+      const errorMessage: Message = {
         text: 'Failed to convert speech to text. Please try again.',
-        sender: 'agent' as const,
+        sender: 'agent',
         timestamp: new Date().toISOString()
       };
       updateMessages([...messages, errorMessage]);
@@ -487,9 +493,9 @@ export default function ChatPage() {
                   if (signatureDetails?.onConfirm) {
                     try {
                       if (signatureDetails.requirePassword && !password) {
-                        const errorMessage = {
+                        const errorMessage: Message = {
                           text: 'Error: Password is required',
-                          sender: 'agent' as const,
+                          sender: 'agent',
                           timestamp: new Date().toISOString()
                         };
                         updateMessages([...messages, errorMessage]);
@@ -508,9 +514,9 @@ export default function ChatPage() {
                       }
                     } catch (error) {
                       console.error('Transaction failed:', error);
-                      const errorMessage = {
+                      const errorMessage: Message = {
                         text: `Error: ${error instanceof Error ? error.message : 'Transaction failed'}`,
-                        sender: 'agent' as const,
+                        sender: 'agent',
                         timestamp: new Date().toISOString()
                       };
                       updateMessages([...messages, errorMessage]);
