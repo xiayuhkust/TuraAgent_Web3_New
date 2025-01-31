@@ -1,11 +1,45 @@
-# React + TypeScript + Vite
+# TuraAgent Web3 Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React-based frontend for the TuraAgent Web3 platform, built with TypeScript and Vite.
 
-Currently, two official plugins are available:
+## Environment Setup
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Required environment variables in `.env`:
+```
+VITE_OPENAI_API_KEY=your_openai_api_key
+VITE_RPC_URL=your_rpc_url
+VITE_CHAIN_ID=your_chain_id
+VITE_CHAIN_NAME=your_chain_name
+```
+
+## Development
+
+```bash
+# Install dependencies
+pnpm install
+
+# Start development server
+pnpm dev
+
+# Build for production
+pnpm build
+```
+
+## Application Structure
+
+The application consists of four main tabs:
+
+1. **Chat**: Chat interface with workflow list and agent dialogue
+2. **Wallet**: MetaMask-style interface for web3 functionality
+3. **Workflow**: Visual workflow editor (coming soon)
+4. **Agents**: Contract deployment and management interface
+
+## Deployment
+
+1. Set up environment variables in `.env`
+2. Build the project: `pnpm build`
+3. Deploy the `dist` directory
+4. Verify deployment by checking all UI elements and functionality
 
 ## Expanding the ESLint configuration
 
