@@ -19,11 +19,10 @@ import {
   DialogTitle,
 } from '../ui/dialog';
 
-interface Message {
+import { Message } from '../../agentic_workflow/AgenticWorkflow';
+
+interface ChatMessage extends Message {
   id: string;
-  text: string;
-  sender: 'user' | 'agent' | 'error';
-  timestamp: string;
 }
 
 interface SignatureDetails {
@@ -34,7 +33,15 @@ interface SignatureDetails {
 }
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const updateMessages = useCallback((newMessages: Message[]): void => {
+    setMessages(newMessages.map((msg, index) => ({
+      id: `${Date.now()}-${index}`,
+      text: msg.text,
+      timestamp: msg.timestamp,
+      sender: msg.sender
+    })));
+  }, []);
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
   const [signatureDetails, setSignatureDetails] = useState<SignatureDetails | null>(null);
   const [password, setPassword] = useState('');
@@ -63,7 +70,13 @@ export default function ChatPage() {
   const [chatBalance, setChatBalance] = useState('0');
   const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
   const [lastMessageTime, setLastMessageTime] = useState<number>(Date.now());
-  const [walletAgent] = useState(() => (officialAgents[0].instance as MockWalletAgent));
+  const [walletAgent] = useState(() => {
+    const instance = officialAgents[0].instance;
+    if (!(instance instanceof MockWalletAgent)) {
+      throw new Error('Expected WalletAgent instance to be MockWalletAgent');
+    }
+    return instance;
+  });
   const [walletSystem] = useState(() => new VirtualWalletSystem());
   
   // Update messages state when balance changes
@@ -75,12 +88,12 @@ export default function ChatPage() {
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('Error processing message:', errMsg);
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
+      const errorMessage: Message = {
         text: `Failed to refresh balance: ${errMsg}`,
-        sender: 'error',
+        sender: 'agent',
         timestamp: new Date().toISOString()
-      }]);
+      };
+      updateMessages([...messages, errorMessage]);
       throw error;
     }
   }, [walletSystem]);
@@ -106,8 +119,7 @@ export default function ChatPage() {
         // Only set initial message if no messages exist
         if (messages.length === 0) {
           const welcomeResponse = await walletAgent.processMessage('help');
-          setMessages([{
-            id: Date.now().toString(),
+          updateMessages([{
             text: welcomeResponse,
             sender: 'agent',
             timestamp: new Date().toISOString()
@@ -116,10 +128,9 @@ export default function ChatPage() {
       } catch (error) {
         console.error('Failed to initialize chat:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        setMessages([{
-          id: Date.now().toString(),
+        updateMessages([{
           text: `Failed to initialize chat: ${errorMessage}. Please try refreshing the page.`,
-          sender: 'error',
+          sender: 'agent',
           timestamp: new Date().toISOString()
         }]);
       }
@@ -151,67 +162,53 @@ export default function ChatPage() {
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      text: inputText,
-      sender: 'user',
-      timestamp: new Date().toISOString()
-    };
-
-    setMessages(prev => [...prev, newMessage]);
+    const text = inputText.trim();
     setInputText('');
     setLastMessageTime(Date.now());
 
     try {
-      // Process message through WalletAgent
-      if (!activeAgent || activeAgent.name === 'WalletAgent') {
-        const agentResponse = await walletAgent.processMessage(inputText);
-        
-        // Update UI state based on agent response
-        const storedAddress = walletSystem.getCurrentAddress();
-        if (storedAddress !== chatAddress) {
-          setChatAddress(storedAddress || '');
-        }
-        
-        // Always refresh balance after agent response for faucet-related actions
-        if (chatAddress) {
-          try {
-            setIsRefreshingBalance(true);
-            await updateBalanceWithMessage(chatAddress);
-          } finally {
-            setIsRefreshingBalance(false);
+        if (!activeAgent || activeAgent.name === 'WalletAgent') {
+          if (!(walletAgent instanceof AgenticWorkflow)) {
+            return;
           }
+          walletAgent.setCurrentAddress(chatAddress);
+          await walletAgent.processMessage(text);
+          
+          const storedAddress = walletSystem.getCurrentAddress();
+          if (storedAddress !== chatAddress) {
+            setChatAddress(storedAddress || '');
+          }
+          
+          if (chatAddress) {
+            try {
+              setIsRefreshingBalance(true);
+              await updateBalanceWithMessage(chatAddress);
+            } finally {
+              setIsRefreshingBalance(false);
+            }
+          }
+
+          const newMessages = walletAgent.getMessages();
+          updateMessages(newMessages);
+        } else {
+          const agentInstance = activeAgent?.instance;
+          if (!agentInstance || !(agentInstance instanceof AgenticWorkflow)) {
+            return;
+          }
+          agentInstance.setCurrentAddress(chatAddress);
+          await agentInstance.processMessage(text);
+          const newMessages = agentInstance.getMessages();
+          updateMessages(newMessages);
         }
-
-        const response: Message = {
-          id: (Date.now() + 1).toString(),
-          text: agentResponse,
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        };
-
-        setMessages(prev => [...prev, response]);
-      } else if (activeAgent?.instance instanceof AgenticWorkflow) {
-        // Process message through agent's instance
-        const agentResponse = await activeAgent.instance.processMessage(inputText);
-        const response: Message = {
-          id: (Date.now() + 1).toString(),
-          text: agentResponse,
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        };
-        setMessages(prev => [...prev, response]);
-      }
     } catch (error: unknown) {
       console.error('Agent processing error:', error);
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
-      const errorResponse: Message = {
-        id: (Date.now() + 1).toString(),
+      const errorMessage: Message = {
         text: `Error: ${message}`,
-        sender: 'error',
+        sender: 'agent',
         timestamp: new Date().toISOString()
       };
-      setMessages(prev => [...prev, errorResponse]);
+      updateMessages([...messages, errorMessage]);
     }
   };
 
@@ -347,12 +344,12 @@ export default function ChatPage() {
             return 'Please check your microphone settings.';
         }
       })() : 'Please check your microphone settings.';
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
+      const errorMessage: Message = {
         text: `Failed to start recording: ${errMsg}`,
-        sender: 'error',
+        sender: 'agent',
         timestamp: new Date().toISOString()
-      }]);
+      };
+      updateMessages([...messages, errorMessage]);
     }
   };
 
@@ -382,12 +379,12 @@ export default function ChatPage() {
       setInputText(data.text);
     } catch (error) {
       console.error('Speech-to-text error:', error);
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
+      const errorMessage: Message = {
         text: 'Failed to convert speech to text. Please try again.',
-        sender: 'error',
+        sender: 'agent',
         timestamp: new Date().toISOString()
-      }]);
+      };
+      updateMessages([...messages, errorMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -400,40 +397,53 @@ export default function ChatPage() {
           <Bot className="h-6 w-6" />
           {activeAgent ? activeAgent.name : 'Chat'}
           
-          {chatAddress && (
-            <div className="p-2 bg-secondary rounded-lg flex flex-col items-start ml-4">
-              <div className="text-xs text-muted-foreground">Account</div>
-              <div className="font-mono text-sm break-all">
-                {chatAddress.slice(0,6)}...{chatAddress.slice(-4)}
-              </div>
-            </div>
-          )}
-
-          {chatAddress && (
-            <div className="p-2 bg-secondary rounded-lg flex flex-col items-start ml-2">
-              <div className="text-xs text-muted-foreground">Balance</div>
-              <div className="text-sm font-bold flex items-center gap-2">
-                {chatBalance} TURA
+          <div className="flex items-center gap-2">
+            {chatAddress && (
+              <>
+                <div className="p-2 bg-secondary rounded-lg flex flex-col items-start">
+                  <div className="text-xs text-muted-foreground">Account</div>
+                  <div className="font-mono text-sm break-all">
+                    {chatAddress.slice(0,6)}...{chatAddress.slice(-4)}
+                  </div>
+                </div>
+                <div className="p-2 bg-secondary rounded-lg flex flex-col items-start">
+                  <div className="text-xs text-muted-foreground">Balance</div>
+                  <div className="text-sm font-bold flex items-center gap-2">
+                    {chatBalance} TURA
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-4 w-4 p-0"
+                      onClick={async () => {
+                        if (isRefreshingBalance) return;
+                        try {
+                          setIsRefreshingBalance(true);
+                          await updateBalanceWithMessage(chatAddress);
+                        } finally {
+                          setIsRefreshingBalance(false);
+                        }
+                      }}
+                      disabled={isRefreshingBalance}
+                    >
+                      <RefreshCw className={`h-3 w-3 ${isRefreshingBalance ? 'animate-spin' : ''}`} />
+                    </Button>
+                  </div>
+                </div>
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-4 w-4 p-0"
-                  onClick={async () => {
-                    if (isRefreshingBalance) return;
-                    try {
-                      setIsRefreshingBalance(true);
-                      await updateBalanceWithMessage(chatAddress);
-                    } finally {
-                      setIsRefreshingBalance(false);
-                    }
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    walletSystem.logoutAccount();
+                    setChatAddress('');
+                    setChatBalance('0');
+                    updateMessages([]);
                   }}
-                  disabled={isRefreshingBalance}
                 >
-                  <RefreshCw className={`h-3 w-3 ${isRefreshingBalance ? 'animate-spin' : ''}`} />
+                  Logout
                 </Button>
-              </div>
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </CardTitle>
       </CardHeader>
       {/* Signature Dialog */}
@@ -483,12 +493,12 @@ export default function ChatPage() {
                   if (signatureDetails?.onConfirm) {
                     try {
                       if (signatureDetails.requirePassword && !password) {
-                        setMessages(prev => [...prev, {
-                          id: Date.now().toString(),
+                        const errorMessage: Message = {
                           text: 'Error: Password is required',
-                          sender: 'error',
+                          sender: 'agent',
                           timestamp: new Date().toISOString()
-                        }]);
+                        };
+                        updateMessages([...messages, errorMessage]);
                         return;
                       }
                       await signatureDetails.onConfirm(signatureDetails.requirePassword ? password : undefined);
@@ -504,12 +514,12 @@ export default function ChatPage() {
                       }
                     } catch (error) {
                       console.error('Transaction failed:', error);
-                      setMessages(prev => [...prev, {
-                        id: Date.now().toString(),
+                      const errorMessage: Message = {
                         text: `Error: ${error instanceof Error ? error.message : 'Transaction failed'}`,
-                        sender: 'error',
+                        sender: 'agent',
                         timestamp: new Date().toISOString()
-                      }]);
+                      };
+                      updateMessages([...messages, errorMessage]);
                     }
                   }
                 }}
@@ -542,6 +552,11 @@ export default function ChatPage() {
                         activeAgent?.name === agent.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
                       }`}
                       onClick={async () => {
+                        const agentInstance = agent?.instance;
+                        if (!agentInstance || !(agentInstance instanceof AgenticWorkflow)) {
+                          return;
+                        }
+                        agentInstance.setCurrentAddress(chatAddress);
                         setActiveAgent(agent);
                         if (agent.name === 'WalletAgent' && chatAddress) {
                           try {
@@ -550,12 +565,8 @@ export default function ChatPage() {
                             console.error('Failed to refresh balance on agent switch:', error);
                           }
                         }
-                        setMessages(prev => [...prev, {
-                          id: Date.now().toString(),
-                          text: `Connected to ${agent.name}`,
-                          sender: 'agent',
-                          timestamp: new Date().toISOString()
-                        }]);
+                        const newMessages = agentInstance.getMessages();
+                        updateMessages(newMessages);
                       }}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -590,6 +601,11 @@ export default function ChatPage() {
                         activeAgent?.name === agent.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
                       }`}
                       onClick={async () => {
+                        const agentInstance = agent?.instance;
+                        if (!agentInstance || !(agentInstance instanceof AgenticWorkflow)) {
+                          return;
+                        }
+                        agentInstance.setCurrentAddress(chatAddress);
                         setActiveAgent(agent);
                         if (agent.name === 'WalletAgent' && chatAddress) {
                           try {
@@ -598,12 +614,8 @@ export default function ChatPage() {
                             console.error('Failed to refresh balance on agent switch:', error);
                           }
                         }
-                        setMessages(prev => [...prev, {
-                          id: Date.now().toString(),
-                          text: `Connected to ${agent.name}`,
-                          sender: 'agent',
-                          timestamp: new Date().toISOString()
-                        }]);
+                        const newMessages = agentInstance.getMessages();
+                        updateMessages(newMessages);
                       }}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -638,6 +650,11 @@ export default function ChatPage() {
                         activeAgent?.name === workflow.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
                       }`}
                       onClick={async () => {
+                        const workflowInstance = workflow?.instance;
+                        if (!workflowInstance || !(workflowInstance instanceof AgenticWorkflow)) {
+                          return;
+                        }
+                        workflowInstance.setCurrentAddress(chatAddress);
                         setActiveAgent(workflow);
                         if (workflow.name === 'WalletAgent' && chatAddress) {
                           try {
@@ -646,12 +663,8 @@ export default function ChatPage() {
                             console.error('Failed to refresh balance on agent switch:', error);
                           }
                         }
-                        setMessages(prev => [...prev, {
-                          id: Date.now().toString(),
-                          text: `Connected to ${workflow.name}`,
-                          sender: 'agent',
-                          timestamp: new Date().toISOString()
-                        }]);
+                        const newMessages = workflowInstance.getMessages();
+                        updateMessages(newMessages);
                       }}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -677,34 +690,36 @@ export default function ChatPage() {
 
         {/* Chat Area */}
         <div className="flex-1 flex flex-col">
-          <ScrollArea className="flex-1 pr-4">
-            <div className="space-y-4">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${
-                    message.sender === 'user' ? 'justify-end' : 'justify-start'
-                  }`}
-                >
+          <div className="relative flex-1">
+            <ScrollArea className="flex-1 pr-4">
+              <div className="space-y-4 pb-24">
+                {messages.map((message) => (
                   <div
-                    className={`max-w-[80%] rounded-lg p-3 ${
-                      message.sender === 'user'
-                        ? 'bg-primary text-primary-foreground'
-                        : message.sender === 'error'
-                        ? 'bg-destructive text-destructive-foreground'
-                        : 'bg-secondary'
+                    key={message.id}
+                    className={`flex ${
+                      message.sender === 'user' ? 'justify-end' : 'justify-start'
                     }`}
                   >
-                    <div>{message.text}</div>
-                    <div className="text-xs opacity-70 mt-1">
-                      {new Date(message.timestamp).toLocaleTimeString()}
+                    <div
+                      className={`max-w-[80%] rounded-lg p-3 ${
+                        message.sender === 'user'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary'
+                      }`}
+                    >
+                      <div className="break-words whitespace-pre-wrap leading-relaxed">{message.text}</div>
+                      <div className="text-xs opacity-70 mt-1">
+                        {new Date(message.timestamp).toLocaleTimeString()}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-          </ScrollArea>
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+            </ScrollArea>
+            <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-background via-background/80 to-transparent" />
+            <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-6 bg-background opacity-90" />
+          </div>
           
           <div className="flex gap-2 mt-4">
             <Button

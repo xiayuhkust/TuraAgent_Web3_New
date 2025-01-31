@@ -1,4 +1,6 @@
-interface Message {
+import { VirtualWalletSystem } from '../lib/virtual-wallet-system';
+
+export interface Message {
   text: string;
   timestamp: string;
   sender: 'user' | 'agent';
@@ -10,21 +12,39 @@ export interface Intent {
 }
 
 export abstract class AgenticWorkflow {
+  protected walletSystem: VirtualWalletSystem;
   public name: string;
   public description: string;
   protected agentConversation: Message[];
-  private readonly storageKey: string;
+  private storageKey: string = '';
+  private currentAddress: string | null;
 
   constructor(name: string, description: string) {
     this.name = name;
     this.description = description;
-    this.storageKey = `agent_conversation_${name.toLowerCase().replace(/\s+/g, '_')}`;
+    this.currentAddress = null;
+    this.agentConversation = [];
+    this.walletSystem = new VirtualWalletSystem();
+    this.updateStorageKey();
     this.agentConversation = this.loadConversation();
+  }
+
+  private updateStorageKey(): void {
+    const addressPart = this.currentAddress || 'guest';
+    this.storageKey = `chat_${addressPart}_${this.name.toLowerCase().replace(/\s+/g, '_')}`;
+  }
+
+  public setCurrentAddress(address: string | null): void {
+    if (this.currentAddress !== address) {
+      this.currentAddress = address;
+      this.updateStorageKey();
+      this.agentConversation = this.loadConversation();
+    }
   }
 
   private loadConversation(): Message[] {
     try {
-      const stored = localStorage.getItem(this.storageKey);
+      const stored = this.walletSystem.getConversation(this.storageKey);
       if (!stored) return [];
       
       const parsed = JSON.parse(stored);
@@ -42,7 +62,7 @@ export abstract class AgenticWorkflow {
 
   private saveConversation(): void {
     try {
-      localStorage.setItem(this.storageKey, JSON.stringify(this.agentConversation));
+      this.walletSystem.saveConversation(this.storageKey, JSON.stringify(this.agentConversation));
     } catch (error) {
       console.error(`${this.name}: Failed to save conversation:`, error);
     }
