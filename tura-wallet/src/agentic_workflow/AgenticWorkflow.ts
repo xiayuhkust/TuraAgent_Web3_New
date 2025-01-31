@@ -23,46 +23,89 @@ export abstract class AgenticWorkflow {
   }
 
   private loadConversation(): Message[] {
-    const stored = localStorage.getItem(this.storageKey);
-    return stored ? JSON.parse(stored) : [];
+    try {
+      const stored = localStorage.getItem(this.storageKey);
+      if (!stored) return [];
+      
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) {
+        console.error(`${this.name}: Invalid conversation format in storage`);
+        return [];
+      }
+      
+      return parsed;
+    } catch (error) {
+      console.error(`${this.name}: Failed to load conversation:`, error);
+      return [];
+    }
   }
 
   private saveConversation(): void {
-    localStorage.setItem(this.storageKey, JSON.stringify(this.agentConversation));
+    try {
+      localStorage.setItem(this.storageKey, JSON.stringify(this.agentConversation));
+    } catch (error) {
+      console.error(`${this.name}: Failed to save conversation:`, error);
+    }
   }
 
   public async processMessage(text: string): Promise<string> {
     try {
-      // Only process if there's actual user input
       if (!text || text.trim() === '') {
         return '';
       }
 
-      this.agentConversation.push({
+      const timestamp = new Date().toISOString();
+      const userMessage = {
         text,
-        timestamp: new Date().toISOString(),
-        sender: 'user'
-      });
-      this.saveConversation();
+        timestamp,
+        sender: 'user' as const
+      };
 
-      const response = await this.handleIntent({ name: 'unknown', confidence: 0.0 }, text);
-      
-      this.agentConversation.push({
-        text: response,
-        timestamp: new Date().toISOString(),
-        sender: 'agent'
-      });
-      this.saveConversation();
-
-      if (this.agentConversation.length > 100) {
-        this.agentConversation = this.agentConversation.slice(-100);
+      try {
+        this.agentConversation.push(userMessage);
         this.saveConversation();
+
+        const response = await this.handleIntent({ name: 'unknown', confidence: 0.0 }, text);
+        
+        const agentMessage = {
+          text: response,
+          timestamp: new Date().toISOString(),
+          sender: 'agent' as const
+        };
+        
+        this.agentConversation.push(agentMessage);
+
+        // Trim conversation history if too long
+        if (this.agentConversation.length > 100) {
+          this.agentConversation = this.agentConversation.slice(-100);
+        }
+
+        this.saveConversation();
+        return response;
+
+      } catch (error) {
+        // Remove the user message if processing failed
+        this.agentConversation = this.agentConversation.filter(msg => msg !== userMessage);
+        throw error;
       }
 
-      return response;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-      const errorResponse = `I encountered an error: ${errorMessage}. Please try again.`;
+      console.error(`${this.name} error:`, error);
+      
+      let errorMessage: string;
+      if (error instanceof Error) {
+        if (error.message.includes('API key') || error.message.includes('OpenAI')) {
+          errorMessage = 'I am temporarily unable to process requests. Please try again later.';
+        } else if (error.message.includes('wallet') || error.message.includes('balance')) {
+          errorMessage = error.message;
+        } else {
+          errorMessage = 'I encountered an unexpected error. Please try again or contact support.';
+        }
+      } else {
+        errorMessage = 'An unexpected error occurred. Please try again.';
+      }
+
+      const errorResponse = `❌ ${errorMessage}`;
       
       this.agentConversation.push({
         text: errorResponse,

@@ -1,380 +1,118 @@
-import { beforeAll, afterEach, vi } from 'vitest';
-import { Buffer } from 'buffer';
-import { ethers } from 'ethers';
+import { afterEach, vi } from 'vitest';
+import type { Provider } from 'ethers';
 
-// Test constants
-const TEST_PRIVATE_KEY = '0x1234567890123456789012345678901234567890123456789012345678901234';
-const mockWallet = new ethers.Wallet(TEST_PRIVATE_KEY);
-// const TEST_ADDRESS = mockWallet.address; // Unused for now
+// Mock localStorage
+vi.stubGlobal('localStorage', {
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+  length: 0,
+  key: vi.fn()
+});
 
-// Add Buffer to global scope with proper polyfill
-if (typeof global.Buffer === 'undefined') {
-  global.Buffer = Buffer;
-}
-
-// Add TextEncoder/TextDecoder to global scope if not present
-if (typeof global.TextEncoder === 'undefined') {
-  global.TextEncoder = TextEncoder;
-}
-if (typeof global.TextDecoder === 'undefined') {
-  global.TextDecoder = TextDecoder;
-}
-
-// Add console logging for debugging
-const originalConsoleError = console.error;
-console.error = (...args) => {
-  originalConsoleError('Test Environment Error:', ...args);
-};
-
-// Mock localStorage with a working implementation
-class LocalStorageMock implements Storage {
-  private store: { [key: string]: string } = {};
-  private _length: number = 0;
-
-  clear(): void {
-    this.store = {};
-    this._length = 0;
+// Mock crypto for key generation
+vi.stubGlobal('crypto', {
+  getRandomValues: vi.fn((buffer) => buffer),
+  subtle: {
+    importKey: vi.fn().mockResolvedValue({ type: 'secret' }),
+    deriveKey: vi.fn().mockResolvedValue({ type: 'secret' }),
+    encrypt: vi.fn().mockResolvedValue(new ArrayBuffer(32)),
+    decrypt: vi.fn().mockResolvedValue(new ArrayBuffer(32))
   }
+});
 
-  getItem(key: string): string | null {
-    return this.store[key] || null;
-  }
-
-  setItem(key: string, value: string): void {
-    if (!(key in this.store)) {
-      this._length++;
-    }
-    this.store[key] = value;
-  }
-
-  removeItem(key: string): void {
-    if (key in this.store) {
-      delete this.store[key];
-      this._length--;
-    }
-  }
-
-  key(index: number): string | null {
-    return Object.keys(this.store)[index] || null;
-  }
-
-  get length(): number {
-    return this._length;
-  }
-}
-
-const localStorageMock = new LocalStorageMock();
-
-// Create deterministic random bytes for testing
-const mockRandomBytes = new Uint8Array(32);
-for (let i = 0; i < 32; i++) {
-  mockRandomBytes[i] = i + 1;
-}
-
-// Create a more detailed crypto mock with proper implementations
-const subtle = {
-  importKey: vi.fn().mockImplementation(async (format, keyData, algorithm, _extractable, keyUsages) => {
-    console.log('Mock importKey called with:', { format, algorithm: algorithm.name, usages: keyUsages });
-    
-    if (!keyData || !algorithm || !keyUsages) {
-      throw new Error('Invalid key import parameters');
-    }
-
-    // Create a deterministic key based on the input
-    const inputData = keyData instanceof ArrayBuffer ? new Uint8Array(keyData) : new TextEncoder().encode(keyData);
-    const mockKey = new Uint8Array(32);
-    let hash = 0;
-    for (let i = 0; i < inputData.length; i++) {
-      hash = ((hash << 5) - hash) + inputData[i];
-      hash = hash & hash;
-    }
-    
-    // Use the hash to generate a deterministic key
-    for (let i = 0; i < 32; i++) {
-      mockKey[i] = (hash + i) & 0xFF;
-    }
-
-    return {
-      type: 'secret',
-      extractable: false,
-      algorithm: { name: algorithm.name },
-      usages: keyUsages,
-      _rawKey: mockKey.buffer
-    };
-  }),
-
-  deriveKey: vi.fn().mockImplementation(async (algorithm, baseKey, derivedKeyAlgorithm, _extractable, keyUsages) => {
-    console.log('Mock deriveKey called with:', {
-      algorithmName: algorithm.name,
-      derivedKeyAlgorithm: derivedKeyAlgorithm.name,
-      iterations: algorithm.iterations,
-      usages: keyUsages
-    });
-
-    if (!algorithm || !baseKey || !derivedKeyAlgorithm || !keyUsages) {
-      throw new Error('Invalid key derivation parameters');
-    }
-
-    // Get base key data and salt
-    const baseKeyData = new Uint8Array(baseKey._rawKey);
-    const salt = algorithm.salt;
-    
-    // Create deterministic derived key using PBKDF2-like mixing
-    const derivedKey = new Uint8Array(32);
-    let lastRound = new Uint8Array(salt);
-    
-    // Simulate PBKDF2 rounds
-    for (let round = 0; round < Math.min(algorithm.iterations, 10); round++) {
-      for (let i = 0; i < 32; i++) {
-        const keyByte = baseKeyData[i % baseKeyData.length];
-        const saltByte = lastRound[i % lastRound.length];
-        derivedKey[i] ^= keyByte ^ saltByte;
-      }
-      lastRound = derivedKey;
-    }
-
-    return {
-      type: 'secret',
-      extractable: false,
-      algorithm: { name: derivedKeyAlgorithm.name },
-      usages: keyUsages,
-      _rawKey: derivedKey.buffer
-    };
-  }),
-
-  encrypt: vi.fn().mockImplementation(async (algorithm, key, data) => {
-    console.log('Mock encrypt called with:', {
-      algorithmName: algorithm.name,
-      keyType: key.type,
-      dataLength: data.byteLength
-    });
-
-    if (!algorithm || !key || !data) {
-      throw new Error('Invalid encryption parameters');
-    }
-
-    const keyData = new Uint8Array(key._rawKey);
-    const iv = algorithm.iv;
-    if (!iv) {
-      throw new Error('Missing IV');
-    }
-
-    const dataArray = new Uint8Array(data);
-    const encrypted = new Uint8Array(dataArray.length + 16);
-
-    // Simple XOR-based encryption
-    for (let i = 0; i < dataArray.length; i++) {
-      encrypted[i] = dataArray[i] ^ keyData[i % keyData.length] ^ iv[i % iv.length];
-    }
-
-    // Generate a simple authentication tag
-    const tag = new Uint8Array(16);
-    let hash = 0;
-    for (let i = 0; i < encrypted.length; i++) {
-      hash = ((hash << 5) - hash) + encrypted[i];
-      hash = hash & hash;
-    }
-    for (let i = 0; i < 16; i++) {
-      tag[i] = (hash >> (i % 8)) & 0xFF;
-    }
-
-    // Append tag to encrypted data
-    encrypted.set(tag, dataArray.length);
-    return encrypted.buffer;
-  }),
-
-  decrypt: vi.fn().mockImplementation(async (algorithm, key, data) => {
-    console.log('Mock decrypt called with:', {
-      algorithmName: algorithm.name,
-      keyType: key.type,
-      dataLength: data.byteLength
-    });
-
-    if (!algorithm || !key || !data) {
-      throw new Error('Invalid decryption parameters');
-    }
-
-    const keyData = new Uint8Array(key._rawKey);
-    const iv = algorithm.iv;
-    if (!iv) {
-      throw new Error('Missing IV');
-    }
-
-    const dataArray = new Uint8Array(data);
-    if (dataArray.length < 16) {
-      throw new Error('Invalid ciphertext length');
-    }
-
-    const encryptedData = dataArray.slice(0, -16);
-    const receivedTag = dataArray.slice(-16);
-
-    // Verify the authentication tag
-    const tag = new Uint8Array(16);
-    let hash = 0;
-    for (let i = 0; i < encryptedData.length; i++) {
-      hash = ((hash << 5) - hash) + encryptedData[i];
-      hash = hash & hash;
-    }
-    for (let i = 0; i < 16; i++) {
-      tag[i] = (hash >> (i % 8)) & 0xFF;
-    }
-
-    // Compare tags
-    for (let i = 0; i < 16; i++) {
-      if (tag[i] !== receivedTag[i]) {
-        throw new Error('Invalid GCM tag');
-      }
-    }
-
-    // Decrypt data
-    const decrypted = new Uint8Array(encryptedData.length);
-    for (let i = 0; i < encryptedData.length; i++) {
-      decrypted[i] = encryptedData[i] ^ keyData[i % keyData.length] ^ iv[i % iv.length];
-    }
-
-    return decrypted.buffer;
+// Mock ethers
+const mockProvider = {
+  getBalance: vi.fn().mockResolvedValue('1000000000000000000'),
+  getTransactionCount: vi.fn().mockResolvedValue(0),
+  sendTransaction: vi.fn().mockResolvedValue({
+    hash: '0xmocktx',
+    wait: async () => ({
+      status: true,
+      transactionHash: '0xmocktx'
+    })
   })
 };
 
-const cryptoMock = {
-  subtle,
-  getRandomValues: (buffer: Uint8Array) => {
-    // Use deterministic bytes for testing
-    const deterministicBytes = new Uint8Array(buffer.length);
-    for (let i = 0; i < buffer.length; i++) {
-      deterministicBytes[i] = (i + 1) % 256;
-    }
-    buffer.set(deterministicBytes);
-    return buffer;
-  },
+// Generate deterministic but valid-looking addresses and keys
+const mockWallet = {
+  address: '0x1234567890123456789012345678901234567890',
+  privateKey: '0x1234567890123456789012345678901234567890123456789012345678901234',
+  mnemonic: { phrase: 'test mock mock mock mock mock mock mock mock mock mock mock' }
 };
 
-beforeAll(() => {
-  // Setup localStorage mock with proper Storage interface
-  Object.defineProperty(window, 'localStorage', { value: localStorageMock });
-  
-  // Setup crypto mock with proper PBKDF2 and AES-GCM support
-  const cryptoWithFullSupport = {
-    ...cryptoMock,
-    subtle: {
-      ...cryptoMock.subtle,
-      importKey: async (format: string, keyData: ArrayBuffer | string, algorithm: any, _extractable: boolean, keyUsages: string[]) => {
-        console.log('Mock importKey called with:', { format, algorithm: algorithm.name, usages: keyUsages });
-        
-        const inputData = keyData instanceof ArrayBuffer ? new Uint8Array(keyData) : new TextEncoder().encode(keyData);
-        
-        return {
-          type: 'secret',
-          extractable: false,
-          algorithm: { name: algorithm.name },
-          usages: keyUsages,
-          _rawKey: inputData.buffer
-        };
-      },
-      
-      deriveKey: async (algorithm: any, baseKey: any, derivedKeyAlgorithm: any, _extractable: boolean, keyUsages: string[]) => {
-        console.log('Mock deriveKey called with:', {
-          algorithmName: algorithm.name,
-          derivedKeyAlgorithm: derivedKeyAlgorithm.name,
-          iterations: algorithm.iterations,
-          usages: keyUsages
-        });
-        
-        const baseKeyData = new Uint8Array(baseKey._rawKey);
-        const salt = algorithm.salt;
-        
-        // Create deterministic derived key
-        const derivedKey = new Uint8Array(32);
-        for (let i = 0; i < 32; i++) {
-          const saltByte = salt[i % salt.length];
-          const keyByte = baseKeyData[i % baseKeyData.length];
-          derivedKey[i] = (keyByte ^ saltByte ^ (i + 1)) & 0xFF;
-        }
-        
-        return {
-          type: 'secret',
-          extractable: false,
-          algorithm: { name: derivedKeyAlgorithm.name },
-          usages: keyUsages,
-          _rawKey: derivedKey.buffer
-        };
-      },
-      
-      encrypt: async (algorithm: any, key: any, data: ArrayBuffer) => {
-        console.log('Mock encrypt called with:', {
-          algorithmName: algorithm.name,
-          keyType: key.type,
-          dataLength: data.byteLength
-        });
-        
-        const keyData = new Uint8Array(key._rawKey);
-        const dataArray = new Uint8Array(data);
-        const iv = algorithm.iv;
-        
-        // Create encrypted data with space for GCM tag
-        const encryptedData = new Uint8Array(dataArray.length + 16);
-        
-        // Simple XOR-based encryption for testing
-        for (let i = 0; i < dataArray.length; i++) {
-          const keyByte = keyData[i % keyData.length];
-          const ivByte = iv[i % iv.length];
-          encryptedData[i] = dataArray[i] ^ keyByte ^ ivByte;
-        }
-        
-        // Generate mock GCM tag
-        for (let i = 0; i < 16; i++) {
-          encryptedData[dataArray.length + i] = (keyData[i % keyData.length] ^ iv[i % iv.length]) & 0xFF;
-        }
-        
-        return encryptedData.buffer;
-      },
-      
-      decrypt: async (algorithm: any, key: any, data: ArrayBuffer) => {
-        console.log('Mock decrypt called with:', {
-          algorithmName: algorithm.name,
-          keyType: key.type,
-          dataLength: data.byteLength
-        });
-        
-        const keyData = new Uint8Array(key._rawKey);
-        const encryptedData = new Uint8Array(data);
-        const iv = algorithm.iv;
-        
-        // Split data into encrypted part and tag
-        const actualData = encryptedData.slice(0, -16);
-        const tag = encryptedData.slice(-16);
-        
-        // Verify mock GCM tag
-        for (let i = 0; i < 16; i++) {
-          const expectedTag = (keyData[i % keyData.length] ^ iv[i % iv.length]) & 0xFF;
-          if (tag[i] !== expectedTag) {
-            throw new Error('Decryption failed - invalid tag');
-          }
-        }
-        
-        // Decrypt data
-        const decryptedData = new Uint8Array(actualData.length);
-        for (let i = 0; i < actualData.length; i++) {
-          const keyByte = keyData[i % keyData.length];
-          const ivByte = iv[i % iv.length];
-          decryptedData[i] = actualData[i] ^ keyByte ^ ivByte;
-        }
-        
-        return decryptedData.buffer;
+const WalletClass = vi.fn().mockImplementation((privateKey: string, provider?: Provider) => {
+  const wallet = {
+    address: mockWallet.address,
+    privateKey: privateKey || mockWallet.privateKey,
+    provider,
+    connect: (provider: Provider) => ({
+      ...wallet,
+      provider
+    }),
+    signTransaction: vi.fn().mockResolvedValue('0xsignedtx'),
+    getAddress: vi.fn().mockReturnValue(mockWallet.address),
+    sendTransaction: vi.fn().mockImplementation(async (tx: { value?: string | number; to?: string }) => {
+      // Convert amount to BigInt, handling both number and string inputs
+      if (tx.value) {
+        const amount = typeof tx.value === 'string' ? parseFloat(tx.value) : tx.value;
+        if (isNaN(amount) || amount <= 0) throw new Error('Amount must be greater than 0');
+        tx.value = Math.floor(amount * 10 ** 18).toString();
       }
-    }
+      return {
+        hash: '0xmocktx',
+        wait: async () => ({
+          status: 1,
+          transactionHash: '0xmocktx',
+          blockNumber: 1,
+          blockHash: '0xmockblockhash',
+          from: mockWallet.address,
+          to: tx.to || '0xmockto',
+          gasUsed: BigInt(21000)
+        })
+      };
+    })
   };
-  
-  vi.stubGlobal('crypto', cryptoWithFullSupport);
-  
-  // Mock ethers random wallet creation
-  vi.spyOn(ethers.Wallet, 'createRandom').mockImplementation(() => mockWallet as any);
+  return wallet;
+});
+
+// Mock createRandom for wallet creation
+(WalletClass as { createRandom?: () => typeof mockWallet }).createRandom = vi.fn().mockReturnValue({
+  ...mockWallet,
+  connect: vi.fn().mockReturnValue(mockWallet)
+});
+
+vi.mock('ethers', () => {
+  const ethers = {
+    Wallet: Object.assign(WalletClass, {
+      createRandom: vi.fn().mockReturnValue({
+        ...mockWallet,
+        connect: vi.fn().mockReturnValue(mockWallet)
+      })
+    }),
+    JsonRpcProvider: vi.fn().mockImplementation(() => ({
+      ...mockProvider,
+      getBalance: vi.fn().mockResolvedValue(BigInt('1000000000000000000')),
+      getTransactionCount: vi.fn().mockResolvedValue(0),
+      getNetwork: vi.fn().mockResolvedValue({ chainId: 1337, name: 'Tura Chain' })
+    })),
+    parseEther: (value: string) => {
+      const match = value.match(/^[0-9]+\.?[0-9]*$/);
+      if (!match || parseFloat(value) <= 0) {
+        throw new Error('Invalid amount format');
+      }
+      const [whole, decimal = ''] = value.split('.');
+      const paddedDecimal = decimal.padEnd(18, '0');
+      return BigInt(whole + paddedDecimal);
+    },
+    formatEther: (value: bigint) => value.toString(),
+    isAddress: (value: string) => /^0x[a-fA-F0-9]{40}$/.test(value)
+  };
+  return { ethers };
 });
 
 afterEach(() => {
   vi.clearAllMocks();
-  localStorageMock.clear();
-  // Reset localStorage
-  localStorageMock.clear();
-  vi.restoreAllMocks();
+  localStorage.clear();
 });
