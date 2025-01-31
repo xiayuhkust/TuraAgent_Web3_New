@@ -1,9 +1,8 @@
 import { Agent, OfficialAgent, Workflow } from "../types/agentTypes";
 import { MockWalletAgent } from "../agentic_workflow/MockWalletAgent";
-import { AgentManager } from "../agentic_workflow/AgentManager";
+import { MockAgentManager } from "../agentic_workflow/MockAgentManager";
 
-// Initialize with mock implementation by default
-// RPC availability will be checked when needed in the MockWalletAgent
+// Initialize with mock implementations by default since RPC is unavailable
 
 // Official agents are managed separately from community agents
 export const officialAgents: OfficialAgent[] = [
@@ -25,7 +24,7 @@ export const officialAgents: OfficialAgent[] = [
     owner: '',  // No specific owner as it's a system agent
     chainId: 1337,
     status: 'OFFICIAL',
-    instance: new AgentManager()
+    instance: new MockAgentManager()
   }
 ];
 

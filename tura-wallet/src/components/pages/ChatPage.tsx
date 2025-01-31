@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, Send, Bot, Code2, Wallet, RefreshCw } from 'lucide-react';
+import { VirtualWalletSystem } from '../../lib/virtual-wallet-system';
 import { AgenticWorkflow } from '../../agentic_workflow/AgenticWorkflow';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -25,43 +26,64 @@ interface Message {
   timestamp: string;
 }
 
+interface SignatureDetails {
+  title: string;
+  description: string;
+  requirePassword?: boolean;
+  onConfirm: (password?: string) => Promise<void>;
+}
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
-  const [signatureDetails, setSignatureDetails] = useState<{
-    title: string;
-    description: string;
-    requirePassword?: boolean;
-    onConfirm: (password?: string) => Promise<void>;
-  } | null>(null);
+  const [signatureDetails, setSignatureDetails] = useState<SignatureDetails | null>(null);
   const [password, setPassword] = useState('');
 
   // Expose dialog control to window for AgentManager
   useEffect(() => {
-    (window as any).ChatPage = {
-      showSignatureDialog: (details: {
-        title: string;
-        description: string;
-        requirePassword?: boolean;
-        onConfirm: (password?: string) => Promise<void>;
-      }) => {
+    interface ChatPageInterface {
+      showSignatureDialog: (details: SignatureDetails) => void;
+    }
+
+    (window as unknown as { ChatPage: ChatPageInterface }).ChatPage = {
+      showSignatureDialog: (details: SignatureDetails) => {
         setSignatureDetails(details);
         setShowSignatureDialog(true);
       }
     };
     return () => {
-      delete (window as any).ChatPage;
+      delete (window as unknown as { ChatPage?: ChatPageInterface }).ChatPage;
     };
-  }, []);
+  }, [messages.length]);
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(officialAgents[0]); // Default to MockWalletAgent
+  const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(officialAgents[0]);
   const [chatAddress, setChatAddress] = useState('');
   const [chatBalance, setChatBalance] = useState('0');
   const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
   const [lastMessageTime, setLastMessageTime] = useState<number>(Date.now());
   const [walletAgent] = useState(() => (officialAgents[0].instance as MockWalletAgent));
+  const [walletSystem] = useState(() => new VirtualWalletSystem());
+  
+  // Update messages state when balance changes
+  const updateBalanceWithMessage = useCallback(async (address: string) => {
+    try {
+      const balance = await walletSystem.getBalance(address);
+      setChatBalance(balance.toString());
+      return balance;
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Error processing message:', errMsg);
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        text: `Failed to refresh balance: ${errMsg}`,
+        sender: 'error',
+        timestamp: new Date().toISOString()
+      }]);
+      throw error;
+    }
+  }, [walletSystem]);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -75,14 +97,10 @@ export default function ChatPage() {
       hasInitialized.current = true;
 
       try {
-        const storedAddress = localStorage.getItem('lastWalletAddress');
+        const storedAddress = walletSystem.getCurrentAddress();
         if (storedAddress) {
           setChatAddress(storedAddress);
-          const response = await walletAgent.processMessage('check balance');
-          const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
-          if (balanceMatch) {
-            setChatBalance(balanceMatch[1]);
-          }
+          await updateBalanceWithMessage(storedAddress);
         }
         
         // Only set initial message if no messages exist
@@ -97,9 +115,10 @@ export default function ChatPage() {
         }
       } catch (error) {
         console.error('Failed to initialize chat:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
         setMessages([{
           id: Date.now().toString(),
-          text: 'There was an error initializing the chat. Please try refreshing the page.',
+          text: `Failed to initialize chat: ${errorMessage}. Please try refreshing the page.`,
           sender: 'error',
           timestamp: new Date().toISOString()
         }]);
@@ -113,16 +132,16 @@ export default function ChatPage() {
       const timeSinceLastMessage = Date.now() - lastMessageTime;
       // Only refresh if there was a message in the last 30 seconds
       if (timeSinceLastMessage < 30000 && chatAddress) {
-        const response = await walletAgent.processMessage('check balance');
-        const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
-        if (balanceMatch) {
-          setChatBalance(balanceMatch[1]);
+        try {
+          await updateBalanceWithMessage(chatAddress);
+        } catch (error) {
+          console.error('Failed to refresh balance:', error);
         }
       }
     }, 5000); // Check every 5 seconds
 
     return () => clearInterval(refreshInterval);
-  }, [walletAgent, lastMessageTime, chatAddress]);
+  }, [walletSystem, walletAgent, lastMessageTime, chatAddress, messages.length, updateBalanceWithMessage]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -149,7 +168,7 @@ export default function ChatPage() {
         const agentResponse = await walletAgent.processMessage(inputText);
         
         // Update UI state based on agent response
-        const storedAddress = localStorage.getItem('lastWalletAddress');
+        const storedAddress = walletSystem.getCurrentAddress();
         if (storedAddress !== chatAddress) {
           setChatAddress(storedAddress || '');
         }
@@ -158,13 +177,7 @@ export default function ChatPage() {
         if (chatAddress) {
           try {
             setIsRefreshingBalance(true);
-            const balanceResponse = await walletAgent.processMessage('check balance');
-            const balanceMatch = balanceResponse.match(/contains (\d+(?:\.\d+)?)/);
-            if (balanceMatch) {
-              setChatBalance(balanceMatch[1]);
-            }
-          } catch (error) {
-            console.error('Balance refresh failed:', error);
+            await updateBalanceWithMessage(chatAddress);
           } finally {
             setIsRefreshingBalance(false);
           }
@@ -297,12 +310,12 @@ export default function ChatPage() {
           stopRecording();
         }
       }, 15000);
-    } catch (error: any) {
+    } catch (error) {
       // Log detailed error information for debugging
       console.error('Recording failed:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : 'No stack trace',
         browserInfo: {
           userAgent: navigator.userAgent,
           platform: navigator.platform,
@@ -319,27 +332,24 @@ export default function ChatPage() {
         }
       });
 
-      // Provide user-friendly error message based on error type
-      let errorMessage = 'Failed to start recording. ';
-      switch (error.name) {
-        case 'NotAllowedError':
-          errorMessage += 'Please grant microphone permissions.';
-          break;
-        case 'NotFoundError':
-          errorMessage += 'No microphone found.';
-          break;
-        case 'NotReadableError':
-          errorMessage += 'Microphone is already in use.';
-          break;
-        case 'OverconstrainedError':
-          errorMessage += 'Microphone does not support required audio settings.';
-          break;
-        default:
-          errorMessage += 'Please check your microphone settings.';
-      }
+      // Generate user-friendly error message
+      const errMsg = error instanceof Error ? (() => {
+        switch (error.name) {
+          case 'NotAllowedError':
+            return 'Please grant microphone permissions.';
+          case 'NotFoundError':
+            return 'No microphone found.';
+          case 'NotReadableError':
+            return 'Microphone is already in use.';
+          case 'OverconstrainedError':
+            return 'Microphone does not support required audio settings.';
+          default:
+            return 'Please check your microphone settings.';
+        }
+      })() : 'Please check your microphone settings.';
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
-        text: 'Failed to start recording. Please check your microphone permissions.',
+        text: `Failed to start recording: ${errMsg}`,
         sender: 'error',
         timestamp: new Date().toISOString()
       }]);
@@ -412,13 +422,7 @@ export default function ChatPage() {
                     if (isRefreshingBalance) return;
                     try {
                       setIsRefreshingBalance(true);
-                      const response = await walletAgent.processMessage('check balance');
-                      const balanceMatch = response.match(/contains (\d+(?:\.\d+)?)/);
-                      if (balanceMatch) {
-                        setChatBalance(balanceMatch[1]);
-                      }
-                    } catch (error) {
-                      console.error('Balance refresh failed:', error);
+                      await updateBalanceWithMessage(chatAddress);
                     } finally {
                       setIsRefreshingBalance(false);
                     }
@@ -463,50 +467,61 @@ export default function ChatPage() {
               </div>
             </div>
           )}
-          <DialogFooter className="flex justify-between">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setPassword('');
-                setShowSignatureDialog(false);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={async () => {
-                if (signatureDetails?.onConfirm) {
-                  try {
-                    if (signatureDetails.requirePassword && !password) {
+          <DialogFooter>
+            <div className="flex justify-between w-full">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setPassword('');
+                  setShowSignatureDialog(false);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (signatureDetails?.onConfirm) {
+                    try {
+                      if (signatureDetails.requirePassword && !password) {
+                        setMessages(prev => [...prev, {
+                          id: Date.now().toString(),
+                          text: 'Error: Password is required',
+                          sender: 'error',
+                          timestamp: new Date().toISOString()
+                        }]);
+                        return;
+                      }
+                      await signatureDetails.onConfirm(signatureDetails.requirePassword ? password : undefined);
+                      setPassword('');
+                      setShowSignatureDialog(false);
+                      
+                      if (chatAddress) {
+                        try {
+                          await updateBalanceWithMessage(chatAddress);
+                        } catch (error) {
+                          console.error('Failed to refresh balance after transaction:', error);
+                        }
+                      }
+                    } catch (error) {
+                      console.error('Transaction failed:', error);
                       setMessages(prev => [...prev, {
                         id: Date.now().toString(),
-                        text: 'Error: Password is required',
+                        text: `Error: ${error instanceof Error ? error.message : 'Transaction failed'}`,
                         sender: 'error',
                         timestamp: new Date().toISOString()
                       }]);
-                      return;
                     }
-                    await signatureDetails.onConfirm(signatureDetails.requirePassword ? password : undefined);
-                    setPassword('');
-                    setShowSignatureDialog(false);
-                  } catch (error) {
-                    console.error('Transaction failed:', error);
-                    setMessages(prev => [...prev, {
-                      id: Date.now().toString(),
-                      text: `Error: ${error instanceof Error ? error.message : 'Transaction failed'}`,
-                      sender: 'error',
-                      timestamp: new Date().toISOString()
-                    }]);
                   }
-                }
-              }}
-              disabled={signatureDetails?.requirePassword && !password}
-            >
-              Sign & Deploy
-            </Button>
+                }}
+                disabled={signatureDetails?.requirePassword && !password}
+              >
+                Sign & Deploy
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       <CardContent className="flex h-full gap-4">
         {/* AgenticWorkflow Sidebar */}
@@ -526,8 +541,15 @@ export default function ChatPage() {
                       className={`p-3 rounded-lg hover:bg-secondary/80 cursor-pointer transition-colors ${
                         activeAgent?.name === agent.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
                       }`}
-                      onClick={() => {
+                      onClick={async () => {
                         setActiveAgent(agent);
+                        if (agent.name === 'WalletAgent' && chatAddress) {
+                          try {
+                            await updateBalanceWithMessage(chatAddress);
+                          } catch (error) {
+                            console.error('Failed to refresh balance on agent switch:', error);
+                          }
+                        }
                         setMessages(prev => [...prev, {
                           id: Date.now().toString(),
                           text: `Connected to ${agent.name}`,
@@ -567,8 +589,15 @@ export default function ChatPage() {
                       className={`p-3 rounded-lg hover:bg-secondary/80 cursor-pointer transition-colors ${
                         activeAgent?.name === agent.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
                       }`}
-                      onClick={() => {
+                      onClick={async () => {
                         setActiveAgent(agent);
+                        if (agent.name === 'WalletAgent' && chatAddress) {
+                          try {
+                            await updateBalanceWithMessage(chatAddress);
+                          } catch (error) {
+                            console.error('Failed to refresh balance on agent switch:', error);
+                          }
+                        }
                         setMessages(prev => [...prev, {
                           id: Date.now().toString(),
                           text: `Connected to ${agent.name}`,
@@ -608,8 +637,15 @@ export default function ChatPage() {
                       className={`p-3 rounded-lg hover:bg-secondary/80 cursor-pointer transition-colors ${
                         activeAgent?.name === workflow.name ? 'bg-secondary/90 ring-2 ring-primary' : 'bg-secondary'
                       }`}
-                      onClick={() => {
+                      onClick={async () => {
                         setActiveAgent(workflow);
+                        if (workflow.name === 'WalletAgent' && chatAddress) {
+                          try {
+                            await updateBalanceWithMessage(chatAddress);
+                          } catch (error) {
+                            console.error('Failed to refresh balance on agent switch:', error);
+                          }
+                        }
                         setMessages(prev => [...prev, {
                           id: Date.now().toString(),
                           text: `Connected to ${workflow.name}`,

@@ -1,21 +1,7 @@
-import { ethers } from 'ethers';
-
-export class CustomProvider extends ethers.JsonRpcProvider {
-  constructor(url: string) {
-    super(url);
-  }
-
-  async createAccount(): Promise<string> {
-    const wallet = ethers.Wallet.createRandom();
-    return wallet.address;
-  }
-
-  async getBalance(address: string): Promise<bigint> {
-    return await super.getBalance(address);
-  }
-
-  async sendTransaction(transaction: ethers.TransactionRequest): Promise<ethers.TransactionResponse> {
-    const signer = ethers.Wallet.createRandom().connect(this);
-    return await signer.sendTransaction(transaction);
-  }
+// This file is no longer needed as we're using VirtualWalletSystem
+export class CustomProvider {
+  constructor() {}
+  async createAccount(): Promise<string> { return '0x' + Date.now().toString(16).padStart(40, '0'); }
+  async getBalance(): Promise<bigint> { return BigInt(0); }
+  async sendTransaction(): Promise<{ hash: string }> { return { hash: 'mock_tx_' + Date.now() }; }
 }

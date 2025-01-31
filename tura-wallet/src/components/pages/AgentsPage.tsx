@@ -85,7 +85,7 @@ export default function AgentsPage() {
     
     try {
       const agentManager = new AgentManager();
-      const contractAddress = await agentManager.deployTestAgent(address, password);
+      const contractAddress = await agentManager.deployTestAgent(address);
       console.log('Test agent deployed at:', contractAddress);
       setDeploymentStatus({ success: contractAddress });
       setPassword('');

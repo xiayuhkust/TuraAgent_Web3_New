@@ -1,6 +1,8 @@
 import path from "path"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
+import type { IncomingMessage, ServerResponse } from "http"
+
 
 export default defineConfig({
   plugins: [react()],
@@ -31,20 +33,20 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/rpc/, ''),
-        configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
+        configure: (proxy) => {
+          proxy.on('error', (err: Error) => {
             console.log('proxy error', err);
           });
-          proxy.on('proxyReq', (proxyReq, req: any, _res) => {
-            console.log('Proxying:', req.method, req.url, '=>', proxyReq.path);
-            if (req.body) {
+          proxy.on('proxyReq', (proxyReq: { path: string; setHeader: (key: string, value: string | number) => void; write: (data: string) => void }, req: IncomingMessage & { body?: unknown }) => {
+            if (req.method === 'POST' && req.body) {
               const bodyData = JSON.stringify(req.body);
+              console.log('Proxying:', req.method, req.url, '=>', proxyReq.path);
               proxyReq.setHeader('Content-Type', 'application/json');
               proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
               proxyReq.write(bodyData);
             }
           });
-          proxy.on('proxyRes', (proxyRes, _req, res) => {
+          proxy.on('proxyRes', (proxyRes: { statusCode?: number }, _req: IncomingMessage, res: ServerResponse) => {
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
             res.setHeader('Access-Control-Allow-Headers', 'Content-Type');

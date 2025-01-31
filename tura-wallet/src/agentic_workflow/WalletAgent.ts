@@ -1,7 +1,7 @@
 import { OpenAI } from 'openai';
 import type { ChatCompletionCreateParams } from 'openai/resources/chat/completions';
 import WalletManager from '../lib/wallet_manager';
-import { AgenticWorkflow, Intent } from './AgenticWorkflow';
+import { AgenticWorkflow } from './AgenticWorkflow';
 import { AgentManager } from './AgentManager';
 
 type ChatMessage = ChatCompletionCreateParams['messages'][number];
@@ -23,7 +23,7 @@ try {
  * It wraps the existing wallet functionality in a more user-friendly way.
  */
 export class WalletAgent extends AgenticWorkflow {
-  protected async handleIntent(_intent: Intent, _text: string): Promise<string> {
+  protected async handleIntent(): Promise<string> {
     return `I am currently under maintenance. Please use the MockWalletAgent for now.`;
   }
   private walletManager: WalletManager;
@@ -32,7 +32,7 @@ export class WalletAgent extends AgenticWorkflow {
   private readonly FAUCET_ADDRESS: string;
   private readonly MIN_BALANCE: number;
   private readonly FAUCET_AMOUNT: number;
-  private readonly FAUCET_PASSWORD: string;
+  // Removed FAUCET_PASSWORD as it's not needed in mock system
   private readonly VALID_CATEGORIES: string[];
   private readonly INTENT_MAP: { [key: string]: string };
 
@@ -47,7 +47,6 @@ export class WalletAgent extends AgenticWorkflow {
     this.FAUCET_ADDRESS = '0x08Bb6eA809A2d6c13D57166Fa3ede48C0ae9a70e';
     this.MIN_BALANCE = 0.1;
     this.FAUCET_AMOUNT = 1;
-    this.FAUCET_PASSWORD = 'faucet123';
     
     // Define valid categories once
     this.VALID_CATEGORIES = [
@@ -395,7 +394,7 @@ Note: Make sure to remember this password as you'll need it to access your walle
         return "⚠️ Password must be at least 8 characters long. Please try again with a longer password.";
       }
 
-      const wallet = await this.walletManager.createWallet(password);
+      const wallet = await this.walletManager.createWallet();
       // Store session
       localStorage.setItem('walletSession', JSON.stringify({
         password,
@@ -412,7 +411,7 @@ Your wallet address: ${wallet.address}
 
 ⚠️ IMPORTANT: Below is your mnemonic phrase. Write it down and keep it safe - you'll need it to recover your wallet if you forget your password:
 
-${wallet.mnemonic}
+No mnemonic in mock system
 
 Never share your mnemonic phrase with anyone! I'll help you check your balance and send TURA when you need to.`;
     } catch (error: unknown) {
@@ -539,7 +538,7 @@ Just say "yes" to confirm.`;
         this.FAUCET_ADDRESS,
         recipientAddress,
         this.FAUCET_AMOUNT.toString(),
-        this.FAUCET_PASSWORD
+        // Remove password parameter in mock system
       );
 
       this.isWaitingForFaucetConfirmation = false;

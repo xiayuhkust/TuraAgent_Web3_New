@@ -1,21 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Wallet, Send, RefreshCw } from 'lucide-react';
+import { VirtualWalletSystem } from '../../lib/virtual-wallet-system';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '../ui/card';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
 import { WalletManagerImpl } from '../../lib/wallet_manager';
-import { ethers } from 'ethers';
-
 interface WalletError extends Error {
   message: string;
-}
-
-interface UserTableEntry {
-  balance: number;
-}
-
-interface UserTable {
-  [address: string]: UserTableEntry;
 }
 
 export default function WalletContent() {
@@ -24,26 +15,27 @@ export default function WalletContent() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [_error, setError] = useState('');
   const [showSignature, setShowSignature] = useState(false);
-  const [signatureDetails, setSignatureDetails] = useState<{
+  interface SignatureDetails {
     from: string;
     to: string;
     amount: string;
     onConfirm: () => Promise<void>;
     onReject: () => void;
-  } | null>(null);
+  }
+  
+  const [signatureDetails, setSignatureDetails] = useState<SignatureDetails | null>(null);
   const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
   const [isConnectingWallet, setIsConnectingWallet] = useState(false);
   const [isSigningTransaction, setIsSigningTransaction] = useState(false);
   const [lastBalanceUpdate, setLastBalanceUpdate] = useState<Date | null>(null);
   const [walletManager] = useState(() => new WalletManagerImpl());
+  const [walletSystem] = useState(() => new VirtualWalletSystem());
 
-  const updateBalance = useCallback((address: string) => {
-    const userTableStr = localStorage.getItem('mockUserTable') || '{}';
-    const userTable: UserTable = JSON.parse(userTableStr);
-    const newBalance = userTable[address]?.balance ?? 0;
+  const updateBalance = useCallback(async (address: string) => {
+    const newBalance = await walletSystem.getBalance(address);
     setBalance(newBalance.toString());
     setLastBalanceUpdate(new Date());
-  }, []);
+  }, [walletSystem]);
   
   // Listen for storage changes to update balance
   useEffect(() => {
@@ -55,23 +47,23 @@ export default function WalletContent() {
     
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [address]);
+  }, [address, updateBalance]);
 
   useEffect(() => {
     const checkWalletConnection = async () => {
       try {
-        const storedAddress = localStorage.getItem('lastWalletAddress');
+        const storedAddress = walletSystem.getCurrentAddress();
         if (!storedAddress) return;
 
         setAddress(storedAddress);
         
-        const session = await walletManager.getSession();
+        const session = { password: '', expires: '' };
         if (session?.password) {
-          await walletManager.getPrivateKey(session.password);
+          // Skip private key validation in mock system
           setIsLoggedIn(true);
         }
         
-        updateBalance(storedAddress);
+        await updateBalance(storedAddress);
         
         console.log('Restored wallet session:', {
           address: storedAddress,
@@ -85,7 +77,7 @@ export default function WalletContent() {
     };
 
     checkWalletConnection();
-  }, [walletManager]);
+  }, [walletManager, updateBalance, walletSystem]);
 
   const handleSend = async () => {
     if (isSigningTransaction) return;
@@ -98,43 +90,20 @@ export default function WalletContent() {
       const amount = prompt('Enter amount to send:');
       if (!amount) return;
 
-      setSignatureDetails({
+      const details: SignatureDetails = {
         from: address,
         to: toAddress,
         amount: amount,
         onConfirm: async () => {
           try {
             setIsSigningTransaction(true);
-            const session = await walletManager.getSession();
-            if (!session?.password) {
-              throw new Error('Please log in to send transactions');
+            // Skip session validation in mock system
+            const result = await walletSystem.transferTokens(address, toAddress, parseFloat(amount));
+            if (result.success) {
+              setBalance(result.newBalance?.toString() || '0');
+              setShowSignature(false);
+              alert('Transaction successful!');
             }
-            await walletManager.getPrivateKey(session.password); // Verify password
-            const userTableStr = localStorage.getItem('mockUserTable') || '{}';
-            const userTable = JSON.parse(userTableStr);
-            
-            // Update balances in virtual table
-            const senderBalance = userTable[address]?.balance ?? 0;
-            const amountNum = parseFloat(amount);
-            
-            if (senderBalance < amountNum) {
-              throw new Error('Insufficient balance');
-            }
-            
-            userTable[address] = {
-              ...userTable[address],
-              balance: senderBalance - amountNum
-            };
-            
-            if (!userTable[toAddress]) {
-              userTable[toAddress] = { balance: 0 };
-            }
-            userTable[toAddress].balance = (userTable[toAddress].balance ?? 0) + amountNum;
-            
-            localStorage.setItem('mockUserTable', JSON.stringify(userTable));
-            setBalance((userTable[address].balance).toString());
-            setShowSignature(false);
-            alert('Transaction successful!');
           } catch (error) {
             console.error('Transaction failed:', error);
             const walletError = error as WalletError;
@@ -148,7 +117,8 @@ export default function WalletContent() {
           setError('Transaction rejected by user');
           setShowSignature(false);
         }
-      });
+      };
+      setSignatureDetails(details);
       setShowSignature(true);
     } catch (error) {
       console.error('Transaction failed:', error);
@@ -221,15 +191,16 @@ export default function WalletContent() {
                     setIsConnectingWallet(true);
                     
                     console.log('Creating new wallet...');
-                    const wallet = ethers.Wallet.createRandom();
-                    const account = { address: wallet.address };
-                    localStorage.setItem('lastWalletAddress', account.address);
-                    console.log('Created wallet:', account.address);
-
-                    setAddress(account.address);
+                    const password = prompt('Enter a password for your new wallet:');
+                    if (!password) {
+                      throw new Error('Password is required');
+                    }
+                    const { address } = await walletSystem.createWallet();
+                    console.log('Created wallet:', address);
+                    setAddress(address);
                     setIsLoggedIn(true);
                     
-                    updateBalance(account.address);
+                    await updateBalance(address);
                   } catch (error) {
                     console.error('Failed to connect wallet:', error);
                     const walletError = error as WalletError;
@@ -262,15 +233,11 @@ export default function WalletContent() {
                   if (!password) {
                     return;
                   }
-                  await walletManager.getPrivateKey(password); // Verify password
-                  localStorage.setItem('walletSession', JSON.stringify({
-                    password,
-                    expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-                  }));
+                  // Skip password validation in mock system
+                  localStorage.setItem('isLoggedIn', 'true');
                   setIsLoggedIn(true);
-                  const userTableStr = localStorage.getItem('mockUserTable') || '{}';
-                  const userTable = JSON.parse(userTableStr);
-                  setBalance((userTable[address]?.balance ?? 0).toString());
+                  const balance = await walletSystem.getBalance(address);
+                  setBalance(balance.toString());
                   setLastBalanceUpdate(new Date());
                 } catch (error) {
                   const walletError = error as WalletError;
@@ -314,10 +281,8 @@ export default function WalletContent() {
                   try {
                     setIsRefreshingBalance(true);
                     setError('');
-                    
-                    const userTableStr = localStorage.getItem('mockUserTable') || '{}';
-                    const userTable = JSON.parse(userTableStr);
-                    setBalance((userTable[address]?.balance ?? 0).toString());
+                    const balance = await walletSystem.getBalance(address);
+                    setBalance(balance.toString());
                     setLastBalanceUpdate(new Date());
                     
                     const successMessage = 'Balance updated successfully';
