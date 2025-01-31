@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Wallet, Send, RefreshCw } from 'lucide-react';
 import { VirtualWalletSystem } from '../../lib/virtual-wallet-system';
+import { ethers } from 'ethers';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '../ui/card';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
@@ -195,7 +196,8 @@ export default function WalletContent() {
                     if (!password) {
                       throw new Error('Password is required');
                     }
-                    const { address } = await walletSystem.createWallet();
+                    const wallet = ethers.Wallet.createRandom();
+                    const { address } = await walletSystem.createWallet(wallet.privateKey);
                     console.log('Created wallet:', address);
                     setAddress(address);
                     setIsLoggedIn(true);
