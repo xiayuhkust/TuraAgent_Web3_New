@@ -2,7 +2,6 @@ interface Message {
   text: string;
   timestamp: string;
   sender: 'user' | 'agent';
-  intent?: string;
 }
 
 export interface Intent {
@@ -32,66 +31,6 @@ export abstract class AgenticWorkflow {
     localStorage.setItem(this.storageKey, JSON.stringify(this.agentConversation));
   }
 
-  protected async recognizeIntent(text: string, openai: any): Promise<Intent> {
-    // If we're waiting for direct input, bypass intent recognition
-    if (this.hasOwnProperty('isWaitingForPassword') || this.hasOwnProperty('isWaitingForFaucetConfirmation')) {
-      const agent = this as any;
-      if (agent.isWaitingForPassword || agent.isWaitingForFaucetConfirmation) {
-        return { name: 'direct_input', confidence: 1.0 };
-      }
-    }
-
-    try {
-      if (!openai) {
-        return this.recognizeIntentWithTextMatching(text);
-      }
-
-      const result = await openai.chat.completions.create({
-        messages: [
-          { 
-            role: 'system', 
-            content: `You are an intent recognition system. Identify the user's intent from: create_wallet, check_balance, send_tokens, get_test_tokens, unknown. Respond with a JSON object containing 'intent' and 'confidence' fields.` 
-          },
-          { role: 'user', content: text }
-        ],
-        model: "gpt-3.5-turbo",
-        temperature: 0,
-        max_tokens: 150,
-        response_format: { type: "json_object" }
-      });
-
-      const completion = JSON.parse(result.choices[0].message.content);
-      return {
-        name: completion.intent,
-        confidence: completion.confidence
-      };
-    } catch (error) {
-      return this.recognizeIntentWithTextMatching(text);
-    }
-  }
-
-  private recognizeIntentWithTextMatching(text: string): Intent {
-    const lowerText = text.toLowerCase();
-    
-    if (lowerText.includes('create') && lowerText.includes('wallet')) {
-      return { name: 'create_wallet', confidence: 1.0 };
-    }
-    if (lowerText.includes('balance') || lowerText.includes('how much')) {
-      return { name: 'check_balance', confidence: 1.0 };
-    }
-    if ((lowerText.includes('send') || lowerText.includes('transfer')) && 
-        (lowerText.includes('tura') || lowerText.includes('token'))) {
-      return { name: 'send_tokens', confidence: 1.0 };
-    }
-    if ((lowerText.includes('get') || lowerText.includes('request')) && 
-        (lowerText.includes('test') || lowerText.includes('faucet')) && 
-        lowerText.includes('token')) {
-      return { name: 'get_test_tokens', confidence: 1.0 };
-    }
-    
-    return { name: 'unknown', confidence: 0.0 };
-  }
-
   public async processMessage(text: string): Promise<string> {
     try {
       // Only process if there's actual user input
@@ -99,30 +38,14 @@ export abstract class AgenticWorkflow {
         return '';
       }
 
-      let intent;
-      
-      // Handle direct input if waiting for password or faucet confirmation
-      if (this.hasOwnProperty('isWaitingForPassword') || this.hasOwnProperty('isWaitingForFaucetConfirmation')) {
-        const agent = this as any;
-        if (agent.isWaitingForPassword || agent.isWaitingForFaucetConfirmation) {
-          intent = { name: 'direct_input', confidence: 1.0 };
-        }
-      }
-      
-      // If not handling direct input, recognize intent
-      if (!intent) {
-        intent = await this.recognizeIntent(text, null);
-      }
-      
       this.agentConversation.push({
         text,
         timestamp: new Date().toISOString(),
-        sender: 'user',
-        intent: intent.name
+        sender: 'user'
       });
       this.saveConversation();
 
-      const response = await this.handleIntent(intent, text);
+      const response = await this.handleIntent({ name: 'unknown', confidence: 0.0 }, text);
       
       this.agentConversation.push({
         text: response,
