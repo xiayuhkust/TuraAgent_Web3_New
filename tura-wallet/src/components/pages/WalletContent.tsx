@@ -1,12 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Wallet, Send, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '../ui/card';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
-import { WalletService } from '../../lib/wallet';
+import { WalletManagerImpl } from '../../lib/wallet_manager';
+import { ethers } from 'ethers';
 
 interface WalletError extends Error {
   message: string;
+}
+
+interface UserTableEntry {
+  balance: number;
+}
+
+interface UserTable {
+  [address: string]: UserTableEntry;
 }
 
 export default function WalletContent() {
@@ -26,34 +35,49 @@ export default function WalletContent() {
   const [isConnectingWallet, setIsConnectingWallet] = useState(false);
   const [isSigningTransaction, setIsSigningTransaction] = useState(false);
   const [lastBalanceUpdate, setLastBalanceUpdate] = useState<Date | null>(null);
-  const [walletService] = useState(() => new WalletService());
+  const [walletManager] = useState(() => new WalletManagerImpl());
+
+  const updateBalance = useCallback((address: string) => {
+    const userTableStr = localStorage.getItem('mockUserTable') || '{}';
+    const userTable: UserTable = JSON.parse(userTableStr);
+    const newBalance = userTable[address]?.balance ?? 0;
+    setBalance(newBalance.toString());
+    setLastBalanceUpdate(new Date());
+  }, []);
+  
+  // Listen for storage changes to update balance
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'mockUserTable' && address) {
+        updateBalance(address);
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [address]);
 
   useEffect(() => {
     const checkWalletConnection = async () => {
       try {
         const storedAddress = localStorage.getItem('lastWalletAddress');
-        if (storedAddress) {
-          setAddress(storedAddress);
-          
-          const session = await walletManager.getSession();
-          if (session?.password) {
-            const privateKey = await walletManager.getPrivateKey(session.password);
-            if (privateKey) {
-              setIsLoggedIn(true);
-              const balance = await walletManager.getBalance(storedAddress);
-              setBalance(balance);
-              console.log('Restored wallet session:', {
-                address: storedAddress,
-                hasSession: true,
-                sessionExpires: new Date(session.expires).toLocaleString()
-              });
-            }
-          } else {
-            const balance = await walletManager.getBalance(storedAddress);
-            setBalance(balance);
-            setLastBalanceUpdate(new Date());
-          }
+        if (!storedAddress) return;
+
+        setAddress(storedAddress);
+        
+        const session = await walletManager.getSession();
+        if (session?.password) {
+          await walletManager.getPrivateKey(session.password);
+          setIsLoggedIn(true);
         }
+        
+        updateBalance(storedAddress);
+        
+        console.log('Restored wallet session:', {
+          address: storedAddress,
+          hasSession: !!session?.password,
+          sessionExpires: session?.expires ? new Date(session.expires).toLocaleString() : null
+        });
       } catch (error) {
         console.error('Failed to check wallet connection:', error);
         setError('Failed to load wallet data');
@@ -61,20 +85,7 @@ export default function WalletContent() {
     };
 
     checkWalletConnection();
-
-    // Listen for account changes
-    if (window.ethereum) {
-      window.ethereum.on('accountsChanged', (accounts: string[]) => {
-        if (accounts.length > 0) {
-          setAddress(accounts[0]);
-          setIsLoggedIn(true);
-        } else {
-          setAddress('');
-          setIsLoggedIn(false);
-        }
-      });
-    }
-  }, [walletService]);
+  }, [walletManager]);
 
   const handleSend = async () => {
     if (isSigningTransaction) return;
@@ -94,15 +105,36 @@ export default function WalletContent() {
         onConfirm: async () => {
           try {
             setIsSigningTransaction(true);
-            const receipt = await walletService.sendTransaction(
-              address,
-              toAddress,
-              amount
-            );
-            const newBalance = await walletService.getBalance(address);
-            setBalance(newBalance);
+            const session = await walletManager.getSession();
+            if (!session?.password) {
+              throw new Error('Please log in to send transactions');
+            }
+            await walletManager.getPrivateKey(session.password); // Verify password
+            const userTableStr = localStorage.getItem('mockUserTable') || '{}';
+            const userTable = JSON.parse(userTableStr);
+            
+            // Update balances in virtual table
+            const senderBalance = userTable[address]?.balance ?? 0;
+            const amountNum = parseFloat(amount);
+            
+            if (senderBalance < amountNum) {
+              throw new Error('Insufficient balance');
+            }
+            
+            userTable[address] = {
+              ...userTable[address],
+              balance: senderBalance - amountNum
+            };
+            
+            if (!userTable[toAddress]) {
+              userTable[toAddress] = { balance: 0 };
+            }
+            userTable[toAddress].balance = (userTable[toAddress].balance ?? 0) + amountNum;
+            
+            localStorage.setItem('mockUserTable', JSON.stringify(userTable));
+            setBalance((userTable[address].balance).toString());
             setShowSignature(false);
-            alert('Transaction successful! Hash: ' + receipt.transactionHash);
+            alert('Transaction successful!');
           } catch (error) {
             console.error('Transaction failed:', error);
             const walletError = error as WalletError;
@@ -149,7 +181,7 @@ export default function WalletContent() {
                 
                 <div className="p-4 bg-secondary rounded-lg">
                   <div className="text-sm text-muted-foreground">Balance</div>
-                  <div className="text-2xl font-bold">{balance} TURA</div>
+                  <div className="text-2xl font-bold" data-balance-display>{balance} TURA</div>
                   <div className="flex justify-between items-center mt-1">
                     {lastBalanceUpdate && (
                       <div className="text-xs text-muted-foreground">
@@ -188,21 +220,16 @@ export default function WalletContent() {
                     setError('');
                     setIsConnectingWallet(true);
                     
-                    console.log('Connecting to MetaMask...');
-                    const account = await walletService.createAccount();
-                    console.log('Connected to wallet:', account.address);
+                    console.log('Creating new wallet...');
+                    const wallet = ethers.Wallet.createRandom();
+                    const account = { address: wallet.address };
+                    localStorage.setItem('lastWalletAddress', account.address);
+                    console.log('Created wallet:', account.address);
 
                     setAddress(account.address);
                     setIsLoggedIn(true);
                     
-                    try {
-                      const balance = await walletService.getBalance(account.address);
-                      setBalance(balance);
-                      setLastBalanceUpdate(new Date());
-                    } catch (e) {
-                      console.warn('Failed to get initial balance:', e);
-                      setBalance('0');
-                    }
+                    updateBalance(account.address);
                   } catch (error) {
                     console.error('Failed to connect wallet:', error);
                     const walletError = error as WalletError;
@@ -231,7 +258,6 @@ export default function WalletContent() {
                 if (isConnectingWallet) return;
                 try {
                   setError('');
-                  setIsLoggingIn(true);
                   const password = prompt('Enter your wallet password:');
                   if (!password) {
                     return;
@@ -242,13 +268,10 @@ export default function WalletContent() {
                     expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
                   }));
                   setIsLoggedIn(true);
-                  try {
-                    const balance = await walletService.getBalance(account.address);
-                    setBalance(balance);
-                    setLastBalanceUpdate(new Date());
-                  } catch (error) {
-                    console.warn('Failed to get initial balance:', error);
-                  }
+                  const userTableStr = localStorage.getItem('mockUserTable') || '{}';
+                  const userTable = JSON.parse(userTableStr);
+                  setBalance((userTable[address]?.balance ?? 0).toString());
+                  setLastBalanceUpdate(new Date());
                 } catch (error) {
                   const walletError = error as WalletError;
                   setError('Connection failed: ' + walletError.message);
@@ -292,9 +315,9 @@ export default function WalletContent() {
                     setIsRefreshingBalance(true);
                     setError('');
                     
-                    const newBalance = await walletService.getBalance(address);
-                    
-                    setBalance(newBalance);
+                    const userTableStr = localStorage.getItem('mockUserTable') || '{}';
+                    const userTable = JSON.parse(userTableStr);
+                    setBalance((userTable[address]?.balance ?? 0).toString());
                     setLastBalanceUpdate(new Date());
                     
                     const successMessage = 'Balance updated successfully';

@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { Buffer } from 'buffer';
 
-interface EncryptedKeyData {
+export interface EncryptedKeyData {
   encryptedKey: string;
   salt: string;
   iv: string;

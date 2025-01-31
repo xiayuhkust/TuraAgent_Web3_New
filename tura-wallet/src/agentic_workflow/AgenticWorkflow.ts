@@ -33,6 +33,14 @@ export abstract class AgenticWorkflow {
   }
 
   protected async recognizeIntent(text: string, openai: any): Promise<Intent> {
+    // If we're waiting for direct input, bypass intent recognition
+    if (this.hasOwnProperty('isWaitingForPassword') || this.hasOwnProperty('isWaitingForFaucetConfirmation')) {
+      const agent = this as any;
+      if (agent.isWaitingForPassword || agent.isWaitingForFaucetConfirmation) {
+        return { name: 'direct_input', confidence: 1.0 };
+      }
+    }
+
     try {
       if (!openai) {
         return this.recognizeIntentWithTextMatching(text);
@@ -71,7 +79,8 @@ export abstract class AgenticWorkflow {
     if (lowerText.includes('balance') || lowerText.includes('how much')) {
       return { name: 'check_balance', confidence: 1.0 };
     }
-    if (lowerText.includes('send') && (lowerText.includes('tura') || lowerText.includes('token'))) {
+    if ((lowerText.includes('send') || lowerText.includes('transfer')) && 
+        (lowerText.includes('tura') || lowerText.includes('token'))) {
       return { name: 'send_tokens', confidence: 1.0 };
     }
     if ((lowerText.includes('get') || lowerText.includes('request')) && 
@@ -85,9 +94,26 @@ export abstract class AgenticWorkflow {
 
   public async processMessage(text: string): Promise<string> {
     try {
-      const intent = await this.recognizeIntent(text, null);
+      // Only process if there's actual user input
+      if (!text || text.trim() === '') {
+        return '';
+      }
+
+      let intent;
       
-      // Store user message with intent
+      // Handle direct input if waiting for password or faucet confirmation
+      if (this.hasOwnProperty('isWaitingForPassword') || this.hasOwnProperty('isWaitingForFaucetConfirmation')) {
+        const agent = this as any;
+        if (agent.isWaitingForPassword || agent.isWaitingForFaucetConfirmation) {
+          intent = { name: 'direct_input', confidence: 1.0 };
+        }
+      }
+      
+      // If not handling direct input, recognize intent
+      if (!intent) {
+        intent = await this.recognizeIntent(text, null);
+      }
+      
       this.agentConversation.push({
         text,
         timestamp: new Date().toISOString(),
@@ -96,10 +122,8 @@ export abstract class AgenticWorkflow {
       });
       this.saveConversation();
 
-      // Process intent and get response
       const response = await this.handleIntent(intent, text);
       
-      // Store agent response
       this.agentConversation.push({
         text: response,
         timestamp: new Date().toISOString(),
@@ -107,7 +131,6 @@ export abstract class AgenticWorkflow {
       });
       this.saveConversation();
 
-      // Maintain conversation size limit
       if (this.agentConversation.length > 100) {
         this.agentConversation = this.agentConversation.slice(-100);
         this.saveConversation();

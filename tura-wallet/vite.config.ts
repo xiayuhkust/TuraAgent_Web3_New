@@ -35,7 +35,7 @@ export default defineConfig({
           proxy.on('error', (err, _req, _res) => {
             console.log('proxy error', err);
           });
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
+          proxy.on('proxyReq', (proxyReq, req: any, _res) => {
             console.log('Proxying:', req.method, req.url, '=>', proxyReq.path);
             if (req.body) {
               const bodyData = JSON.stringify(req.body);
@@ -44,7 +44,7 @@ export default defineConfig({
               proxyReq.write(bodyData);
             }
           });
-          proxy.on('proxyRes', (proxyRes, req, res) => {
+          proxy.on('proxyRes', (proxyRes, _req, res) => {
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
             res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
