@@ -52,6 +52,14 @@ export const agents: Agent[] = [
   }
 ];
 
+// Get references to existing agent instances
+const walletAgent = officialAgents.find(a => a.name === 'WalletAgent')?.instance as MockWalletAgent;
+const agentManager = officialAgents.find(a => a.name === 'AgentManager')?.instance as MockAgentManager;
+
+if (!walletAgent || !agentManager) {
+  throw new Error('Required official agents not found');
+}
+
 export const workflows: Workflow[] = [
   {
     name: 'TuraWorkflow',
@@ -63,7 +71,7 @@ export const workflows: Workflow[] = [
     turaToken: '0x0000000000000000000000000000000000000000',
     usdtToken: '0x0000000000000000000000000000000000000000',
     status: 'VALID',
-    instance: new TuraWorkflow()
+    instance: new TuraWorkflow(walletAgent, agentManager)
   }
 ];
 

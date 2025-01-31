@@ -1,18 +1,55 @@
 import { AgenticWorkflow, Intent } from './AgenticWorkflow';
 import { addWorkflowRecord, startWorkflowRun, completeWorkflowRun, getAgentFee } from '../stores/store-econ';
+import { MockWalletAgent } from './MockWalletAgent';
+import { MockAgentManager } from './MockAgentManager';
 
 export class TuraWorkflow extends AgenticWorkflow {
   private currentRunId: string | null = null;
 
-  constructor() {
+  constructor(
+    private mockWalletAgent: MockWalletAgent,
+    private mockAgentManager: MockAgentManager
+  ) {
     super('TuraWorkflow', 'Automated workflow for wallet setup and agent registration');
   }
 
+  private async delegateToWalletAgent(text: string): Promise<string> {
+    const response = await this.mockWalletAgent.processMessage(text);
+    return `[Via WalletAgent] ${response}`;
+  }
+
+  private async delegateToAgentManager(text: string): Promise<string> {
+    const response = await this.mockAgentManager.processMessage(text);
+    return `[Via AgentManager] ${response}`;
+  }
+
   protected async handleIntent(_intent: Intent, text: string): Promise<string> {
-    if (text.toLowerCase() === 'start workflow') {
+    const lowerText = text.toLowerCase();
+
+    // Wallet operations take precedence
+    if (lowerText.includes('wallet') || lowerText.includes('balance') || 
+        lowerText.includes('faucet') || lowerText.includes('create') || 
+        lowerText.includes('send') || lowerText.includes('transfer')) {
+      return await this.delegateToWalletAgent(text);
+    }
+
+    // Agent management operations
+    if (lowerText.includes('deploy') || lowerText.includes('agent') || 
+        lowerText.includes('register') || lowerText.includes('metadata')) {
+      return await this.delegateToAgentManager(text);
+    }
+
+    // Workflow execution
+    if (lowerText === 'start workflow' || lowerText.includes('start automated') || 
+        lowerText.includes('run workflow')) {
       return await this.startWorkflow();
     }
-    return 'Type "Start Workflow" or use the long-press button to begin the automated workflow.';
+
+    return 'I can help with:\n' +
+           '1. Wallet operations (create, check balance, send tokens)\n' +
+           '2. Agent management (deploy, register)\n' +
+           '3. Workflow execution (start workflow)\n\n' +
+           'What would you like to do?';
   }
 
   public async startWorkflow(): Promise<string> {
