@@ -16,6 +16,7 @@ interface BaseAgent {
   contractAddress: string;
   description: string;
   owner: string;
+  company?: string;
 }
 
 export interface OfficialAgent extends BaseAgent {

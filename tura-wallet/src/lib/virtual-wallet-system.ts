@@ -19,6 +19,14 @@ export interface AgentTable {
 }
 
 export class VirtualWalletSystem {
+  static instance: VirtualWalletSystem;
+
+  constructor() {
+    if (!VirtualWalletSystem.instance) {
+      VirtualWalletSystem.instance = this;
+    }
+    return VirtualWalletSystem.instance;
+  }
   private readonly userTableKey = 'mockUserTable';
   private readonly addressKey = 'lastWalletAddress';
   private readonly agentTableKey = 'mockAgentTable';
