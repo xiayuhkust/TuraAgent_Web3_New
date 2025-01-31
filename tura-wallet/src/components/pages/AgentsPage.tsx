@@ -1,11 +1,11 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Bot, Plus, List, Grid } from 'lucide-react';
 import { VirtualWalletSystem as WalletSystem } from '../../lib/virtual-wallet-system';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { AgentManager } from '../../agentic_workflow/AgentManager';
-import { agents, workflows } from '../../stores/agent-store';
+import { agents, workflows, subscribeToAgentStore } from '../../stores/agent-store';
 import { Agent, Workflow } from '../../types/agentTypes';
 // Remove VirtualWalletSystem import since we renamed it above
 import { TuraWorkflow } from '../../agentic_workflow/TuraWorkflow';
@@ -43,6 +43,16 @@ export default function AgentsPage() {
   const [password, setPassword] = useState('');
   const [isDeploying, setIsDeploying] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'card'>('card');
+  const [, setForceRender] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToAgentStore(() => {
+      setForceRender(prev => prev + 1);
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, []);
   const [deploymentStatus, setDeploymentStatus] = useState<{
     success?: string;
     error?: string;

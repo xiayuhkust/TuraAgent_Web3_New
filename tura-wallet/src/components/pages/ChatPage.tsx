@@ -454,6 +454,26 @@ export default function ChatPage() {
                     walletSystem.logoutAccount();
                     setChatAddress('');
                     setChatBalance('0');
+                    
+                    // Clear all agent message histories
+                    if (walletAgent) {
+                      walletAgent.clearMessages();
+                    }
+                    officialAgents.forEach(agent => {
+                      if (agent.instance?.clearMessages) {
+                        agent.instance.clearMessages();
+                      }
+                    });
+                    agents.forEach(agent => {
+                      if (agent.instance?.clearMessages) {
+                        agent.instance.clearMessages();
+                      }
+                    });
+                    workflows.forEach(workflow => {
+                      if (workflow.instance?.clearMessages) {
+                        workflow.instance.clearMessages();
+                      }
+                    });
                     updateMessages([]);
                   }}
                 >
@@ -709,8 +729,8 @@ export default function ChatPage() {
         {/* Chat Area */}
         <div className="flex-1 flex flex-col">
           <div className="relative flex-1">
-            <ScrollArea className="flex-1 pr-4">
-              <div className="space-y-4 pb-24">
+            <ScrollArea className="flex-1 pr-4 overflow-visible">
+              <div className="space-y-4 pb-16">
                 {messages.map((message) => (
                   <div
                     key={message.id}
@@ -735,8 +755,7 @@ export default function ChatPage() {
                 <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
-            <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-background via-background/80 to-transparent" />
-            <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-6 bg-background opacity-90" />
+            <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-background via-background/60 to-transparent" />
           </div>
           
           <div className="flex gap-2 mt-4">
