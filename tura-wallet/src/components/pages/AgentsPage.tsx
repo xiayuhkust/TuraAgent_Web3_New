@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { AgentManager } from '../../agentic_workflow/AgentManager';
-import { agents, workflows, subscribeToAgentStore } from '../../stores/agent-store';
+import { agents, workflows, subscribeToAgentStore, getAllAgents } from '../../stores/agent-store';
 import { Agent, Workflow } from '../../types/agentTypes';
 // Remove VirtualWalletSystem import since we renamed it above
 import { TuraWorkflow } from '../../agentic_workflow/TuraWorkflow';
@@ -214,8 +214,8 @@ export default function AgentsPage() {
           <div className="flex-1 overflow-hidden">
             <Tabs defaultValue="workflows" value={storeTab} onValueChange={setStoreTab} className="h-full flex flex-col">
               <TabsList className="w-full grid grid-cols-2">
-                <TabsTrigger value="workflows" className="text-lg">Workflows</TabsTrigger>
-                <TabsTrigger value="agents" className="text-lg">Community Agents</TabsTrigger>
+                <TabsTrigger value="workflows" className="text-lg">Workflows ({workflows.length})</TabsTrigger>
+                <TabsTrigger value="agents" className="text-lg">Agents ({officialAgents.length + agents.length})</TabsTrigger>
               </TabsList>
               
               <TabsContent value="workflows" className="flex-1 p-4 overflow-auto">
@@ -351,7 +351,7 @@ export default function AgentsPage() {
 
               <TabsContent value="agents" className="flex-1 p-4 overflow-auto">
                 <div className={viewMode === 'list' ? 'space-y-2' : 'space-y-4'}>
-                  {agents.map((agent) => (
+                  {getAllAgents().map((agent) => (
                     viewMode === 'list' ? (
                       <div
                         key={agent.contractAddress}
@@ -403,7 +403,9 @@ export default function AgentsPage() {
                               <p>Contract: {truncateText(agent.contractAddress, TRUNCATE_LENGTHS.address)}</p>
                               <p>Owner: {truncateText(agent.owner, TRUNCATE_LENGTHS.address)}</p>
                               <p>Company: {truncateText(agent.company, TRUNCATE_LENGTHS.company)}</p>
-                              <p>MultiSig: {truncateText(agent.multiSigAddress || '', TRUNCATE_LENGTHS.address)}</p>
+                              {'multiSigAddress' in agent && agent.multiSigAddress && (
+                                <p>MultiSig: {truncateText(agent.multiSigAddress, TRUNCATE_LENGTHS.address)}</p>
+                              )}
                               <p className="text-primary font-semibold">
                                 Fee: {agent.feePerRequest} TURA
                               </p>

@@ -38,11 +38,17 @@ export function subscribeToAgentStore(callback: () => void) {
   return () => storeEvents.removeEventListener('agentUpdate', handler);
 }
 
+// Initialize agents store (empty by default)
 export const agents: Agent[] = [];
 
 // Get references to existing agent instances
 const walletAgent = officialAgents.find(a => a.name === 'WalletAgent')?.instance;
 const agentManager = officialAgents.find(a => a.name === 'AgentManager')?.instance;
+
+// Initialize TuraWorkflow with the required agent instances
+if (!walletAgent || !agentManager || !(walletAgent instanceof MockWalletAgent) || !(agentManager instanceof MockAgentManager)) {
+  throw new Error('Required official agents not found or have incorrect type');
+}
 
 if (!walletAgent || !agentManager || !(walletAgent instanceof MockWalletAgent) || !(agentManager instanceof MockAgentManager)) {
   throw new Error('Required official agents not found or have incorrect type');
@@ -79,7 +85,9 @@ export const getWorkflow = (address: string): Workflow | undefined =>
   workflows.find(workflow => workflow.contractAddress.toLowerCase() === address.toLowerCase());
 
 // Helper to get all agents including official ones
-export const getAllAgents = (): (Agent | OfficialAgent)[] => [...officialAgents, ...agents];
+export const getAllAgents = (): (Agent | OfficialAgent)[] => {
+  return [...officialAgents, ...agents];
+};
 
 // Function to validate contract addresses
 export const isValidAddress = (address: string): boolean => /^0x[a-fA-F0-9]{40}$/.test(address);

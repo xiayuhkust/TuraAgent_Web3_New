@@ -1,6 +1,7 @@
 import { AgenticWorkflow, Intent } from './AgenticWorkflow';
 import { OpenAI } from 'openai';
 import { VirtualWalletSystem } from '../lib/virtual-wallet-system';
+import { Wallet } from 'ethers';
 
 // Initialize OpenAI client with API key from environment
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
@@ -78,15 +79,31 @@ Just let me know what you'd like to do!`;
   }
 
   private async handleCreateWallet(): Promise<string> {
-    const existingAddress = this.walletSystem.getCurrentAddress();
-    if (existingAddress) {
-      const balance = await this.walletSystem.getBalance(existingAddress);
-      return `You already have a wallet! Your address is: ${existingAddress} with ${balance} TURA. You can ask me to check your balance or get test tokens.`;
-    }
+    try {
+      const existingAddress = this.walletSystem.getCurrentAddress();
+      if (existingAddress) {
+        const balance = await this.walletSystem.getBalance(existingAddress);
+        return `You already have a wallet! Your address is: ${existingAddress} with ${balance} TURA. You can ask me to check your balance or get test tokens.`;
+      }
 
-    const { address } = this.walletSystem.createWallet();
-    this.walletSystem.setCurrentAddress(address);
-    return `🎉 Wallet created successfully!\nYour wallet address: ${address}\nYour initial balance is 0 TURA. You can request test tokens using the faucet.`;
+      const wallet = Wallet.createRandom();
+      if (!wallet.mnemonic?.phrase) {
+        throw new Error('Failed to generate mnemonic phrase');
+      }
+
+      // Keep the '0x' prefix for the private key
+      const privateKey = wallet.privateKey;
+        
+      const { address } = this.walletSystem.createWallet(privateKey);
+      this.walletSystem.setCurrentAddress(address);
+      
+      return `🎉 Wallet created successfully!\nYour wallet address: ${address}\n\n` +
+             `🔑 Important: Save your mnemonic phrase:\n${wallet.mnemonic.phrase}\n\n` +
+             `Your initial balance is 0 TURA. You can request test tokens using the faucet.`;
+    } catch (error) {
+      console.error('Error creating wallet:', error);
+      return '❌ Failed to create wallet. Please try again.';
+    }
   }
 
   private async recognizeIntent(text: string): Promise<Intent> {
