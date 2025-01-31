@@ -37,14 +37,12 @@ export default defineConfig({
           proxy.on('error', (err: Error) => {
             console.log('proxy error', err);
           });
-          proxy.on('proxyReq', (proxyReq: { path: string; setHeader: (key: string, value: string | number) => void; write: (data: string) => void }, req: IncomingMessage & { body?: unknown }) => {
-            if (req.method === 'POST' && req.body) {
-              const bodyData = JSON.stringify(req.body);
-              console.log('Proxying:', req.method, req.url, '=>', proxyReq.path);
-              proxyReq.setHeader('Content-Type', 'application/json');
-              proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
-              proxyReq.write(bodyData);
-            }
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Proxying:', req.method, req.url, '=>', proxyReq.path);
+            const bodyData = JSON.stringify({});
+            proxyReq.setHeader('Content-Type', 'application/json');
+            proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+            proxyReq.write(bodyData);
           });
           proxy.on('proxyRes', (proxyRes: { statusCode?: number }, _req: IncomingMessage, res: ServerResponse) => {
             res.setHeader('Access-Control-Allow-Origin', '*');

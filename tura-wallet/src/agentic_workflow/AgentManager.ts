@@ -8,6 +8,7 @@ import {
   checkTuraBalance,
   getTuraProvider
 } from '../contracts/TuraAgent';
+import { WalletManagerImpl } from '../lib/wallet_manager';
 // Using virtual wallet system
 import { AgentData } from '../types/agentTypes';
 import { addAgent, getAgentsByOwner } from '../lib/agentStorage';
@@ -533,32 +534,28 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
    * @param password The wallet password to decrypt private key
    * @returns The deployed contract address
    */
-  public async deployTestAgent(address: string): Promise<string> {
+  public async deployTestAgent(address: string, password: string): Promise<string> {
     try {
       console.log('Starting test deployment for address:', address);
       
-      // Generate mock private key for testing
-      const privateKey = '0x' + Date.now().toString(16).padStart(64, '0');
+      const walletManager = new WalletManagerImpl();
+      const privateKey = await walletManager.getPrivateKey(password);
       if (!privateKey) {
         throw new Error('No private key found');
       }
 
-      // Get provider and create signer
       const provider = getTuraProvider();
       const signer = new ethers.Wallet(privateKey, provider);
 
-      // Check TURA balance before deployment
       const hasSufficientBalance = await checkTuraBalance(provider, address);
       if (!hasSufficientBalance) {
         throw new Error('Insufficient TURA balance. You need at least 0.1 TURA to deploy an agent contract.');
       }
 
-      // Deploy the contract
       console.log('Deploying test TuraAgent contract...');
       const contractAddress = await deployTuraAgent(signer);
       console.log('Test agent deployed at:', contractAddress);
 
-      // Store agent data for test deployment
       const agentData: AgentData = {
         name: 'Test Agent',
         description: 'Test deployment agent',
@@ -581,6 +578,7 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
       throw error;
     }
   }
+
   private async checkAgentStatus(): Promise<string> {
     const walletSystem = new VirtualWalletSystem();
     const address = walletSystem.getCurrentAddress();

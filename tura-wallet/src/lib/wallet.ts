@@ -1,5 +1,6 @@
-import { VirtualWalletSystem } from './virtual-wallet-system';
-
+import { ethers } from 'ethers';
+import { CHAIN_CONFIG } from './config';
+import { KeyManager } from './keyManager';
 export interface TransactionReceipt {
   transactionHash: string;
   status: boolean;
@@ -8,26 +9,40 @@ export interface TransactionReceipt {
 }
 
 export class WalletService {
-  private walletSystem: VirtualWalletSystem;
+  private provider: ethers.JsonRpcProvider;
 
   constructor() {
-    this.walletSystem = new VirtualWalletSystem();
+    console.log('Initializing ethers with chain config:', {
+      chainId: CHAIN_CONFIG.chainId,
+      chainName: CHAIN_CONFIG.chainName,
+      rpcUrl: CHAIN_CONFIG.rpcUrl,
+      nativeCurrency: CHAIN_CONFIG.nativeCurrency
+    });
+
+    this.provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.rpcUrl);
   }
 
   async createAccount(): Promise<{ address: string }> {
-    return this.walletSystem.createWallet();
+    const wallet = ethers.Wallet.createRandom();
+    return { address: wallet.address };
   }
 
   async getBalance(address: string) {
-    const balance = await this.walletSystem.getBalance(address);
+    const balance = await this.provider.getBalance(address);
     return balance.toString();
   }
 
   async sendTransaction(fromAddress: string, toAddress: string, amount: string) {
-    const result = await this.walletSystem.transferTokens(fromAddress, toAddress, Number(amount));
+    const tx = await this.provider.send("eth_sendTransaction", [
+      {
+        from: fromAddress,
+        to: toAddress,
+        value: ethers.parseEther(amount).toString()
+      }
+    ]);
     return {
-      transactionHash: 'mock_tx_' + Date.now(),
-      status: result.success,
+      transactionHash: tx,
+      status: true,
       from: fromAddress,
       to: toAddress
     };
