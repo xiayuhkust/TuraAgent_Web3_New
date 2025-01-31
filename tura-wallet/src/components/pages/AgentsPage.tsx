@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Bot, Plus } from 'lucide-react';
+import { VirtualWalletSystem } from '../../lib/virtual-wallet-system';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
@@ -68,9 +69,11 @@ export default function AgentsPage() {
     success?: string;
     error?: string;
   }>({});
+  const [walletSystem] = useState(() => new VirtualWalletSystem());
   
   const handleTestDeploy = async () => {
-    const address = localStorage.getItem('lastWalletAddress');
+    const walletSystem = new VirtualWalletSystem();
+    const address = walletSystem.getCurrentAddress();
     if (!address) {
       setDeploymentStatus({ error: 'Please connect your wallet first' });
       return;
@@ -124,7 +127,7 @@ export default function AgentsPage() {
                 />
                 <Button 
                   onClick={handleTestDeploy}
-                  disabled={isDeploying || !localStorage.getItem('lastWalletAddress')}
+                  disabled={isDeploying || !walletSystem.getCurrentAddress()}
                 >
                   {isDeploying ? 'Deploying...' : 'Test Deploy Agent'}
                 </Button>

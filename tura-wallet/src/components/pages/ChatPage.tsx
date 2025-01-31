@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, Send, Bot, Code2, Wallet, RefreshCw } from 'lucide-react';
+import { TuraWorkflow } from '../../agentic_workflow/TuraWorkflow';
 import { VirtualWalletSystem } from '../../lib/virtual-wallet-system';
 import { AgenticWorkflow } from '../../agentic_workflow/AgenticWorkflow';
 import { Button } from '../ui/button';
@@ -65,6 +66,10 @@ export default function ChatPage() {
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLongPressing, setIsLongPressing] = useState(false);
+  const [pressProgress, setPressProgress] = useState(0);
+  const pressTimer = useRef<number>();
+  const turaWorkflow = useRef<TuraWorkflow>(workflows[0].instance as TuraWorkflow);
   const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(officialAgents[0]);
   const [chatAddress, setChatAddress] = useState('');
   const [chatBalance, setChatBalance] = useState('0');
@@ -167,6 +172,19 @@ export default function ChatPage() {
     setLastMessageTime(Date.now());
 
     try {
+        // Handle "Start Workflow" command
+        if (text.toLowerCase() === 'start workflow') {
+          const result = await turaWorkflow.current.startWorkflow();
+          const message: ChatMessage = {
+            id: Date.now().toString(),
+            text: result,
+            timestamp: new Date().toISOString(),
+            sender: 'agent'
+          };
+          setMessages(prev => [...prev, message]);
+          return;
+        }
+
         if (!activeAgent || activeAgent.name === 'WalletAgent') {
           if (!(walletAgent instanceof AgenticWorkflow)) {
             return;
@@ -740,6 +758,55 @@ export default function ChatPage() {
             />
             <Button onClick={handleSendMessage} disabled={isLoading}>
               <Send className="h-4 w-4" />
+            </Button>
+            <Button
+              onMouseDown={() => {
+                setIsLongPressing(true);
+                setPressProgress(0);
+                const startTime = Date.now();
+                const duration = 1000;
+                const updateProgress = () => {
+                  const elapsed = Date.now() - startTime;
+                  const progress = Math.min(100, (elapsed / duration) * 100);
+                  setPressProgress(progress);
+                  if (progress < 100) {
+                    pressTimer.current = window.requestAnimationFrame(updateProgress);
+                  } else {
+                    turaWorkflow.current.startWorkflow().then((result: string) => {
+                      setMessages(prev => [...prev, {
+                        id: Date.now().toString(),
+                        text: result,
+                        timestamp: new Date().toISOString(),
+                        sender: 'agent'
+                      }]);
+                    });
+                  }
+                };
+                pressTimer.current = window.requestAnimationFrame(updateProgress);
+              }}
+              onMouseUp={() => {
+                setIsLongPressing(false);
+                setPressProgress(0);
+                if (pressTimer.current) {
+                  window.cancelAnimationFrame(pressTimer.current);
+                }
+              }}
+              onMouseLeave={() => {
+                setIsLongPressing(false);
+                setPressProgress(0);
+                if (pressTimer.current) {
+                  window.cancelAnimationFrame(pressTimer.current);
+                }
+              }}
+              className="relative overflow-hidden"
+            >
+              <span>Start Workflow</span>
+              {isLongPressing && (
+                <div
+                  className="absolute bottom-0 left-0 h-1 bg-primary-foreground transition-all"
+                  style={{ width: `${pressProgress}%` }}
+                />
+              )}
             </Button>
           </div>
         </div>

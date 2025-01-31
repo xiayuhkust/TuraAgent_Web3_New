@@ -16,7 +16,7 @@ const openai = new OpenAI({
 
 export class MockWalletAgent extends AgenticWorkflow {
   private state: { type: 'idle' | 'awaiting_faucet_confirmation' } = { type: 'idle' };
-  private readonly walletSystem: VirtualWalletSystem;
+  // Using inherited walletSystem from AgenticWorkflow
 
   constructor() {
     super(

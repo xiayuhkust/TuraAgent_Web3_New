@@ -25,7 +25,7 @@ export class MockAgentManager extends AgenticWorkflow {
   };
 
   private readonly DEPLOYMENT_FEE = 0.1;
-  private readonly walletSystem: VirtualWalletSystem;
+  // Using inherited walletSystem from AgenticWorkflow
 
   constructor() {
     super("MockAgentManager", "Deploy and register TuraAgent contracts with metadata collection");
