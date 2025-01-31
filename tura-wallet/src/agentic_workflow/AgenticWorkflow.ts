@@ -1,4 +1,4 @@
-interface Message {
+export interface Message {
   text: string;
   timestamp: string;
   sender: 'user' | 'agent';
@@ -13,13 +13,29 @@ export abstract class AgenticWorkflow {
   public name: string;
   public description: string;
   protected agentConversation: Message[];
-  private readonly storageKey: string;
+  private storageKey: string = '';
+  private currentAddress: string | null;
 
   constructor(name: string, description: string) {
     this.name = name;
     this.description = description;
-    this.storageKey = `agent_conversation_${name.toLowerCase().replace(/\s+/g, '_')}`;
+    this.currentAddress = null;
+    this.agentConversation = [];
+    this.updateStorageKey();
     this.agentConversation = this.loadConversation();
+  }
+
+  private updateStorageKey(): void {
+    const addressPart = this.currentAddress || 'guest';
+    this.storageKey = `chat_${addressPart}_${this.name.toLowerCase().replace(/\s+/g, '_')}`;
+  }
+
+  public setCurrentAddress(address: string | null): void {
+    if (this.currentAddress !== address) {
+      this.currentAddress = address;
+      this.updateStorageKey();
+      this.agentConversation = this.loadConversation();
+    }
   }
 
   private loadConversation(): Message[] {
