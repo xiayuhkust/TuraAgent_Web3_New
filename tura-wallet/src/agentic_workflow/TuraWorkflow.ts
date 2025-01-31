@@ -7,12 +7,12 @@ export class TuraWorkflow extends AgenticWorkflow {
   private currentRunId: string | null = null;
   protected walletSystem: VirtualWalletSystem;
 
-  constructor() {
+  constructor(walletSystem: VirtualWalletSystem) {
     super('TuraWorkflow', 'Automated workflow for wallet setup and agent registration');
-    this.walletSystem = new VirtualWalletSystem();
+    this.walletSystem = walletSystem;
   }
 
-  protected async handleIntent(_intent: any, text: string): Promise<string> {
+  protected async handleIntent(_intent: unknown, text: string): Promise<string> {
     const lowerText = text.toLowerCase();
     if (lowerText === 'start workflow' || lowerText.includes('start automated') || 
         lowerText.includes('run workflow')) {
@@ -22,8 +22,10 @@ export class TuraWorkflow extends AgenticWorkflow {
   }
 
   public async startWorkflow(): Promise<string> {
+    // Reset any existing workflow run to ensure clean state
     if (this.currentRunId) {
-      return 'A workflow is already running. Please wait for it to complete.';
+      completeWorkflowRun(this.currentRunId, false);
+      this.currentRunId = null;
     }
 
     // Step 1: Check/Create Wallet
@@ -47,6 +49,12 @@ export class TuraWorkflow extends AgenticWorkflow {
         const { address: newAddress } = this.walletSystem.createWallet(wallet.privateKey);
         this.walletSystem.setCurrentAddress(newAddress);
         
+        // Emit wallet state change
+        const balance = await this.walletSystem.getBalance(newAddress);
+        window.dispatchEvent(new CustomEvent('wallet-updated', { 
+          detail: { address: newAddress, balance: balance.toString() }
+        }));
+        
         addWorkflowRecord(this.currentRunId, {
           agentName: 'WalletAgent',
           fee: 0,
@@ -56,12 +64,17 @@ export class TuraWorkflow extends AgenticWorkflow {
           details: 'Wallet created successfully'
         });
 
+        // Start a new workflow run with the new address
+        this.currentRunId = startWorkflowRun(newAddress);
+        
         return `🎉 Wallet created successfully!\nYour wallet address: ${newAddress}\n\n` +
                `🔑 Important: Save your mnemonic phrase:\n${wallet.mnemonic.phrase}\n\n` +
-               `Your initial balance is 0 TURA. Let me help you get some test tokens.`;
+               `Automatically checking your balance and requesting test tokens...`;
       } catch (error) {
+        const errorMessage = `Failed to create wallet: ${error instanceof Error ? error.message : 'Unknown error'}`;
         completeWorkflowRun(this.currentRunId, false);
-        return `Failed to create wallet: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        this.currentRunId = null;
+        return errorMessage;
       }
     }
 
@@ -84,6 +97,13 @@ export class TuraWorkflow extends AgenticWorkflow {
     if (balance < 1) {
       try {
         await this.walletSystem.distributeFaucet(currentAddress);
+        
+        // Get updated balance after faucet distribution
+        const newBalance = await this.walletSystem.getBalance(currentAddress);
+        window.dispatchEvent(new CustomEvent('wallet-updated', { 
+          detail: { address: currentAddress, balance: newBalance.toString() }
+        }));
+        
         addWorkflowRecord(this.currentRunId, {
           agentName: 'WalletAgent',
           fee: 0,
@@ -92,49 +112,64 @@ export class TuraWorkflow extends AgenticWorkflow {
           success: true,
           details: 'Faucet tokens requested'
         });
-        return '🎉 Faucet tokens requested! Please wait a moment while the transaction confirms, then start the workflow again.';
+        // Show success message and continue with deployment
+        const successMessage = `🎉 Faucet tokens requested! Your updated balance is ${newBalance} TURA.\n\nProceeding with agent deployment...`;
+        const deploymentResult = await this.deployAgent(currentAddress);
+        return successMessage + '\n\n' + deploymentResult;
       } catch (error) {
+        const errorMessage = `Failed to request tokens: ${error instanceof Error ? error.message : 'Unknown error'}`;
         completeWorkflowRun(this.currentRunId, false);
-        return `Failed to request tokens: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        this.currentRunId = null;
+        return errorMessage;
       }
     }
 
-    // Step 3: Deploy Agent
+    return await this.deployAgent(currentAddress);
+  }
+
+  private async deployAgent(address: string): Promise<string> {
+    const runId = this.currentRunId || startWorkflowRun(address);
+
     try {
-      const contractAddress = '0x' + Array.from(crypto.getRandomValues(new Uint8Array(20)))
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('');
+      const contractAddress = '0x' + Array.from({ length: 20 }, () => 
+        Math.floor(Math.random() * 256).toString(16).padStart(2, '0')
+      ).join('');
       
       const registrationFee = 0.1;
-      const result = await this.walletSystem.deductFee(currentAddress, registrationFee);
-      if (!result.success) {
+      const result = await this.walletSystem.deductFee(address, registrationFee);
+      if (!result.success || result.newBalance === undefined) {
         throw new Error('Failed to deduct registration fee');
       }
 
-      addWorkflowRecord(this.currentRunId, {
+      addWorkflowRecord(runId, {
         agentName: 'AgentManager',
         fee: getAgentFee('AgentManager'),
         callType: 'deployAgent',
-        address: currentAddress,
+        address: address,
         success: true,
         details: `Contract deployed at ${contractAddress}`
       });
 
-      completeWorkflowRun(this.currentRunId, true);
+      // Update UI with final balance after deployment
+      window.dispatchEvent(new CustomEvent('wallet-updated', { 
+        detail: { address: address, balance: result.newBalance.toString() }
+      }));
+      
+      completeWorkflowRun(runId, true);
+      this.currentRunId = null; // Reset run ID after successful completion
       return `✅ Agent deployed successfully!\n\nContract address: ${contractAddress}\nRemaining balance: ${result.newBalance} TURA`;
     } catch (error) {
-      addWorkflowRecord(this.currentRunId, {
+      addWorkflowRecord(runId, {
         agentName: 'AgentManager',
         fee: getAgentFee('AgentManager'),
         callType: 'deployAgent',
-        address: currentAddress,
+        address: address,
         success: false,
         details: error instanceof Error ? error.message : 'Unknown error'
       });
-      completeWorkflowRun(this.currentRunId, false);
+      completeWorkflowRun(runId, false);
+      this.currentRunId = null; // Reset run ID after failure
       return `Failed to deploy agent: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
   }
-
-
 }

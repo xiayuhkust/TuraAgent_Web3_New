@@ -70,7 +70,7 @@ export class WalletManagerImpl {
         password,
         expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
       }));
-    } catch (error) {
+    } catch {
       throw new Error('Invalid password');
     }
   }
@@ -103,7 +103,12 @@ export class WalletManagerImpl {
   }
 
   async getBalance(address: string): Promise<string> {
-    return await this.walletService.getBalance(address);
+    try {
+      return await this.walletService.getBalance(address);
+    } catch {
+      console.error('Error getting balance');
+      return '0';
+    }
   }
 }
 

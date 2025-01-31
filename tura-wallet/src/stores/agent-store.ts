@@ -1,4 +1,5 @@
 import { Agent, OfficialAgent, Workflow } from "../types/agentTypes";
+import { VirtualWalletSystem } from "../lib/virtual-wallet-system";
 import { MockWalletAgent } from "../agentic_workflow/MockWalletAgent";
 import { MockAgentManager } from "../agentic_workflow/MockAgentManager";
 import { TuraWorkflow } from "../agentic_workflow/TuraWorkflow";
@@ -50,11 +51,8 @@ if (!walletAgent || !agentManager || !(walletAgent instanceof MockWalletAgent) |
   throw new Error('Required official agents not found or have incorrect type');
 }
 
-if (!walletAgent || !agentManager || !(walletAgent instanceof MockWalletAgent) || !(agentManager instanceof MockAgentManager)) {
-  throw new Error('Required official agents not found or have incorrect type');
-}
-
-export const workflows: Workflow[] = [
+// Create workflow instances with shared wallet system
+export const createWorkflows = (walletSystem: VirtualWalletSystem): Workflow[] => [
   {
     name: 'TuraWorkflow',
     contractAddress: '0x' + Array.from(crypto.getRandomValues(new Uint8Array(20))).map(b => b.toString(16).padStart(2, '0')).join(''),
@@ -65,9 +63,11 @@ export const workflows: Workflow[] = [
     turaToken: '0x0000000000000000000000000000000000000000',
     usdtToken: '0x0000000000000000000000000000000000000000',
     status: 'VALID',
-    instance: new TuraWorkflow()
+    instance: new TuraWorkflow(walletSystem)
   }
 ];
+
+export const workflows: Workflow[] = [];
 
 // Helper functions for managing agents and workflows
 export const getAgent = (address: string): Agent | OfficialAgent | undefined => {
