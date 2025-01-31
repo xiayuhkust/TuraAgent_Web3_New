@@ -1,12 +1,23 @@
 import { AgenticWorkflow, Intent } from './AgenticWorkflow';
 import { VirtualWalletSystem } from '../lib/virtual-wallet-system';
 import { addWorkflowRecord, startWorkflowRun, completeWorkflowRun, getAgentFee } from '../stores/store-econ';
+import OpenAI from 'openai';
+
+const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+if (!OPENAI_API_KEY) {
+  console.error('OpenAI API key not found in environment variables');
+  throw new Error('OpenAI API key is required for intent recognition');
+}
 
 type WorkflowState = 'idle' | 'awaiting_wallet_confirmation' | 'awaiting_faucet_confirmation' | 'awaiting_deployment_confirmation';
 
 export class TuraWorkflow extends AgenticWorkflow {
   private currentRunId: string | null = null;
   private state: WorkflowState = 'idle';
+  private llm = new OpenAI({
+    apiKey: OPENAI_API_KEY,
+    dangerouslyAllowBrowser: true
+  });
 
   constructor() {
     super('TuraWorkflow', 'Automated workflow for wallet setup and agent registration');
@@ -178,17 +189,18 @@ export class TuraWorkflow extends AgenticWorkflow {
       throw error;
     }
 
-    if (!address) {
+    const currentAddress = this.walletSystem.getCurrentAddress();
+    if (!currentAddress) {
       this.state = 'awaiting_wallet_confirmation';
       return "You'll need a wallet to proceed. Would you like me to create one for you? (yes/no)";
     }
 
-    const balance = await this.walletSystem.getBalance(address);
+    const balance = await this.walletSystem.getBalance(currentAddress);
     addWorkflowRecord(this.currentRunId, {
       agentName: 'WalletAgent',
       fee: getAgentFee('WalletAgent'),
       callType: 'checkBalance',
-      address,
+      address: currentAddress,
       success: true,
       details: `Balance: ${balance} TURA`
     });
@@ -215,6 +227,18 @@ export class TuraWorkflow extends AgenticWorkflow {
 
       const { address } = this.walletSystem.createWallet();
       this.walletSystem.setCurrentAddress(address);
+
+      addWorkflowRecord(this.currentRunId!, {
+        agentName: 'WalletAgent',
+        fee: getAgentFee('WalletAgent'),
+        callType: 'createWallet',
+        address: address,
+        success: true,
+        details: 'Wallet created successfully'
+      });
+
+      this.state = 'awaiting_faucet_confirmation';
+      return `✅ Wallet created successfully!\nYour address: ${address}\n\nWould you like to receive 100 TURA test tokens? (yes/no)`;
     } catch (error) {
       addWorkflowRecord(this.currentRunId!, {
         agentName: 'TuraWorkflow',
@@ -227,18 +251,6 @@ export class TuraWorkflow extends AgenticWorkflow {
       completeWorkflowRun(this.currentRunId!, false);
       throw error;
     }
-
-    addWorkflowRecord(this.currentRunId!, {
-      agentName: 'WalletAgent',
-      fee: getAgentFee('WalletAgent'),
-      callType: 'createWallet',
-      address,
-      success: true,
-      details: 'Wallet created successfully'
-    });
-
-    this.state = 'awaiting_faucet_confirmation';
-    return `✅ Wallet created successfully!\nYour address: ${address}\n\nWould you like to receive 100 TURA test tokens? (yes/no)`;
   }
 
   private async distributeFaucet(): Promise<string> {
@@ -295,7 +307,6 @@ export class TuraWorkflow extends AgenticWorkflow {
         details: 'Starting agent deployment'
       });
 
-    try {
       addWorkflowRecord(this.currentRunId!, {
         agentName: 'AgentManager',
         fee: registrationFee,
@@ -335,18 +346,6 @@ export class TuraWorkflow extends AgenticWorkflow {
         success: false,
         details: error instanceof Error ? error.message : 'Unknown error'
       });
-      completeWorkflowRun(this.currentRunId!, false);
-      throw error;
-    } catch (error) {
-      addWorkflowRecord(this.currentRunId!, {
-        agentName: 'AgentManager',
-        fee: getAgentFee('AgentManager'),
-        callType: 'deployAgent',
-        address,
-        success: false,
-        details: error instanceof Error ? error.message : 'Unknown error'
-      });
-
       this.state = 'idle';
       completeWorkflowRun(this.currentRunId!, false);
       return `❌ Failed to complete workflow: ${error instanceof Error ? error.message : 'Unknown error'}`;
