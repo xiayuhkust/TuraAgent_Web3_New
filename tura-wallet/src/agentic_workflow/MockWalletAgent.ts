@@ -1,5 +1,16 @@
 import { AgenticWorkflow, Intent } from './AgenticWorkflow';
 import { ethers } from 'ethers';
+import { OpenAI } from 'openai';
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
+  dangerouslyAllowBrowser: true
+});
+
+if (!import.meta.env.VITE_OPENAI_API_KEY) {
+  console.error('OpenAI API key not found in environment variables');
+}
 
 interface UserTableEntry {
   balance: number;
@@ -126,70 +137,6 @@ Your new balance is ${userTable[address].balance} TURA.`;
     }
   }
 
-  private async handleTransferRequest(text: string): Promise<string> {
-    const address = localStorage.getItem('lastWalletAddress');
-    if (!address) {
-      return "You'll need a wallet first before you can send TURA. Would you like me to help you create one? Just say 'create wallet' to get started.";
-    }
-
-    try {
-      // Extract amount and address separately with more flexible matching
-      const amountMatch = text.match(/(\d+(?:\.\d+)?)\s+(?:tura|tokens?)/i);
-      const addressMatch = text.match(/(0x[a-fA-F0-9]{40})/i);
-
-      if (!amountMatch || !addressMatch) {
-        return `To send TURA, please use the format: "Send X TURA to 0x..."
-For example: "Send 10 TURA to 0x742d35Cc6634C0532925a3b844Bc454e4438f44e"`;
-      }
-
-      const amount = parseFloat(amountMatch[1]);
-      const recipient = addressMatch[1];
-
-      if (!amount || !recipient) {
-        return `To send TURA, please use the format: "Send X TURA to 0x..."
-For example: "Send 10 TURA to 0x742d35Cc6634C0532925a3b844Bc454e4438f44e"`;
-      }
-
-      // Validate amount
-      if (amount <= 0) {
-        return "❌ Amount must be greater than 0 TURA.";
-      }
-
-      // Check sender's balance
-      const userTable = this.loadUserTable();
-      const senderBalance = userTable[address]?.balance ?? 0;
-      
-      if (senderBalance < amount) {
-        return `❌ Insufficient balance. You have ${senderBalance} TURA but tried to send ${amount} TURA.`;
-      }
-
-      // Initialize recipient if not exists
-      if (!userTable[recipient]) {
-        userTable[recipient] = { balance: 0 };
-      }
-
-      // Update balances
-      userTable[address] = {
-        ...userTable[address],
-        balance: senderBalance - amount
-      };
-      
-      userTable[recipient] = {
-        ...userTable[recipient],
-        balance: (userTable[recipient].balance ?? 0) + amount
-      };
-
-      this.saveUserTable(userTable);
-
-      return `✅ Successfully sent ${amount} TURA to ${recipient.slice(0, 6)}...${recipient.slice(-4)}
-Your new balance is ${userTable[address].balance} TURA.`;
-    } catch (error) {
-      console.error('Transfer error:', error);
-      const message = error instanceof Error ? error.message : 'Unknown error occurred';
-      return `❌ Transfer failed: ${message}. Please try again in a moment.`;
-    }
-  }
-
 
 
   private async handleBalanceCheck(): Promise<string> {
@@ -278,122 +225,104 @@ Your initial balance is 0 TURA. You can request test tokens using the faucet.`;
     }
   }
 
-  protected async handleIntent(intent: Intent, text: string): Promise<string> {
+  private async recognizeIntent(text: string): Promise<Intent> {
+    try {
+      const result = await openai.chat.completions.create({
+        messages: [
+          {
+            role: 'system',
+            content: `You are a wallet assistant. Classify user messages into exactly one of these categories:
+CREATE_WALLET - When user wants to create a new wallet
+CHECK_BALANCE - When user wants to check their balance
+SEND_TOKENS - When user wants to send/transfer TURA tokens
+GET_TOKENS - When user wants to get test tokens from faucet
+UNKNOWN - When the intent doesn't match any of the above
+
+Respond with a JSON object containing 'intent' and 'confidence' fields.
+Example: {"intent": "CREATE_WALLET", "confidence": 0.95}`
+          },
+          { role: 'user', content: text }
+        ],
+        model: "gpt-3.5-turbo",
+        temperature: 0,
+        max_tokens: 50,
+        response_format: { type: "json_object" }
+      });
+
+      const content = result.choices[0].message?.content;
+      if (!content) {
+        return { name: 'unknown', confidence: 0.0 };
+      }
+      const completion = JSON.parse(content);
+      return {
+        name: completion.intent.toLowerCase(),
+        confidence: completion.confidence
+      };
+    } catch (error) {
+      console.error('Intent recognition error:', error);
+      return { name: 'unknown', confidence: 0.0 };
+    }
+  }
+
+  protected async handleIntent(_intent: Intent, text: string): Promise<string> {
     try {
       const lowerText = text.toLowerCase().trim();
       
       // Handle state-specific responses first
-      if (this.state.type === 'awaiting_password') {
-        return await this.handleCreateWallet(text);
+      switch (this.state.type) {
+        case 'awaiting_password':
+          return await this.handleCreateWallet(text);
+          
+        case 'awaiting_confirmation':
+        case 'awaiting_faucet_confirmation':
+          if (lowerText === 'yes') {
+            return await this.processFaucetDistribution();
+          } else if (lowerText === 'no') {
+            this.state = { type: 'idle' };
+            return "Okay, I won't send you any test tokens. Let me know if you change your mind!";
+          } else {
+            return "Please respond with 'yes' or 'no' to confirm if you want to receive test tokens.";
+          }
       }
       
-      if (this.state.type === 'awaiting_confirmation' || this.state.type === 'awaiting_faucet_confirmation') {
-        if (lowerText === 'yes') {
-          return await this.processFaucetDistribution();
-        } else if (lowerText === 'no') {
-          this.state = { type: 'idle' };
-          return "Okay, I won't send you any test tokens. Let me know if you change your mind!";
-        } else {
-          return "Please respond with 'yes' or 'no' to confirm if you want to receive test tokens.";
+      // Only use GPT for intent recognition in idle state
+      if (this.state.type !== 'idle') {
+        return this.getWelcomeMessage();
+      }
+      
+      const recognizedIntent = await this.recognizeIntent(text);
+      
+      // Handle recognized intent with confidence threshold
+      if (recognizedIntent.confidence >= 0.7) {
+        switch (recognizedIntent.name) {
+          case 'create_wallet':
+            this.state = { type: 'awaiting_password' };
+            return `To create your wallet, I need a secure password. Please enter a password that:
+- Is at least 8 characters long
+- Will be used to encrypt your wallet
+Note: Make sure to remember this password as you'll need it to access your wallet!`;
+
+          case 'check_balance':
+            return await this.handleBalanceCheck();
+
+          case 'send_tokens':
+            return `Transfer functionality is currently under maintenance. Please try again later.`;
+
+          case 'get_tokens':
+            return await this.handleFaucetRequest();
+
+          default:
+            return this.getWelcomeMessage();
         }
       }
       
-      // Extract amount and address for potential transfer
-      const amountMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:tura|tokens?)?/i);
-      const addressMatch = text.match(/(0x[a-fA-F0-9]{40})/i);
-      
-      // Transfer functionality temporarily disabled
-      const hasTransferIntent = 
-        lowerText.includes('transfer') || 
-        lowerText.includes('send') || 
-        (lowerText.includes('tura') && lowerText.includes('to'));
-        
-      if (hasTransferIntent || intent.name === 'send_tokens') {
-        return `Transfer functionality is currently under maintenance. Please try again later.`;
-      }
-      
-      // Check for balance check intent with more variations
-      const hasBalanceIntent = 
-        lowerText.includes('balance') || 
-        lowerText.includes('how much') ||
-        (lowerText.includes('check') && lowerText.includes('tura'));
-      
-      if (hasBalanceIntent) {
-        return await this.handleBalanceCheck();
-      }
-      
-      // Check for faucet/test tokens intent with more variations
-      const hasFaucetIntent = 
-        ((lowerText.includes('get') || lowerText.includes('request') || lowerText.includes('need')) && 
-         (lowerText.includes('test') || lowerText.includes('faucet')) && 
-         lowerText.includes('token')) ||
-        (lowerText.includes('faucet') && lowerText.includes('tura'));
-      
-      if (hasFaucetIntent) {
-        return await this.handleFaucetRequest();
-      }
-      
-      // Check for wallet creation intent
-      if (lowerText.includes('create') && lowerText.includes('wallet')) {
-        this.state = { type: 'awaiting_password' };
-        return `To create your wallet, I need a secure password. Please enter a password that:
-- Is at least 8 characters long
-- Will be used to encrypt your wallet
-Note: Make sure to remember this password as you'll need it to access your wallet!`;
-      }
-      
-      // Handle intent-based routing
-      switch (intent.name) {
-        case 'send_tokens':
-          if (amountMatch && addressMatch) {
-            const amount = parseFloat(amountMatch[1]);
-            const recipient = addressMatch[1];
-            return await this.handleTransferRequest(`send ${amount} TURA to ${recipient}`);
-          }
-          return `To send TURA, please specify the amount and recipient address like:
-"Send 10 TURA to 0x..."`;
-          
-        case 'check_balance':
-          return await this.handleBalanceCheck();
-          
-        case 'get_test_tokens':
-          return await this.handleFaucetRequest();
-          
-        case 'create_wallet':
-          this.state = { type: 'awaiting_password' };
-          return `To create your wallet, I need a secure password. Please enter a password that:
-- Is at least 8 characters long
-- Will be used to encrypt your wallet
-Note: Make sure to remember this password as you'll need it to access your wallet!`;
-      }
-      
-      // Default response for unknown intents
-      return `I'm sorry, I didn't understand that request. Here's what I can help you with:
-🔑 Create a new wallet
-💰 Check your balance
-🚰 Get test tokens from our faucet`;
+      // For low confidence, provide help message with available commands
+      return `I'm not quite sure what you want to do. Here are the commands I understand:
+🔑 "Create a new wallet"
+💰 "Check my balance"
+🚰 "Get test tokens from faucet"
 
-      // Handle other intents when in idle state
-      switch (intent.name) {
-        case 'create_wallet':
-          this.state = { type: 'awaiting_password' };
-          return `To create your wallet, I need a secure password. Please enter a password that:
-- Is at least 8 characters long
-- Will be used to encrypt your wallet
-Note: Make sure to remember this password as you'll need it to access your wallet!`;
-
-        case 'check_balance':
-          return await this.handleBalanceCheck();
-
-        case 'send_tokens':
-          return await this.handleTransferRequest(text);
-
-        case 'get_test_tokens':
-          return await this.handleFaucetRequest();
-
-        default:
-          return this.getWelcomeMessage();
-      }
+Just let me know which one you'd like to try!`;
     } catch (error: unknown) {
       console.error('MockWalletAgent error:', error);
       return "I encountered an error processing your request. Please try again.";

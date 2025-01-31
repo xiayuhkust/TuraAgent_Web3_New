@@ -18,14 +18,15 @@ try {
   if (import.meta.env.VITE_OPENAI_API_KEY) {
     console.log('Initializing OpenAI client for AgentManager');
     openai = new OpenAI({
-      apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+      apiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
       dangerouslyAllowBrowser: true
     });
   } else {
-    console.warn('OpenAI API key not found - agent registration functionality will be limited');
+    console.error('OpenAI API key not found in environment variables - agent registration functionality will be limited');
   }
 } catch (error) {
-  console.warn('Failed to initialize OpenAI client:', error);
+  console.error('Failed to initialize OpenAI client:', error);
+  console.error('Please ensure VITE_OPENAI_API_KEY is set in your .env file');
 }
 
 /**
@@ -109,7 +110,7 @@ Remember: Always respond with exactly one category name in uppercase with unders
         { role: 'user' as const, content: text }
       ];
 
-      // Get intent classification from DeepSeek
+      // Get intent classification from OpenAI
       let userIntent = 'GENERAL_HELP'; // Default fallback
       if (openai) {
         try {
@@ -124,13 +125,14 @@ Remember: Always respond with exactly one category name in uppercase with unders
             presence_penalty: 0,
             frequency_penalty: 0,
             top_p: 1,
+            response_format: { type: "text" },
             stop: ["\n", "->", "."]
           });
           userIntent = result.choices[0]?.message?.content?.trim() || userIntent;
           console.log('Detected intent:', userIntent);
         } catch (error) {
-          console.warn('DeepSeek API error - using fallback response:', error);
-          // If DeepSeek fails, try to match common deployment phrases
+          console.warn('OpenAI API error - using fallback response:', error);
+          // If API fails, try to match common deployment phrases
           const deploymentPhrases = ['deploy', 'create agent', 'new agent'];
           if (deploymentPhrases.some(phrase => text.toLowerCase().includes(phrase))) {
             userIntent = 'DEPLOY_CONTRACT';
@@ -138,7 +140,7 @@ Remember: Always respond with exactly one category name in uppercase with unders
           }
         }
       } else {
-        // If no DeepSeek client, use basic phrase matching
+        // If no OpenAI client, use basic phrase matching
         const deploymentPhrases = ['deploy', 'create agent', 'new agent'];
         if (deploymentPhrases.some(phrase => text.toLowerCase().includes(phrase))) {
           userIntent = 'DEPLOY_CONTRACT';
