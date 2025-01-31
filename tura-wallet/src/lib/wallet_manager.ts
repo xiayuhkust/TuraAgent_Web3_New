@@ -29,8 +29,12 @@ export class WalletManagerImpl {
     try {
       const wallet = ethers.Wallet.createRandom();
       const account = await this.walletService.createAccount(wallet.privateKey);
+      if (!account.privateKey) {
+        throw new Error('Failed to create wallet: missing private key');
+      }
       
-      await KeyManager.storeKey(account.privateKey, password);
+      const encryptedData = await KeyManager.encryptKey(account.privateKey, password);
+      KeyManager.storeEncryptedKey(encryptedData);
       
       return {
         address: account.address,
@@ -75,8 +79,12 @@ export class WalletManagerImpl {
     try {
       const wallet = ethers.Wallet.fromPhrase(mnemonic);
       const account = await this.walletService.createAccount(wallet.privateKey);
+      if (!account.privateKey) {
+        throw new Error('Failed to import wallet: missing private key');
+      }
       
-      await KeyManager.storeKey(account.privateKey, password);
+      const encryptedData = await KeyManager.encryptKey(account.privateKey, password);
+      KeyManager.storeEncryptedKey(encryptedData);
       
       return {
         address: account.address,

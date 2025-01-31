@@ -1,6 +1,5 @@
 import { ethers } from 'ethers';
 import { CHAIN_CONFIG } from './config';
-import { KeyManager } from './keyManager';
 export interface TransactionReceipt {
   transactionHash: string;
   status: boolean;
@@ -22,9 +21,12 @@ export class WalletService {
     this.provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.rpcUrl);
   }
 
-  async createAccount(): Promise<{ address: string }> {
-    const wallet = ethers.Wallet.createRandom();
-    return { address: wallet.address };
+  async createAccount(privateKey?: string): Promise<{ address: string; privateKey?: string }> {
+    const wallet = privateKey ? new ethers.Wallet(privateKey) : ethers.Wallet.createRandom();
+    return { 
+      address: wallet.address,
+      privateKey: wallet.privateKey
+    };
   }
 
   async getBalance(address: string) {
