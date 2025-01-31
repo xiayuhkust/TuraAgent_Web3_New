@@ -83,7 +83,7 @@ export class TuraWorkflow extends AgenticWorkflow {
 
     if (balance < 1) {
       try {
-        await this.walletSystem.requestFaucet(currentAddress);
+        await this.walletSystem.distributeFaucet(currentAddress);
         addWorkflowRecord(this.currentRunId, {
           agentName: 'WalletAgent',
           fee: 0,

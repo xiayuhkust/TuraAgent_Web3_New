@@ -65,7 +65,7 @@ export const workflows: Workflow[] = [
     turaToken: '0x0000000000000000000000000000000000000000',
     usdtToken: '0x0000000000000000000000000000000000000000',
     status: 'VALID',
-    instance: new TuraWorkflow(walletAgent as MockWalletAgent, agentManager as MockAgentManager)
+    instance: new TuraWorkflow()
   }
 ];
 
