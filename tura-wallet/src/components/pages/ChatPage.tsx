@@ -65,10 +65,6 @@ export default function ChatPage() {
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isLongPressing, setIsLongPressing] = useState(false);
-  const [pressProgress, setPressProgress] = useState(0);
-  const pressTimer = useRef<number>();
-  const turaWorkflow = useRef<AgenticWorkflow | null>(workflows[0]?.instance || null);
   const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(officialAgents[0]);
   const [chatAddress, setChatAddress] = useState('');
   const [chatBalance, setChatBalance] = useState('0');
@@ -112,6 +108,13 @@ export default function ChatPage() {
     const initializeChat = async () => {
       if (hasInitialized.current) return;
       hasInitialized.current = true;
+
+      // Clear all guest conversations
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('chat_guest_')) {
+          localStorage.removeItem(key);
+        }
+      });
 
       try {
         const storedAddress = walletSystem.getCurrentAddress();
@@ -461,7 +464,7 @@ export default function ChatPage() {
                     setChatAddress('');
                     setChatBalance('0');
                     
-                    // Clear all agent message histories
+                    // Clear all agent message histories and guest conversations
                     if (walletAgent) {
                       walletAgent.clearMessages();
                     }
@@ -478,6 +481,12 @@ export default function ChatPage() {
                     workflows.forEach(workflow => {
                       if (workflow.instance?.clearMessages) {
                         workflow.instance.clearMessages();
+                      }
+                    });
+                    // Clear guest conversations
+                    Object.keys(localStorage).forEach(key => {
+                      if (key.startsWith('chat_guest_')) {
+                        localStorage.removeItem(key);
                       }
                     });
                     updateMessages([]);
@@ -791,55 +800,6 @@ export default function ChatPage() {
             />
             <Button onClick={handleSendMessage} disabled={isLoading}>
               <Send className="h-4 w-4" />
-            </Button>
-            <Button
-              onMouseDown={() => {
-                setIsLongPressing(true);
-                setPressProgress(0);
-                const startTime = Date.now();
-                const duration = 1000;
-                const updateProgress = () => {
-                  const elapsed = Date.now() - startTime;
-                  const progress = Math.min(100, (elapsed / duration) * 100);
-                  setPressProgress(progress);
-                  if (progress < 100) {
-                    pressTimer.current = window.requestAnimationFrame(updateProgress);
-                  } else {
-                    turaWorkflow.current?.processMessage('start workflow').then((result: string) => {
-                      setMessages(prev => [...prev, {
-                        id: Date.now().toString(),
-                        text: result,
-                        timestamp: new Date().toISOString(),
-                        sender: 'agent'
-                      }]);
-                    });
-                  }
-                };
-                pressTimer.current = window.requestAnimationFrame(updateProgress);
-              }}
-              onMouseUp={() => {
-                setIsLongPressing(false);
-                setPressProgress(0);
-                if (pressTimer.current) {
-                  window.cancelAnimationFrame(pressTimer.current);
-                }
-              }}
-              onMouseLeave={() => {
-                setIsLongPressing(false);
-                setPressProgress(0);
-                if (pressTimer.current) {
-                  window.cancelAnimationFrame(pressTimer.current);
-                }
-              }}
-              className="relative overflow-hidden"
-            >
-              <span>Start Workflow</span>
-              {isLongPressing && (
-                <div
-                  className="absolute bottom-0 left-0 h-1 bg-primary-foreground transition-all"
-                  style={{ width: `${pressProgress}%` }}
-                />
-              )}
             </Button>
           </div>
         </div>

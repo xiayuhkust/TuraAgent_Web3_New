@@ -1,6 +1,7 @@
 import { AgenticWorkflow, Intent } from './AgenticWorkflow';
 import { OpenAI } from 'openai';
-import { addAgentToStore } from '../stores/agent-store';
+import { addAgentToStore, getAllAgents } from '../stores/agent-store';
+import { getWorkflowRuns } from '../stores/store-econ';
 import { AgentData } from '../types/agentTypes';
 import { VirtualWalletSystem } from '../lib/virtual-wallet-system';
 
@@ -53,8 +54,8 @@ export class MockAgentManager extends AgenticWorkflow {
 Valid categories:
 DEPLOY_CONTRACT - User wants to deploy a new TuraAgent contract (matches: deploy agent, create agent, new agent, register agent)
 REGISTER_AGENT - User wants to register agent metadata only (matches: register metadata, update agent info)
-CHECK_STATUS - User wants to check deployment/registration status (matches: status, check agent, agent status)
 LIST_AGENTS - User wants to list registered agents (matches: show agents, list agents, my agents, view agents)
+SHOW_EXPENSES - User wants to view their agent usage and expenses (matches: show expenses, view usage, check fees, transaction history)
 GENERAL_HELP - Other inquiries or unclear intent
 
 Example: {"intent": "DEPLOY_CONTRACT", "confidence": 0.95}
@@ -107,9 +108,9 @@ Note: Be lenient with matching - if the user's intent is clear but phrasing is d
           
           case 'list_agents':
             return this.listRegisteredAgents();
-          
-          case 'check_status':
-            return this.checkAgentStatus();
+            
+          case 'show_expenses':
+            return this.showExpenses();
         }
       }
 
@@ -121,8 +122,8 @@ Note: Be lenient with matching - if the user's intent is clear but phrasing is d
 2. List your registered agents
    Try: "Show my agents"
 
-3. Check deployment status
-   Try: "Check agent status"
+3. View your usage and expenses
+   Try: "Show expenses"
 
 Note: You must have a connected wallet with sufficient TURA balance (0.1 TURA) to deploy contracts.`;
     } catch (error) {
@@ -264,8 +265,7 @@ Deploying this agent will cost ${this.DEPLOYMENT_FEE} TURA. Type 'confirm' to pr
               `Remaining Balance: ${deductResult.newBalance} TURA\n\n` +
               `🔍 Next Steps:\n` +
               `1. View your agent details by saying "Show my agents"\n` +
-              `2. Check agent status with "Check agent status"\n` +
-              `3. Deploy another agent by saying "Deploy a new agent"`;
+              `2. Deploy another agent by saying "Deploy a new agent"`;
           } catch (error) {
             console.error('Agent deployment error:', error);
             this.registrationState = { step: 'idle', data: {} };
@@ -295,7 +295,10 @@ Deploying this agent will cost ${this.DEPLOYMENT_FEE} TURA. Type 'confirm' to pr
       return "Please connect your wallet to view your registered agents.";
     }
 
-    const agents = this.getAgentsByOwner(address);
+    const agents = getAllAgents().filter(agent => 
+      'owner' in agent && agent.owner?.toLowerCase() === address.toLowerCase()
+    );
+
     if (agents.length === 0) {
       return "You haven't registered any agents yet. Try saying 'Deploy a new agent' to get started.";
     }
@@ -304,27 +307,48 @@ Deploying this agent will cost ${this.DEPLOYMENT_FEE} TURA. Type 'confirm' to pr
       `- ${agent.name} (${agent.contractAddress.slice(0,6)}...${agent.contractAddress.slice(-4)})
         Description: ${agent.description}
         Company: ${agent.company}
-        Created: ${new Date(agent.createdAt).toLocaleDateString()}`
+        Fee: ${agent.feePerRequest || '0 TURA'}`
     ).join('\n\n')}`;
   }
 
-  private checkAgentStatus(): string {
+  // Removed checkAgentStatus functionality
+
+  private showExpenses(): string {
     const address = this.walletSystem.getCurrentAddress();
     if (!address) {
-      return "Please connect your wallet to check agent status.";
+      return "Please connect your wallet to view your expenses.";
     }
 
-    const agents = this.getAgentsByOwner(address);
-    if (agents.length === 0) {
-      return "You haven't deployed any agents yet.";
+    const runs = getWorkflowRuns().filter(run => 
+      run.address?.toLowerCase() === address.toLowerCase()
+    );
+
+    if (runs.length === 0) {
+      return "You haven't made any transactions yet.";
     }
 
-    return `You have ${agents.length} registered agent(s).
-Latest agent: ${agents[agents.length - 1].name}
-Total TURA spent on deployments: ${agents.length * this.DEPLOYMENT_FEE} TURA`;
-  }
+    const agentUsage: { [key: string]: { count: number; totalFee: number } } = {};
+    
+    runs.forEach(run => {
+      run.records.forEach(record => {
+        if (!agentUsage[record.agentName]) {
+          agentUsage[record.agentName] = { count: 0, totalFee: 0 };
+        }
+        agentUsage[record.agentName].count++;
+        agentUsage[record.agentName].totalFee += record.fee || 0;
+      });
+    });
 
-  private getAgentsByOwner(address: string): AgentData[] {
-    return this.walletSystem.getAgentsByOwner(address);
+    let response = "📊 Your Agent Usage Summary:\n\n";
+    Object.entries(agentUsage).forEach(([agentName, stats]) => {
+      response += `${agentName}:\n`;
+      response += `  Uses: ${stats.count}\n`;
+      response += `  Total Fees: ${stats.totalFee} TURA\n\n`;
+    });
+
+    const totalFee = Object.values(agentUsage).reduce((sum, stats) => sum + stats.totalFee, 0);
+    response += `Total Spent: ${totalFee} TURA`;
+
+    return response;
   }
 }
