@@ -1,16 +1,19 @@
-import { AgenticWorkflow, Intent } from './AgenticWorkflow';
+import { AgenticWorkflow } from './AgenticWorkflow';
+import { VirtualWalletSystem } from '../lib/virtual-wallet-system';
 import { addWorkflowRecord, startWorkflowRun, completeWorkflowRun, getAgentFee } from '../stores/store-econ';
 import { MockWalletAgent } from './MockWalletAgent';
 import { MockAgentManager } from './MockAgentManager';
 
 export class TuraWorkflow extends AgenticWorkflow {
   private currentRunId: string | null = null;
+  protected walletSystem: VirtualWalletSystem;
 
   constructor(
-    private mockWalletAgent: MockWalletAgent,
-    private mockAgentManager: MockAgentManager
+    protected mockWalletAgent: MockWalletAgent,
+    protected mockAgentManager: MockAgentManager
   ) {
     super('TuraWorkflow', 'Automated workflow for wallet setup and agent registration');
+    this.walletSystem = new VirtualWalletSystem();
   }
 
   private async delegateToWalletAgent(text: string): Promise<string> {
@@ -23,7 +26,7 @@ export class TuraWorkflow extends AgenticWorkflow {
     return `[Via AgentManager] ${response}`;
   }
 
-  protected async handleIntent(_intent: Intent, text: string): Promise<string> {
+  protected async handleIntent(_intent: any, text: string): Promise<string> {
     const lowerText = text.toLowerCase();
 
     // Wallet operations take precedence

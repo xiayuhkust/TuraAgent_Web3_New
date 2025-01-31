@@ -1,10 +1,14 @@
-import { useState } from 'react';
-import { Bot, Plus } from 'lucide-react';
-import { VirtualWalletSystem } from '../../lib/virtual-wallet-system';
+import { useState, useRef } from 'react';
+import { Bot, Plus, List, Grid } from 'lucide-react';
+import { VirtualWalletSystem as WalletSystem } from '../../lib/virtual-wallet-system';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { AgentManager } from '../../agentic_workflow/AgentManager';
+import { agents, workflows } from '../../stores/agent-store';
+import { Agent, Workflow } from '../../types/agentTypes';
+// Remove VirtualWalletSystem import since we renamed it above
+import { TuraWorkflow } from '../../agentic_workflow/TuraWorkflow';
 import {
   Dialog,
   DialogContent,
@@ -19,60 +23,42 @@ import {
   TabsTrigger,
 } from '../ui/tabs';
 
-// Mock data - replace with actual data source later
-const availableAgents = [
-  {
-    name: 'Smart Contract Agent',
-    description: 'Helps with smart contract deployment and interaction',
-    contractAddress: '0x1234...5678',
-    owner: '0xabcd...efgh',
-    multiSigAddress: '0x9876...5432',
-    feePerRequest: '0.1',
-    status: 'Active'
-  },
-  // Add more mock agents as needed
-];
+const truncateText = (text: string | undefined, maxLength: number) => {
+  if (!text || text.length <= maxLength) return text || '';
+  return text.slice(0, maxLength) + '...';
+};
 
-const availableWorkflows = [
-  {
-    name: 'Token Transfer',
-    description: 'Automated token transfer workflow',
-    contractAddress: '0x2345...6789',
-    owner: '0xbcde...fghi',
-    requiredConfirmations: 2,
-    turaToken: '0x3456...7890',
-    usdtToken: '0x4567...8901',
-    fee: '0.05',
-    status: 'Active'
-  },
-  // Add more mock workflows as needed
-];
-
-const officialAgents = [
-  {
-    name: 'Tura Official Agent',
-    description: 'Official Tura network agent',
-    feePerRequest: '0.01',
-    chainId: 1337,
-    status: 'Verified'
-  },
-  // Add more official agents as needed
-];
+const TRUNCATE_LENGTHS = {
+  name: 30,
+  description: 100,
+  address: 20,
+  company: 30,
+  fee: 15
+};
 
 export default function AgentsPage() {
   const [showAgentStore, setShowAgentStore] = useState(false);
-  const [storeTab, setStoreTab] = useState('agents');
+  const [storeTab, setStoreTab] = useState('workflows');
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
   const [password, setPassword] = useState('');
   const [isDeploying, setIsDeploying] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'card'>('card');
   const [deploymentStatus, setDeploymentStatus] = useState<{
     success?: string;
     error?: string;
   }>({});
-  const [walletSystem] = useState(() => new VirtualWalletSystem());
+  const [walletSystem] = useState(() => new WalletSystem());
+  const longPressTimer = useRef<NodeJS.Timeout>();
+
+  const handleStartWorkflow = async (workflow: Workflow) => {
+    const instance = workflow.instance;
+    if (instance && instance instanceof TuraWorkflow) {
+      await instance.startWorkflow();
+    }
+  };
   
   const handleTestDeploy = async () => {
-    const walletSystem = new VirtualWalletSystem();
+    const walletSystem = new WalletSystem();
     const address = walletSystem.getCurrentAddress();
     if (!address) {
       setDeploymentStatus({ error: 'Please connect your wallet first' });
@@ -116,6 +102,14 @@ export default function AgentsPage() {
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Available Agents</CardTitle>
           <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setViewMode(mode => mode === 'list' ? 'card' : 'list')}
+              className="mr-2"
+            >
+              {viewMode === 'list' ? <Grid className="h-4 w-4" /> : <List className="h-4 w-4" />}
+            </Button>
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 <Input
@@ -151,7 +145,7 @@ export default function AgentsPage() {
           <div className="space-y-4">
             {selectedAgents.length > 0 ? (
               selectedAgents.map(agentAddress => {
-                const agent = availableAgents.find(a => a.contractAddress === agentAddress);
+                const agent = agents.find((a: Agent) => a.contractAddress === agentAddress);
                 if (!agent) return null;
                 
                 return (
@@ -208,117 +202,219 @@ export default function AgentsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-hidden">
-            <Tabs defaultValue="agents" value={storeTab} onValueChange={setStoreTab} className="h-full flex flex-col">
-              <TabsList className="w-full grid grid-cols-3">
-                <TabsTrigger value="agents" className="text-lg">Agents</TabsTrigger>
+            <Tabs defaultValue="workflows" value={storeTab} onValueChange={setStoreTab} className="h-full flex flex-col">
+              <TabsList className="w-full grid grid-cols-2">
                 <TabsTrigger value="workflows" className="text-lg">Workflows</TabsTrigger>
-                <TabsTrigger value="official" className="text-lg">Official Agents</TabsTrigger>
+                <TabsTrigger value="agents" className="text-lg">Community Agents</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="agents" className="flex-1 p-4 overflow-auto">
-                <div className="space-y-4">
-                  {availableAgents.map((agent) => (
-                    <div
-                      key={agent.contractAddress}
-                      className="p-6 border rounded-lg hover:border-primary transition-colors"
-                    >
-                      <div className="flex justify-between items-start gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h3 className="text-xl font-semibold">{agent.name}</h3>
-                            <div className="px-2 py-1 bg-primary/10 text-primary text-sm rounded-full">
-                              {agent.status}
+              <TabsContent value="workflows" className="flex-1 p-4 overflow-auto">
+                <div className={viewMode === 'list' ? 'space-y-2' : 'space-y-4'}>
+                  {workflows.map((workflow) => (
+                    viewMode === 'list' ? (
+                      <div
+                        key={workflow.contractAddress}
+                        className="flex items-center justify-between p-3 border rounded hover:border-primary transition-colors"
+                      >
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold truncate">{workflow.name}</h3>
+                              <div className="px-2 py-0.5 bg-primary/10 text-primary text-sm rounded-full shrink-0">
+                                {workflow.status}
+                              </div>
+                            </div>
+                            <p className="text-sm text-muted-foreground truncate">{workflow.description}</p>
+                          </div>
+                          <div className="flex items-center gap-4 shrink-0">
+                            <div className="text-sm">
+                              <span className="font-mono">{truncateText(workflow.contractAddress, TRUNCATE_LENGTHS.address)}</span>
+                            </div>
+                            <div className="text-sm font-semibold text-primary shrink-0">
+                              {workflow.fee} TURA
                             </div>
                           </div>
-                          <p className="text-muted-foreground mb-4">{agent.description}</p>
-                          <div className="space-y-2 font-mono text-sm">
-                            <p>Contract: {agent.contractAddress}</p>
-                            <p>Owner: {agent.owner}</p>
-                            <p>MultiSig: {agent.multiSigAddress}</p>
-                            <p className="text-primary font-semibold">
-                              Fee: {agent.feePerRequest} TURA
-                            </p>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          {workflow.instance && workflow.instance instanceof TuraWorkflow && (
+                            <div className="flex flex-col">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="ml-4"
+                                onMouseDown={() => {
+                                  longPressTimer.current = setTimeout(() => {
+                                    if (confirm('Start TuraWorkflow?')) {
+                                      handleStartWorkflow(workflow);
+                                    }
+                                  }, 1000);
+                                }}
+                                onMouseUp={() => {
+                                  if (longPressTimer.current) {
+                                    clearTimeout(longPressTimer.current);
+                                  }
+                                }}
+                                onMouseLeave={() => {
+                                  if (longPressTimer.current) {
+                                    clearTimeout(longPressTimer.current);
+                                  }
+                                }}
+                              >
+                                Start Workflow (Long Press)
+                              </Button>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                Hold the button to start workflow
+                              </div>
+                            </div>
+                          )}
+                          <Button variant="outline" size="sm" className="ml-4 shrink-0">
+                            Add Workflow
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        key={workflow.contractAddress}
+                        className="p-6 border rounded-lg hover:border-primary transition-colors"
+                      >
+                        <div className="flex justify-between items-start gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h3 className="text-xl font-semibold truncate">{workflow.name}</h3>
+                              <div className="px-2 py-1 bg-primary/10 text-primary text-sm rounded-full shrink-0">
+                                {workflow.status}
+                              </div>
+                            </div>
+                            <p className="text-muted-foreground mb-4 line-clamp-2">{workflow.description}</p>
+                            <div className="space-y-2 font-mono text-sm">
+                              <p>Contract: {truncateText(workflow.contractAddress, TRUNCATE_LENGTHS.address)}</p>
+                              <p>Owner: {truncateText(workflow.owner, TRUNCATE_LENGTHS.address)}</p>
+                              <p>Company: {truncateText(workflow.company, TRUNCATE_LENGTHS.company)}</p>
+                              <p>Required Confirmations: {workflow.requiredConfirmations}</p>
+                              <p className="text-primary font-semibold">
+                                Fee: {workflow.fee} TURA
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            {workflow.instance && workflow.instance instanceof TuraWorkflow && (
+                              <div className="flex flex-col">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="min-w-[100px]"
+                                  onMouseDown={() => {
+                                    longPressTimer.current = setTimeout(() => {
+                                      if (confirm('Start TuraWorkflow?')) {
+                                        handleStartWorkflow(workflow);
+                                      }
+                                    }, 1000);
+                                  }}
+                                  onMouseUp={() => {
+                                    if (longPressTimer.current) {
+                                      clearTimeout(longPressTimer.current);
+                                    }
+                                  }}
+                                  onMouseLeave={() => {
+                                    if (longPressTimer.current) {
+                                      clearTimeout(longPressTimer.current);
+                                    }
+                                  }}
+                                >
+                                  Start Workflow (Long Press)
+                                </Button>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  Hold the button to start workflow
+                                </div>
+                              </div>
+                            )}
+                            <Button variant="outline" size="sm" className="min-w-[100px]">
+                              Add Workflow
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  ))}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="agents" className="flex-1 p-4 overflow-auto">
+                <div className={viewMode === 'list' ? 'space-y-2' : 'space-y-4'}>
+                  {agents.map((agent) => (
+                    viewMode === 'list' ? (
+                      <div
+                        key={agent.contractAddress}
+                        className="flex items-center justify-between p-3 border rounded hover:border-primary transition-colors"
+                      >
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold truncate">{agent.name}</h3>
+                              <div className="px-2 py-0.5 bg-primary/10 text-primary text-sm rounded-full shrink-0">
+                                {agent.status}
+                              </div>
+                            </div>
+                            <p className="text-sm text-muted-foreground truncate">{agent.description}</p>
+                          </div>
+                          <div className="flex items-center gap-4 shrink-0">
+                            <div className="text-sm">
+                              <span className="font-mono">{truncateText(agent.contractAddress, TRUNCATE_LENGTHS.address)}</span>
+                            </div>
+                            <div className="text-sm font-semibold text-primary shrink-0">
+                              {agent.feePerRequest} TURA
+                            </div>
                           </div>
                         </div>
                         <Button
                           variant="outline"
                           size="sm"
-                          className="min-w-[100px]"
+                          className="ml-4 shrink-0"
                           onClick={() => handleAddAgent(agent.contractAddress)}
                         >
-                          {selectedAgents.includes(agent.contractAddress) ? 'Remove Agent' : 'Add Agent'}
+                          {selectedAgents.includes(agent.contractAddress) ? 'Remove' : 'Add'}
                         </Button>
                       </div>
-                    </div>
+                    ) : (
+                      <div
+                        key={agent.contractAddress}
+                        className="p-6 border rounded-lg hover:border-primary transition-colors"
+                      >
+                        <div className="flex justify-between items-start gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h3 className="text-xl font-semibold truncate">{agent.name}</h3>
+                              <div className="px-2 py-1 bg-primary/10 text-primary text-sm rounded-full shrink-0">
+                                {agent.status}
+                              </div>
+                            </div>
+                            <p className="text-muted-foreground mb-4 line-clamp-2">{agent.description}</p>
+                            <div className="space-y-2 font-mono text-sm">
+                              <p>Contract: {truncateText(agent.contractAddress, TRUNCATE_LENGTHS.address)}</p>
+                              <p>Owner: {truncateText(agent.owner, TRUNCATE_LENGTHS.address)}</p>
+                              <p>Company: {truncateText(agent.company, TRUNCATE_LENGTHS.company)}</p>
+                              <p>MultiSig: {truncateText(agent.multiSigAddress || '', TRUNCATE_LENGTHS.address)}</p>
+                              <p className="text-primary font-semibold">
+                                Fee: {agent.feePerRequest} TURA
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="min-w-[100px] shrink-0"
+                            onClick={() => handleAddAgent(agent.contractAddress)}
+                          >
+                            {selectedAgents.includes(agent.contractAddress) ? 'Remove Agent' : 'Add Agent'}
+                          </Button>
+                        </div>
+                      </div>
+                    )
                   ))}
                 </div>
               </TabsContent>
 
-              <TabsContent value="workflows" className="flex-1 p-4 overflow-auto">
-                <div className="space-y-4">
-                  {availableWorkflows.map((workflow) => (
-                    <div
-                      key={workflow.contractAddress}
-                      className="p-6 border rounded-lg hover:border-primary transition-colors"
-                    >
-                      <div className="flex justify-between items-start gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h3 className="text-xl font-semibold">{workflow.name}</h3>
-                            <div className="px-2 py-1 bg-primary/10 text-primary text-sm rounded-full">
-                              {workflow.status}
-                            </div>
-                          </div>
-                          <p className="text-muted-foreground mb-4">{workflow.description}</p>
-                          <div className="space-y-2 font-mono text-sm">
-                            <p>Contract: {workflow.contractAddress}</p>
-                            <p>Owner: {workflow.owner}</p>
-                            <p>Required Confirmations: {workflow.requiredConfirmations}</p>
-                            <p>TURA Token: {workflow.turaToken}</p>
-                            <p>USDT Token: {workflow.usdtToken}</p>
-                            <p className="text-primary font-semibold">
-                              Fee: {workflow.fee} TURA
-                            </p>
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm" className="min-w-[100px]">
-                          Add Workflow
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </TabsContent>
 
-              <TabsContent value="official" className="flex-1 p-4 overflow-auto">
-                <div className="space-y-4">
-                  {officialAgents.map((agent) => (
-                    <div
-                      key={agent.name}
-                      className="p-6 border rounded-lg hover:border-primary transition-colors"
-                    >
-                      <div className="flex justify-between items-start gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h3 className="text-xl font-semibold">{agent.name}</h3>
-                            <div className="px-2 py-1 bg-primary/10 text-primary text-sm rounded-full">
-                              {agent.status}
-                            </div>
-                          </div>
-                          <p className="text-muted-foreground mb-4">{agent.description}</p>
-                          <div className="space-y-2 font-mono text-sm">
-                            <p>Fee: {agent.feePerRequest}</p>
-                            <p>Chain ID: {agent.chainId}</p>
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm" className="min-w-[100px]">
-                          Add Agent
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </TabsContent>
             </Tabs>
           </div>
         </DialogContent>

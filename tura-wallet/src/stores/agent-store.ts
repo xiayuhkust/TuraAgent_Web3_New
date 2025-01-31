@@ -29,35 +29,14 @@ export const officialAgents: OfficialAgent[] = [
   }
 ];
 
-export const agents: Agent[] = [
-  {
-    name: 'MarketDataAgent',
-    contractAddress: '0x8f8d84B2Fb15e81A3BEAa8144d2Eb1c340ce93FB',
-    description: 'Market data provider for cryptocurrency trading',
-    feePerRequest: '1.0 TURA',
-    owner: '0x009f54E5CcbEFCdCa0dd85ddc85171A76B5c1ef1',
-    multiSigAddress: '0x5BC87de68410DBa5c17e4496543dd325f60Ce6e8',
-    chainId: 1337,
-    status: 'VALID'
-  },
-  {
-    name: 'StrategyAgent',
-    contractAddress: '0xF31A3ffc032BbB21661c1b3A87f25D16551f930A',
-    description: 'Trading strategy analysis and execution',
-    feePerRequest: '0.01 TURA',
-    owner: '0x21872525127D3346E92D1477190FDEC15604e337',
-    multiSigAddress: '0x08Bb6eA809A2d6c13D57166Fa3ede48C0ae9a70e',
-    chainId: 1337,
-    status: 'VALID'
-  }
-];
+export const agents: Agent[] = [];
 
 // Get references to existing agent instances
-const walletAgent = officialAgents.find(a => a.name === 'WalletAgent')?.instance as MockWalletAgent;
-const agentManager = officialAgents.find(a => a.name === 'AgentManager')?.instance as MockAgentManager;
+const walletAgent = officialAgents.find(a => a.name === 'WalletAgent')?.instance;
+const agentManager = officialAgents.find(a => a.name === 'AgentManager')?.instance;
 
-if (!walletAgent || !agentManager) {
-  throw new Error('Required official agents not found');
+if (!walletAgent || !agentManager || !(walletAgent instanceof MockWalletAgent) || !(agentManager instanceof MockAgentManager)) {
+  throw new Error('Required official agents not found or have incorrect type');
 }
 
 export const workflows: Workflow[] = [
@@ -71,7 +50,7 @@ export const workflows: Workflow[] = [
     turaToken: '0x0000000000000000000000000000000000000000',
     usdtToken: '0x0000000000000000000000000000000000000000',
     status: 'VALID',
-    instance: new TuraWorkflow(walletAgent, agentManager)
+    instance: new TuraWorkflow(walletAgent as MockWalletAgent, agentManager as MockAgentManager)
   }
 ];
 
@@ -95,3 +74,21 @@ export const getAllAgents = (): (Agent | OfficialAgent)[] => [...officialAgents,
 
 // Function to validate contract addresses
 export const isValidAddress = (address: string): boolean => /^0x[a-fA-F0-9]{40}$/.test(address);
+
+// Function to add a new agent to the store
+export const addAgentToStore = (newAgent: Agent): void => {
+  if (!isValidAddress(newAgent.contractAddress)) {
+    throw new Error('Invalid contract address');
+  }
+  
+  // Check for duplicate contract address
+  if (agents.some(agent => agent.contractAddress.toLowerCase() === newAgent.contractAddress.toLowerCase())) {
+    throw new Error('Agent with this contract address already exists');
+  }
+  
+  agents.push({
+    ...newAgent,
+    status: 'VALID',
+    chainId: 1337
+  });
+};
