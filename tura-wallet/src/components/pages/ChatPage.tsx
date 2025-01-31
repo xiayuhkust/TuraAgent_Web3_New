@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, Send, Bot, Code2, Wallet, RefreshCw } from 'lucide-react';
-import { TuraWorkflow } from '../../agentic_workflow/TuraWorkflow';
 import { VirtualWalletSystem } from '../../lib/virtual-wallet-system';
 import { AgenticWorkflow } from '../../agentic_workflow/AgenticWorkflow';
 import { Button } from '../ui/button';
@@ -69,7 +68,7 @@ export default function ChatPage() {
   const [isLongPressing, setIsLongPressing] = useState(false);
   const [pressProgress, setPressProgress] = useState(0);
   const pressTimer = useRef<number>();
-  const turaWorkflow = useRef<TuraWorkflow>(workflows[0].instance as TuraWorkflow);
+  const turaWorkflow = useRef<AgenticWorkflow | null>(workflows[0]?.instance || null);
   const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(officialAgents[0]);
   const [chatAddress, setChatAddress] = useState('');
   const [chatBalance, setChatBalance] = useState('0');
@@ -174,7 +173,8 @@ export default function ChatPage() {
     try {
         // Handle "Start Workflow" command
         if (text.toLowerCase() === 'start workflow') {
-          const result = await turaWorkflow.current.startWorkflow();
+          if (!turaWorkflow.current) return;
+          const result = await turaWorkflow.current.processMessage('start workflow');
           const message: ChatMessage = {
             id: Date.now().toString(),
             text: result,
@@ -189,7 +189,7 @@ export default function ChatPage() {
           if (!(walletAgent instanceof AgenticWorkflow)) {
             return;
           }
-          walletAgent.setCurrentAddress(chatAddress);
+          walletSystem.setCurrentAddress(chatAddress);
           await walletAgent.processMessage(text);
           
           const storedAddress = walletSystem.getCurrentAddress();
@@ -213,7 +213,7 @@ export default function ChatPage() {
           if (!agentInstance || !(agentInstance instanceof AgenticWorkflow)) {
             return;
           }
-          agentInstance.setCurrentAddress(chatAddress);
+          walletSystem.setCurrentAddress(chatAddress);
           await agentInstance.processMessage(text);
           const newMessages = agentInstance.getMessages();
           updateMessages(newMessages);
@@ -772,7 +772,7 @@ export default function ChatPage() {
                   if (progress < 100) {
                     pressTimer.current = window.requestAnimationFrame(updateProgress);
                   } else {
-                    turaWorkflow.current.startWorkflow().then((result: string) => {
+                    turaWorkflow.current?.processMessage('start workflow').then((result: string) => {
                       setMessages(prev => [...prev, {
                         id: Date.now().toString(),
                         text: result,

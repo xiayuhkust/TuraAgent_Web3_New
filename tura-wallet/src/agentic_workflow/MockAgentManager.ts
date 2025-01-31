@@ -1,5 +1,6 @@
 import { AgenticWorkflow, Intent } from './AgenticWorkflow';
 import { OpenAI } from 'openai';
+import { addAgentToStore } from '../stores/agent-store';
 import { AgentData } from '../types/agentTypes';
 import { VirtualWalletSystem } from '../lib/virtual-wallet-system';
 
@@ -240,9 +241,18 @@ Deploying this agent will cost ${this.DEPLOYMENT_FEE} TURA. Type 'confirm' to pr
               createdAt: new Date().toISOString()
             };
 
-            if (!this.walletSystem.saveAgent(agentData)) {
-              throw new Error('Failed to save agent metadata');
-            }
+            // Save agent to store
+            addAgentToStore({
+              name: agentData.name,
+              description: agentData.description,
+              contractAddress,
+              owner: address,
+              company: agentData.company,
+              feePerRequest: `${this.DEPLOYMENT_FEE} TURA`,
+              multiSigAddress: '',
+              status: 'VALID',
+              chainId: 1337
+            });
 
             this.registrationState = { step: 'idle', data: {} };
             return `✅ Agent successfully deployed and registered!\n\n` +
