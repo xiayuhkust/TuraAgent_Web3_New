@@ -8,6 +8,7 @@ export default defineConfig({
     'process.env': {},
     global: 'globalThis',
   },
+  envPrefix: ['VITE_'],
   optimizeDeps: {
     esbuildOptions: {
       define: {

@@ -1,3 +1,5 @@
+import { OpenAI } from 'openai';
+
 interface Message {
   text: string;
   timestamp: string;
@@ -83,9 +85,10 @@ export abstract class AgenticWorkflow {
         (lowerText.includes('tura') || lowerText.includes('token'))) {
       return { name: 'send_tokens', confidence: 1.0 };
     }
-    if ((lowerText.includes('get') || lowerText.includes('request')) && 
-        (lowerText.includes('test') || lowerText.includes('faucet')) && 
-        lowerText.includes('token')) {
+    if (lowerText.includes('faucet') || 
+        lowerText.includes('get token') || 
+        lowerText.includes('test token') ||
+        (lowerText.includes('get') && lowerText.includes('tura'))) {
       return { name: 'get_test_tokens', confidence: 1.0 };
     }
     
@@ -111,7 +114,11 @@ export abstract class AgenticWorkflow {
       
       // If not handling direct input, recognize intent
       if (!intent) {
-        intent = await this.recognizeIntent(text, null);
+        const openai = new OpenAI({
+          apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+          dangerouslyAllowBrowser: true
+        });
+        intent = await this.recognizeIntent(text, openai);
       }
       
       this.agentConversation.push({

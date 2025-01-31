@@ -322,12 +322,12 @@ Your initial balance is 0 TURA. You can request test tokens using the faucet.`;
         return await this.handleBalanceCheck();
       }
       
-      // Check for faucet/test tokens intent with more variations
+      // Check for faucet/test tokens intent
       const hasFaucetIntent = 
-        ((lowerText.includes('get') || lowerText.includes('request') || lowerText.includes('need')) && 
-         (lowerText.includes('test') || lowerText.includes('faucet')) && 
-         lowerText.includes('token')) ||
-        (lowerText.includes('faucet') && lowerText.includes('tura'));
+        lowerText.includes('faucet') || 
+        lowerText.includes('get token') || 
+        lowerText.includes('test token') ||
+        (lowerText.includes('get') && lowerText.includes('tura'));
       
       if (hasFaucetIntent) {
         return await this.handleFaucetRequest();
@@ -368,32 +368,7 @@ Note: Make sure to remember this password as you'll need it to access your walle
       }
       
       // Default response for unknown intents
-      return `I'm sorry, I didn't understand that request. Here's what I can help you with:
-🔑 Create a new wallet
-💰 Check your balance
-🚰 Get test tokens from our faucet`;
-
-      // Handle other intents when in idle state
-      switch (intent.name) {
-        case 'create_wallet':
-          this.state = { type: 'awaiting_password' };
-          return `To create your wallet, I need a secure password. Please enter a password that:
-- Is at least 8 characters long
-- Will be used to encrypt your wallet
-Note: Make sure to remember this password as you'll need it to access your wallet!`;
-
-        case 'check_balance':
-          return await this.handleBalanceCheck();
-
-        case 'send_tokens':
-          return await this.handleTransferRequest(text);
-
-        case 'get_test_tokens':
-          return await this.handleFaucetRequest();
-
-        default:
-          return this.getWelcomeMessage();
-      }
+      return this.getWelcomeMessage();
     } catch (error: unknown) {
       console.error('MockWalletAgent error:', error);
       return "I encountered an error processing your request. Please try again.";
