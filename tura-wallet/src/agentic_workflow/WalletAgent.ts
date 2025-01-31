@@ -3,6 +3,7 @@ import type { ChatCompletionCreateParams } from 'openai/resources/chat/completio
 import WalletManager from '../lib/wallet_manager';
 import { AgenticWorkflow } from './AgenticWorkflow';
 import { AgentManager } from './AgentManager';
+import { VirtualWalletSystem } from '../lib/virtual-wallet-system';
 
 type ChatMessage = ChatCompletionCreateParams['messages'][number];
 
@@ -29,7 +30,6 @@ export class WalletAgent extends AgenticWorkflow {
   private walletManager: WalletManager;
   private isWaitingForPassword: boolean;
   private isWaitingForFaucetConfirmation: boolean;
-  private readonly FAUCET_ADDRESS: string;
   private readonly MIN_BALANCE: number;
   private readonly FAUCET_AMOUNT: number;
   // Removed FAUCET_PASSWORD as it's not needed in mock system
@@ -44,7 +44,7 @@ export class WalletAgent extends AgenticWorkflow {
     this.walletManager = new WalletManager();
     this.isWaitingForPassword = false;
     this.isWaitingForFaucetConfirmation = false;
-    this.FAUCET_ADDRESS = '0x08Bb6eA809A2d6c13D57166Fa3ede48C0ae9a70e';
+
     this.MIN_BALANCE = 0.1;
     this.FAUCET_AMOUNT = 1;
     
@@ -373,7 +373,8 @@ Remember: Always respond with exactly one category name in uppercase with unders
    * Initiate wallet creation process
    */
   private initiateWalletCreation(): string {
-    const address = localStorage.getItem('lastWalletAddress');
+    const walletSystem = new VirtualWalletSystem();
+    const address = walletSystem.getCurrentAddress();
     if (address) {
       return `You already have a wallet! Your address is: ${address.slice(0, 6)}...${address.slice(-4)}. You can ask me to check your balance or send TURA.`;
     }
@@ -394,13 +395,9 @@ Note: Make sure to remember this password as you'll need it to access your walle
         return "⚠️ Password must be at least 8 characters long. Please try again with a longer password.";
       }
 
-      const wallet = await this.walletManager.createWallet();
-      // Store session
-      localStorage.setItem('walletSession', JSON.stringify({
-        password,
-        expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-      }));
-      localStorage.setItem('lastWalletAddress', wallet.address);
+      const walletSystem = new VirtualWalletSystem();
+      const wallet = walletSystem.createWallet();
+      walletSystem.setCurrentAddress(wallet.address);
       
       // Reset password waiting state
       this.isWaitingForPassword = false;
@@ -426,13 +423,14 @@ Never share your mnemonic phrase with anyone! I'll help you check your balance a
    * Handle balance check requests
    */
   private async handleBalanceCheck(): Promise<string> {
-    const address = localStorage.getItem('lastWalletAddress');
+    const walletSystem = new VirtualWalletSystem();
+    const address = walletSystem.getCurrentAddress();
     if (!address) {
       return "You don't have a wallet yet. Would you like me to help you create one? Just say 'create wallet' to get started.";
     }
 
     try {
-      const balance = await this.walletManager.getBalance(address);
+      const balance = await walletSystem.getBalance(address);
       const shortAddress = `${address.slice(0, 6)}...${address.slice(-4)}`;
       return `💰 Your wallet (${shortAddress}) contains ${balance} TURA
 
@@ -449,7 +447,8 @@ Need to send TURA? Just tell me the amount and recipient address like:
    * Handle transfer/send requests
    */
   private async handleTransferRequest(text: string): Promise<string> {
-    const address = localStorage.getItem('lastWalletAddress');
+    const walletSystem = new VirtualWalletSystem();
+    const address = walletSystem.getCurrentAddress();
     if (!address) {
       return "You'll need a wallet first before you can send TURA. Would you like me to help you create one? Just say 'create wallet' to get started.";
     }
@@ -469,17 +468,16 @@ or
     const toAddress = addressMatch[1];
 
     try {
-      const balance = await this.walletManager.getBalance(address);
-      if (parseFloat(balance) < parseFloat(amount)) {
+      const walletSystem = new VirtualWalletSystem();
+      const balance = await walletSystem.getBalance(address);
+      if (parseFloat(balance.toString()) < parseFloat(amount)) {
         return `❌ Insufficient balance. You have ${balance} TURA but tried to send ${amount} TURA.`;
       }
 
-      return `For security reasons, I can't directly execute transactions. Please use the wallet interface to:
+      const result = await walletSystem.transferTokens(address, toAddress, parseFloat(amount));
+      return `🎉 ${result.message}
 
-Send ${amount} TURA
-To: ${toAddress}
-
-Your current balance is ${balance} TURA.`;
+Your new balance is ${result.newBalance} TURA.`;
     } catch (error: unknown) {
       console.error('Transfer request error:', error);
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -491,16 +489,16 @@ Your current balance is ${balance} TURA.`;
    * Handle faucet token request
    */
   private async handleFaucetRequest(): Promise<string> {
-    const address = localStorage.getItem('lastWalletAddress');
+    const walletSystem = new VirtualWalletSystem();
+    const address = walletSystem.getCurrentAddress();
     if (!address) {
       return "You'll need a wallet first before you can receive test tokens. Would you like me to help you create one? Just say 'create wallet' to get started.";
     }
 
     try {
-      const balance = await this.walletManager.getBalance(address);
-      const balanceNum = parseFloat(balance);
+      const balance = await walletSystem.getBalance(address);
       
-      if (balanceNum >= this.MIN_BALANCE) {
+      if (balance >= this.MIN_BALANCE) {
         return `Your current balance (${balance} TURA) is sufficient. The faucet is only available for wallets with less than ${this.MIN_BALANCE} TURA.`;
       }
 
@@ -519,32 +517,20 @@ Just say "yes" to confirm.`;
    * Distribute tokens from faucet wallet
    */
   private async distributeFaucetTokens(): Promise<string> {
-    const recipientAddress = localStorage.getItem('lastWalletAddress');
+    const walletSystem = new VirtualWalletSystem();
+    const recipientAddress = walletSystem.getCurrentAddress();
     if (!recipientAddress) {
       this.isWaitingForFaucetConfirmation = false;
       return "❌ Error: Couldn't find your wallet address. Please try creating a wallet first.";
     }
 
     try {
-      // Check faucet balance
-      const faucetBalance = await this.walletManager.getBalance(this.FAUCET_ADDRESS);
-      if (parseFloat(faucetBalance) < this.FAUCET_AMOUNT) {
-        this.isWaitingForFaucetConfirmation = false;
-        return "❌ Sorry, the faucet is currently out of funds. Please try again later.";
-      }
-
-      // Send tokens using the faucet wallet
-      await this.walletManager.sendTransaction(
-        this.FAUCET_ADDRESS,
-        recipientAddress,
-        this.FAUCET_AMOUNT.toString(),
-        // Remove password parameter in mock system
-      );
+      const result = await walletSystem.distributeFaucet(recipientAddress);
 
       this.isWaitingForFaucetConfirmation = false;
-      return `🎉 Success! ${this.FAUCET_AMOUNT} TURA has been sent to your wallet.
-      
-Transaction is being processed. Your balance will update automatically once confirmed.`;
+      return `🎉 ${result.message}
+
+Your new balance will be ${result.newBalance} TURA.`;
     } catch (error: unknown) {
       console.error('Faucet distribution error:', error);
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
