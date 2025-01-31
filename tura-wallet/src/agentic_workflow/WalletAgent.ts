@@ -1,7 +1,7 @@
 import { OpenAI } from 'openai';
 import type { ChatCompletionCreateParams } from 'openai/resources/chat/completions';
 import WalletManager from '../lib/wallet_manager';
-import { AgenticWorkflow } from './AgenticWorkflow';
+import { AgenticWorkflow, Intent } from './AgenticWorkflow';
 import { AgentManager } from './AgentManager';
 
 type ChatMessage = ChatCompletionCreateParams['messages'][number];
@@ -28,6 +28,9 @@ try {
  * It wraps the existing wallet functionality in a more user-friendly way.
  */
 export class WalletAgent extends AgenticWorkflow {
+  protected async handleIntent(_intent: Intent, _text: string): Promise<string> {
+    return `I am currently under maintenance. Please use the MockWalletAgent for now.`;
+  }
   private walletManager: WalletManager;
   private isWaitingForPassword: boolean;
   private isWaitingForFaucetConfirmation: boolean;

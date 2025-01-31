@@ -8,7 +8,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
 import { officialAgents, agents, workflows } from '../../stores/agent-store';
 import { Agent, OfficialAgent, Workflow } from '../../types/agentTypes';
-import { WalletAgent } from '../../agentic_workflow/WalletAgent';
+import { MockWalletAgent } from '../../agentic_workflow/MockWalletAgent';
 import {
   Dialog,
   DialogContent,
@@ -56,36 +56,24 @@ export default function ChatPage() {
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(officialAgents[0]); // Default to WalletAgent
+  const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(officialAgents[0]); // Default to MockWalletAgent
   const [chatAddress, setChatAddress] = useState('');
   const [chatBalance, setChatBalance] = useState('0');
   const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
   const [lastMessageTime, setLastMessageTime] = useState<number>(Date.now());
-  const [walletAgent] = useState(() => (officialAgents[0].instance as WalletAgent));
-  
-  // Initialize messages with welcome message
-  useEffect(() => {
-    const initializeChat = async () => {
-      if (messages.length === 0) {
-        const welcomeMessage: Message = {
-          id: Date.now().toString(),
-          text: 'Welcome! I am your WalletAgent. I can help you create a wallet, check your balance, or request test tokens. How can I assist you today?',
-          sender: 'agent',
-          timestamp: new Date().toISOString()
-        };
-        setMessages([welcomeMessage]);
-      }
-    };
-    initializeChat();
-  }, []);
+  const [walletAgent] = useState(() => (officialAgents[0].instance as MockWalletAgent));
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasInitialized = useRef(false);
 
   // Initialize chat and set up balance refresh interval
   useEffect(() => {
     const initializeChat = async () => {
+      if (hasInitialized.current) return;
+      hasInitialized.current = true;
+
       try {
         const storedAddress = localStorage.getItem('lastWalletAddress');
         if (storedAddress) {
@@ -95,9 +83,12 @@ export default function ChatPage() {
           if (balanceMatch) {
             setChatBalance(balanceMatch[1]);
           }
-        } else {
+        }
+        
+        // Only set initial message if no messages exist
+        if (messages.length === 0) {
           const welcomeResponse = await walletAgent.processMessage('help');
-          setMessages(prev => [...prev, {
+          setMessages([{
             id: Date.now().toString(),
             text: welcomeResponse,
             sender: 'agent',
@@ -106,7 +97,7 @@ export default function ChatPage() {
         }
       } catch (error) {
         console.error('Failed to initialize chat:', error);
-        setMessages(prev => [...prev, {
+        setMessages([{
           id: Date.now().toString(),
           text: 'There was an error initializing the chat. Please try refreshing the page.',
           sender: 'error',

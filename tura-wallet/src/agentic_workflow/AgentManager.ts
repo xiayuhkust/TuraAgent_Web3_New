@@ -1,4 +1,4 @@
-import { AgenticWorkflow } from './AgenticWorkflow';
+import { AgenticWorkflow, Intent } from './AgenticWorkflow';
 import { OpenAI } from 'openai';
 import { ethers } from 'ethers';
 import { 
@@ -34,6 +34,9 @@ try {
  * It manages the collection of agent metadata and handles the contract deployment process.
  */
 export class AgentManager extends AgenticWorkflow {
+  protected async handleIntent(_intent: Intent, _text: string): Promise<string> {
+    return `I am currently under maintenance. Please use the MockWalletAgent for now.`;
+  }
   public registrationState: {
     step: 'idle' | 'collecting_name' | 'collecting_description' | 'collecting_company' | 'collecting_socials' | 'confirming_deployment';
     data: Partial<AgentData>;
@@ -336,50 +339,9 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
                 });
               });
             } catch (error) {
-              throw error;
+              console.error('Failed to get signer:', error);
+              throw new Error('Failed to connect to wallet. Please make sure your wallet is connected and try again.');
             }
-
-                // Check TURA balance
-                const hasSufficientBalance = await checkTuraBalance(provider, address);
-                if (!hasSufficientBalance) {
-                  return "Insufficient TURA balance. You need at least 0.1 TURA to deploy an agent contract.";
-                }
-
-                // Show standard signature dialog and deploy contract
-                deployedAddress = await new Promise<string>((resolve, reject) => {
-                  const chatPage = (window as any).ChatPage;
-                  if (!chatPage?.showSignatureDialog) {
-                    reject(new Error('Chat interface not available'));
-                    return;
-                  }
-
-                  chatPage.showSignatureDialog({
-                    title: 'Deploy TuraAgent Contract',
-                    description: [
-                      '🔐 Contract Deployment Details:',
-                      '',
-                      '• Cost: 0.1 TURA',
-                      '• Network: Tura Testnet',
-                      '• Contract: TuraAgent',
-                      '',
-                      'Please confirm this transaction in your wallet to deploy the contract.',
-                      '',
-                      '⚠️ Make sure you have enough TURA to cover the deployment cost.'
-                    ].join('\n'),
-                    onConfirm: async () => {
-                      try {
-                        deployedAddress = await deployTuraAgent(signer);
-                        resolve(deployedAddress);
-                      } catch (error) {
-                        reject(error);
-                      }
-                    }
-                  });
-                });
-              } catch (error) {
-                console.error('Failed to get signer:', error);
-                return "Failed to connect to wallet. Please make sure your wallet is connected and try again.";
-              }
 
             // Contract address is now available from the promise above
             // Verify contract deployment
@@ -550,48 +512,6 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
     }
   }
 
-<<<<<<< Updated upstream
-||||||| constructed merge base
-  /**
-   * Test function to deploy a TuraAgent contract using wallet credentials
-   * @param address The wallet address
-   * @param password The wallet password to decrypt private key
-   * @returns The deployed contract address
-   */
-  public async deployTestAgent(address: string, password: string): Promise<string> {
-    try {
-      console.log('Starting test deployment for address:', address);
-      
-      // Get wallet data using WalletManagerImpl
-      const walletManager = new WalletManagerImpl();
-      const walletData = await walletManager.getWalletData(address, password);
-      if (!walletData.privateKey) {
-        throw new Error('No private key found for this address');
-      }
-
-      // Get provider and create signer
-      const provider = getTuraProvider();
-      const signer = new ethers.Wallet(walletData.privateKey, provider);
-
-      // Check TURA balance before deployment
-      const hasSufficientBalance = await checkTuraBalance(provider, address);
-      if (!hasSufficientBalance) {
-        throw new Error('Insufficient TURA balance. You need at least 0.1 TURA to deploy an agent contract.');
-      }
-
-      // Deploy the contract
-      console.log('Deploying test TuraAgent contract...');
-      const contractAddress = await deployTuraAgent(signer);
-      console.log('Test agent deployed at:', contractAddress);
-
-      return contractAddress;
-    } catch (error) {
-      console.error('Test deployment failed:', error);
-      throw error;
-    }
-  }
-
-=======
   /**
    * Test function to deploy a TuraAgent contract using wallet credentials
    * @param address The wallet address
@@ -647,8 +567,6 @@ Deploying this agent will cost 0.1 TURA. Type 'confirm' to proceed with deployme
       throw error;
     }
   }
-
->>>>>>> Stashed changes
   private async checkAgentStatus(): Promise<string> {
     const address = localStorage.getItem('lastWalletAddress');
     if (!address) {
