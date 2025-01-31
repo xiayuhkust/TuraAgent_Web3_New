@@ -12,21 +12,20 @@ import { WalletManagerImpl } from '../lib/wallet_manager';
 import { AgentData } from '../types/agentTypes';
 import { addAgent, getAgentsByOwner } from '../lib/agentStorage';
 
-// Initialize DeepSeek client for intent recognition
+// Initialize OpenAI client for intent recognition
 let openai: OpenAI | undefined;
 try {
-  if (import.meta.env.VITE_DEEPSEEK_API_KEY) {
-    console.log('Initializing DeepSeek client for AgentManager');
+  if (import.meta.env.VITE_OPENAI_API_KEY) {
+    console.log('Initializing OpenAI client for AgentManager');
     openai = new OpenAI({
-      baseURL: 'https://api.deepseek.com/v1',
-      apiKey: import.meta.env.VITE_DEEPSEEK_API_KEY,
+      apiKey: import.meta.env.VITE_OPENAI_API_KEY,
       dangerouslyAllowBrowser: true
     });
   } else {
-    console.warn('DeepSeek API key not found - agent registration functionality will be limited');
+    console.warn('OpenAI API key not found - agent registration functionality will be limited');
   }
 } catch (error) {
-  console.warn('Failed to initialize DeepSeek client:', error);
+  console.warn('Failed to initialize OpenAI client:', error);
 }
 
 /**
@@ -115,11 +114,11 @@ Remember: Always respond with exactly one category name in uppercase with unders
       if (openai) {
         try {
           console.log('Processing message in AgentManager:', text);
-          console.log('Calling DeepSeek API for intent recognition');
+          console.log('Calling OpenAI API for intent recognition');
           console.log('Current registration state:', this.registrationState);
           const result = await openai.chat.completions.create({
             messages: conversationLog,
-            model: "deepseek-chat",
+            model: "gpt-3.5-turbo",
             temperature: 0,
             max_tokens: 15,
             presence_penalty: 0,

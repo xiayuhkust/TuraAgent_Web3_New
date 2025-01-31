@@ -1,5 +1,4 @@
 import { Agent, OfficialAgent, Workflow } from "../types/agentTypes";
-import { WalletAgent } from "../agentic_workflow/WalletAgent";
 import { MockWalletAgent } from "../agentic_workflow/MockWalletAgent";
 import { AgentManager } from "../agentic_workflow/AgentManager";
 

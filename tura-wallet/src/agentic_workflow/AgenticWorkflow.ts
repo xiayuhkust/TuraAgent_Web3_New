@@ -54,9 +54,9 @@ export abstract class AgenticWorkflow {
           },
           { role: 'user', content: text }
         ],
-        model: "deepseek-chat",
+        model: "gpt-3.5-turbo",
         temperature: 0,
-        max_tokens: 15,
+        max_tokens: 150,
         response_format: { type: "json_object" }
       });
 
