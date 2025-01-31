@@ -118,10 +118,16 @@ export default function ChatPage() {
         if (storedAddress) {
           setChatAddress(storedAddress);
           await updateBalanceWithMessage(storedAddress);
-        }
-        
-        // Only set initial message if no messages exist
-        if (messages.length === 0) {
+          
+          // For logged in users, show balance instead of help
+          const balanceResponse = await walletAgent.processMessage('balance');
+          updateMessages([{
+            text: balanceResponse,
+            sender: 'agent',
+            timestamp: new Date().toISOString()
+          }]);
+        } else if (messages.length === 0) {
+          // Only show help for new users without a wallet
           const welcomeResponse = await walletAgent.processMessage('help');
           updateMessages([{
             text: welcomeResponse,
@@ -596,15 +602,23 @@ export default function ChatPage() {
                         }
                         agentInstance.setCurrentAddress(chatAddress);
                         setActiveAgent(agent);
-                        if (agent.name === 'WalletAgent' && chatAddress) {
-                          try {
-                            await updateBalanceWithMessage(chatAddress);
-                          } catch (error) {
-                            console.error('Failed to refresh balance on agent switch:', error);
+                        if (agent.name === 'WalletAgent') {
+                          if (chatAddress) {
+                            try {
+                              await updateBalanceWithMessage(chatAddress);
+                            } catch (error) {
+                              console.error('Failed to refresh balance on agent switch:', error);
+                            }
                           }
+                          // Only show messages if there are any, don't trigger help again
+                          const existingMessages = agentInstance.getMessages();
+                          if (existingMessages.length > 0) {
+                            updateMessages(existingMessages);
+                          }
+                        } else {
+                          const newMessages = agentInstance.getMessages();
+                          updateMessages(newMessages);
                         }
-                        const newMessages = agentInstance.getMessages();
-                        updateMessages(newMessages);
                       }}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -729,7 +743,7 @@ export default function ChatPage() {
         {/* Chat Area */}
         <div className="flex-1 flex flex-col">
           <div className="relative flex-1">
-            <ScrollArea className="flex-1 pr-4 overflow-visible">
+            <ScrollArea className="h-[calc(100vh-16rem)] pr-4">
               <div className="space-y-4 pb-16">
                 {messages.map((message) => (
                   <div
