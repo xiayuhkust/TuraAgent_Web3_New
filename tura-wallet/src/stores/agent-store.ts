@@ -29,6 +29,15 @@ export const officialAgents: OfficialAgent[] = [
   }
 ];
 
+// Event system for store updates
+const storeEvents = new EventTarget();
+
+export function subscribeToAgentStore(callback: () => void) {
+  const handler = () => callback();
+  storeEvents.addEventListener('agentUpdate', handler);
+  return () => storeEvents.removeEventListener('agentUpdate', handler);
+}
+
 export const agents: Agent[] = [];
 
 // Get references to existing agent instances
@@ -91,4 +100,5 @@ export const addAgentToStore = (newAgent: Agent): void => {
     status: 'VALID',
     chainId: 1337
   });
+  storeEvents.dispatchEvent(new Event('agentUpdate'));
 };
