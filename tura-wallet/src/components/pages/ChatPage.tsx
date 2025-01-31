@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, Send, Bot, Code2, Wallet, RefreshCw } from 'lucide-react';
+import { TuraWorkflow } from '../../agentic_workflow/TuraWorkflow';
 import { VirtualWalletSystem } from '../../lib/virtual-wallet-system';
 import { AgenticWorkflow } from '../../agentic_workflow/AgenticWorkflow';
 import { Button } from '../ui/button';
@@ -7,7 +8,7 @@ import { Input } from '../ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
-import { officialAgents, agents, workflows } from '../../stores/agent-store';
+import { officialAgents, agents, createWorkflows } from '../../stores/agent-store';
 import { Agent, OfficialAgent, Workflow } from '../../types/agentTypes';
 import { MockWalletAgent } from '../../agentic_workflow/MockWalletAgent';
 import {
@@ -35,12 +36,15 @@ interface SignatureDetails {
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const updateMessages = useCallback((newMessages: Message[]): void => {
-    setMessages(newMessages.map((msg, index) => ({
-      id: `${Date.now()}-${index}`,
-      text: msg.text,
-      timestamp: msg.timestamp,
-      sender: msg.sender
-    })));
+    setMessages(prevMessages => {
+      if (JSON.stringify(prevMessages) === JSON.stringify(newMessages)) return prevMessages;
+      return newMessages.map((msg, index) => ({
+        id: `${Date.now()}-${index}`,
+        text: msg.text,
+        timestamp: msg.timestamp,
+        sender: msg.sender
+      }));
+    });
   }, []);
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
   const [signatureDetails, setSignatureDetails] = useState<SignatureDetails | null>(null);
@@ -65,11 +69,33 @@ export default function ChatPage() {
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [pressProgress, setPressProgress] = useState(0);
+  const pressTimer = useRef<number | null>(null);
+  const [walletSystem] = useState(() => new VirtualWalletSystem());
+  const [workflows] = useState(() => createWorkflows(walletSystem));
+  const turaWorkflow = useRef<TuraWorkflow | null>(null);
+  
+  useEffect(() => {
+    if (workflows[0]?.instance instanceof TuraWorkflow) {
+      turaWorkflow.current = workflows[0].instance;
+    }
+  }, [workflows]);
   const [activeAgent, setActiveAgent] = useState<OfficialAgent | Agent | Workflow | null>(officialAgents[0]);
   const [chatAddress, setChatAddress] = useState('');
   const [chatBalance, setChatBalance] = useState('0');
   const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
   const [lastMessageTime, setLastMessageTime] = useState<number>(Date.now());
+
+  // Listen for wallet updates from TuraWorkflow
+  useEffect(() => {
+    const handleWalletUpdate = (event: CustomEvent<{ address: string; balance: string }>) => {
+      setChatAddress(event.detail.address);
+      setChatBalance(event.detail.balance);
+    };
+    
+    window.addEventListener('wallet-updated', handleWalletUpdate as EventListener);
+    return () => window.removeEventListener('wallet-updated', handleWalletUpdate as EventListener);
+  }, []);
   const [walletAgent] = useState(() => {
     const instance = officialAgents[0].instance;
     if (!(instance instanceof MockWalletAgent)) {
@@ -77,7 +103,6 @@ export default function ChatPage() {
     }
     return instance;
   });
-  const [walletSystem] = useState(() => new VirtualWalletSystem());
   
   // Update messages state when balance changes
   const updateBalanceWithMessage = useCallback(async (address: string) => {
@@ -109,7 +134,6 @@ export default function ChatPage() {
       if (hasInitialized.current) return;
       hasInitialized.current = true;
 
-      // Clear all guest conversations
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('chat_guest_')) {
           localStorage.removeItem(key);
@@ -122,7 +146,6 @@ export default function ChatPage() {
           setChatAddress(storedAddress);
           await updateBalanceWithMessage(storedAddress);
           
-          // For logged in users, show balance instead of help
           const balanceResponse = await walletAgent.processMessage('balance');
           updateMessages([{
             text: balanceResponse,
@@ -130,7 +153,6 @@ export default function ChatPage() {
             timestamp: new Date().toISOString()
           }]);
         } else if (messages.length === 0) {
-          // Only show help for new users without a wallet
           const welcomeResponse = await walletAgent.processMessage('help');
           updateMessages([{
             text: welcomeResponse,
@@ -151,10 +173,8 @@ export default function ChatPage() {
 
     initializeChat();
 
-    // Set up balance refresh interval after faucet transactions
     const refreshInterval = setInterval(async () => {
       const timeSinceLastMessage = Date.now() - lastMessageTime;
-      // Only refresh if there was a message in the last 30 seconds
       if (timeSinceLastMessage < 30000 && chatAddress) {
         try {
           await updateBalanceWithMessage(chatAddress);
@@ -162,10 +182,10 @@ export default function ChatPage() {
           console.error('Failed to refresh balance:', error);
         }
       }
-    }, 5000); // Check every 5 seconds
+    }, 5000);
 
     return () => clearInterval(refreshInterval);
-  }, [walletSystem, walletAgent, lastMessageTime, chatAddress, messages.length, updateBalanceWithMessage]);
+  }, [walletSystem, walletAgent, lastMessageTime, chatAddress, messages.length, updateBalanceWithMessage, updateMessages]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -478,7 +498,7 @@ export default function ChatPage() {
                         agent.instance.clearMessages();
                       }
                     });
-                    workflows.forEach(workflow => {
+                    workflows.forEach((workflow: Workflow) => {
                       if (workflow.instance?.clearMessages) {
                         workflow.instance.clearMessages();
                       }
@@ -584,6 +604,7 @@ export default function ChatPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
 
       <CardContent className="flex h-full gap-4">
@@ -704,7 +725,7 @@ export default function ChatPage() {
                   Workflows
                 </h3>
                 <div className="space-y-2">
-                  {workflows.map(workflow => (
+                  {workflows.map((workflow: Workflow) => (
                     <div
                       key={workflow.contractAddress}
                       className={`p-3 rounded-lg hover:bg-secondary/80 cursor-pointer transition-colors ${
@@ -741,10 +762,64 @@ export default function ChatPage() {
                       <div className="text-xs text-muted-foreground mt-1">
                         Fee: {workflow.fee} • Confirmations: {workflow.requiredConfirmations}
                       </div>
+                      
                     </div>
                   ))}
                 </div>
               </div>
+              {activeAgent?.name === 'TuraWorkflow' && (
+                <div className="relative w-full mt-4">
+                  <Button
+                    className="w-full"
+                    onMouseDown={() => {
+                      setPressProgress(0);
+                      const startTime = Date.now();
+                      const duration = 1000;
+                      const updateProgress = () => {
+                        const elapsed = Date.now() - startTime;
+                        const progress = Math.min(100, (elapsed / duration) * 100);
+                        setPressProgress(progress);
+                        if (progress < 100) {
+                          pressTimer.current = requestAnimationFrame(updateProgress);
+                        } else {
+                          if (turaWorkflow.current) {
+                            turaWorkflow.current.processMessage('start workflow').then((result) => {
+                              const message: ChatMessage = {
+                                id: Date.now().toString(),
+                                text: result,
+                                timestamp: new Date().toISOString(),
+                                sender: 'agent'
+                              };
+                              setMessages(prev => [...prev, message]);
+                            });
+                          }
+                        }
+                      };
+                      pressTimer.current = requestAnimationFrame(updateProgress);
+                    }}
+                    onMouseUp={() => {
+                      if (pressTimer.current) {
+                        cancelAnimationFrame(pressTimer.current);
+                      }
+                      setPressProgress(0);
+                    }}
+                    onMouseLeave={() => {
+                      if (pressTimer.current) {
+                        cancelAnimationFrame(pressTimer.current);
+                      }
+                      setPressProgress(0);
+                    }}
+                  >
+                    Start Workflow
+                  </Button>
+                  {pressProgress > 0 && (
+                    <div 
+                      className="absolute bottom-0 left-0 h-1 bg-primary-foreground transition-all"
+                      style={{ width: `${pressProgress}%` }}
+                    />
+                  )}
+                </div>
+              )}
             </div>
           </ScrollArea>
         </div>
