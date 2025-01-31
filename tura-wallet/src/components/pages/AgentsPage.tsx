@@ -102,6 +102,18 @@ export default function AgentsPage() {
                               Fee: {workflow.fee} TURA
                             </p>
                           </div>
+                          {workflow.name === 'TuraWorkflow' && (
+                            <div className="mt-4 flex justify-end">
+                              <Button
+                                onClick={async () => {
+                                  if (!workflow.instance) return;
+                                  await workflow.instance.processMessage('start workflow');
+                                }}
+                              >
+                                Start Workflow
+                              </Button>
+                            </div>
+                          )}
                         </div>
                         
                       </div>
