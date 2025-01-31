@@ -1,10 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Bot, List, Grid } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { workflows, subscribeToAgentStore, getAllAgents } from '../../stores/agent-store';
-import type { Workflow } from '../../types/agentTypes';
-import { TuraWorkflow } from '../../agentic_workflow/TuraWorkflow';
 
 const truncateText = (text: string | undefined, maxLength: number) => {
   if (!text || text.length <= maxLength) return text || '';
@@ -22,7 +20,6 @@ const TRUNCATE_LENGTHS = {
 export default function AgentsPage() {
   const [viewMode, setViewMode] = useState<'list' | 'card'>('card');
   const [, setForceRender] = useState(0);
-  const longPressTimer = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
     const unsubscribe = subscribeToAgentStore(() => {
@@ -32,13 +29,6 @@ export default function AgentsPage() {
       unsubscribe();
     };
   }, []);
-
-  const handleStartWorkflow = async (workflow: Workflow) => {
-    const instance = workflow.instance;
-    if (instance && instance instanceof TuraWorkflow) {
-      await instance.startWorkflow();
-    }
-  };
 
   return (
     <div className="container mx-auto p-4">
@@ -87,37 +77,7 @@ export default function AgentsPage() {
                           </div>
                         </div>
                       </div>
-                      {workflow.instance && workflow.instance instanceof TuraWorkflow && (
-                        <div className="flex flex-col">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="ml-4"
-                            onMouseDown={() => {
-                              longPressTimer.current = setTimeout(() => {
-                                if (confirm('Start TuraWorkflow?')) {
-                                  handleStartWorkflow(workflow);
-                                }
-                              }, 1000);
-                            }}
-                            onMouseUp={() => {
-                              if (longPressTimer.current) {
-                                clearTimeout(longPressTimer.current);
-                              }
-                            }}
-                            onMouseLeave={() => {
-                              if (longPressTimer.current) {
-                                clearTimeout(longPressTimer.current);
-                              }
-                            }}
-                          >
-                            Start Workflow (Long Press)
-                          </Button>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            Hold the button to start workflow
-                          </div>
-                        </div>
-                      )}
+                      
                     </div>
                   ) : (
                     <div
@@ -143,39 +103,7 @@ export default function AgentsPage() {
                             </p>
                           </div>
                         </div>
-                        {workflow.instance && workflow.instance instanceof TuraWorkflow && (
-                          <div className="flex flex-col mt-4">
-                            <div className="flex justify-end">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="min-w-[100px]"
-                                onMouseDown={() => {
-                                  longPressTimer.current = setTimeout(() => {
-                                    if (confirm('Start TuraWorkflow?')) {
-                                      handleStartWorkflow(workflow);
-                                    }
-                                  }, 1000);
-                                }}
-                                onMouseUp={() => {
-                                  if (longPressTimer.current) {
-                                    clearTimeout(longPressTimer.current);
-                                  }
-                                }}
-                                onMouseLeave={() => {
-                                  if (longPressTimer.current) {
-                                    clearTimeout(longPressTimer.current);
-                                  }
-                                }}
-                              >
-                                Start Workflow (Long Press)
-                              </Button>
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-1 text-right">
-                              Hold the button to start workflow
-                            </div>
-                          </div>
-                        )}
+                        
                       </div>
                     </div>
                   )
