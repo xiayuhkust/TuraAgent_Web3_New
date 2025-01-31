@@ -1,5 +1,9 @@
 import { Agent, OfficialAgent, Workflow } from "../types/agentTypes";
-import { WalletAgent } from "../agentic_workflow/WalletAgent";
+import { MockWalletAgent } from "../agentic_workflow/MockWalletAgent";
+import { MockAgentManager } from "../agentic_workflow/MockAgentManager";
+import { TuraWorkflow } from "../agentic_workflow/TuraWorkflow";
+
+// Initialize with mock implementations by default since RPC is unavailable
 
 // Official agents are managed separately from community agents
 export const officialAgents: OfficialAgent[] = [
@@ -11,7 +15,17 @@ export const officialAgents: OfficialAgent[] = [
     owner: '',  // No specific owner as it's a system agent
     chainId: 1337,
     status: 'OFFICIAL',
-    instance: new WalletAgent()
+    instance: new MockWalletAgent()  // Default to mock implementation
+  },
+  {
+    name: 'AgentManager',
+    contractAddress: '',  // No contract address as it's a built-in agent
+    description: 'Deploy and manage TuraAgent contracts with metadata collection',
+    feePerRequest: '0.0 TURA',
+    owner: '',  // No specific owner as it's a system agent
+    chainId: 1337,
+    status: 'OFFICIAL',
+    instance: new MockAgentManager()
   }
 ];
 
@@ -40,15 +54,16 @@ export const agents: Agent[] = [
 
 export const workflows: Workflow[] = [
   {
-    name: 'TuraAgentMultiSigV2',
-    contractAddress: '0x9dAB58844d1E118bA44D4fBF730717cF5371EC98',
-    description: 'Multi-signature wallet management workflow',
-    fee: '0.0 TURA',
-    owner: '0x08Bb6eA809A2d6c13D57166Fa3ede48C0ae9a70e',
+    name: 'TuraWorkflow',
+    contractAddress: '0x' + Array.from(crypto.getRandomValues(new Uint8Array(20))).map(b => b.toString(16).padStart(2, '0')).join(''),
+    description: 'Automated workflow for wallet setup and agent registration',
+    fee: '0.1 TURA',
+    owner: '0x0000000000000000000000000000000000000000',
     requiredConfirmations: 1,
     turaToken: '0x0000000000000000000000000000000000000000',
-    usdtToken: '0x18fbB6Cc5A960F2aFC9A47a30638Db7654944a5B',
-    status: 'VALID'
+    usdtToken: '0x0000000000000000000000000000000000000000',
+    status: 'VALID',
+    instance: new TuraWorkflow()
   }
 ];
 
